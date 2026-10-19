@@ -97,7 +97,13 @@ Deno.serve(async (req) => {
       targets = act;
     } else if (body.to && body.to.length) {
       targets = body.to.filter((u) => ids.has(u));
-      if (body.kind === "post") targets = targets.filter((u) => members!.find((m) => m.user_id === u)?.partner);
+      if (body.kind === "post") {
+        // feed: hanya ke teman (pasangan otomatis berteman)
+        const { data: fr } = await admin.from("couple_friends").select("user_a,user_b").eq("status", "accepted").or(`user_a.eq.${user.id},user_b.eq.${user.id}`);
+        const ok = new Set((fr ?? []).map((r) => (r.user_a === user.id ? r.user_b : r.user_a)));
+        const iAmPartner = !!members!.find((m) => m.user_id === user.id)?.partner;
+        targets = targets.filter((u) => ok.has(u) || (iAmPartner && members!.find((m) => m.user_id === u)?.partner));
+      }
     } else {
       targets = (members ?? []).filter((m) => m.partner).map((m) => m.user_id);
     }
@@ -148,6 +154,7 @@ Deno.serve(async (req) => {
     } else uid = cu.user?.id ?? null;
     const { error: iErr } = await admin.from("couple_members").upsert({ user_id: uid, name }, { onConflict: "user_id", ignoreDuplicates: true });
     if (iErr) return json({ error: iErr.message }, 500);
+    await admin.from("couple_friends").upsert({ user_a: uid < user.id ? uid : user.id, user_b: uid < user.id ? user.id : uid, requested_by: user.id, status: "accepted", accepted_at: new Date().toISOString() }, { onConflict: "user_a,user_b" });
     await admin.from("ravi_join_requests").upsert({ user_id: uid, name, email, status: "approved", decided_at: new Date().toISOString(), decided_by: user.id }, { onConflict: "user_id" });
     return json({ ok: true, user_id: uid });
   }
@@ -164,6 +171,7 @@ Deno.serve(async (req) => {
     if (bErr) return json({ error: bErr.message }, 500);
     await admin.from("couple_conv_members").update({ role: "left" }).eq("user_id", uid);
     await admin.from("push_subs").delete().eq("user_id", uid);
+    await admin.from("couple_friends").delete().or(`user_a.eq.${uid},user_b.eq.${uid}`);
     await admin.from("couple_members").delete().eq("user_id", uid);
     return json({ ok: true });
   }
@@ -187,6 +195,8 @@ Deno.serve(async (req) => {
       const key = uid < user.id ? uid + ":" + user.id : user.id + ":" + uid;
       const { data: c } = await admin.from("couple_convs").upsert({ kind: "dm", dm_key: key, created_by: user.id }, { onConflict: "dm_key" }).select("id").single();
       if (c) await admin.from("couple_conv_members").upsert([{ conv_id: c.id, user_id: uid }, { conv_id: c.id, user_id: user.id }], { onConflict: "conv_id,user_id", ignoreDuplicates: true });
+      // yang menyetujui otomatis berteman dengan anggota baru (supaya bisa langsung chat)
+      await admin.from("couple_friends").upsert({ user_a: uid < user.id ? uid : user.id, user_b: uid < user.id ? user.id : uid, requested_by: user.id, status: "accepted", accepted_at: new Date().toISOString() }, { onConflict: "user_a,user_b" });
     } catch (_) { /* tidak wajib */ }
     return json({ ok: true });
   }

@@ -134,7 +134,7 @@ function mark(cid,read){const k=cid+(read?"r":"d");if(CH.markT[k])return;CH.mark
 function markRead(cid){const c=CH.convs.get(cid);if(!c||document.hidden)return;if(c.unread){c.unread=0;badge();paintInbox()}mark(cid,true);
   /* versi lama masih memakai kolom read_at per pesan */
   const st=CH.msgs.get(cid);if(st){const ids=st.list.filter(m=>m.sender!==CH.me&&!m.read_at&&m.id>0).map(m=>m.id);if(ids.length){const ts=new Date().toISOString();st.list.forEach(m=>{if(ids.includes(m.id))m.read_at=ts});sb.from("couple_msgs").update({read_at:ts}).in("id",ids).then(()=>{},()=>{})}}}
-function notify(c,m){const txt=snip(m);if(route!=="chat"||CH.open!==c.id)qrShow(c,m);
+function notify(c,m){const txt=snip(m);if(route!=="chat"||(CH.open&&CH.open!==c.id))qrShow(c,m); /* di daftar chat tidak perlu jendela */
   try{if(document.hidden&&window.Notification&&Notification.permission==="granted"&&localStorage.getItem("bbp_push_ok")!=="1")new Notification(c.kind==="group"?title(c):R.name(m.sender),{body:txt.slice(0,120),icon:"icon-192.png",tag:"c"+c.id})}catch(e){}}
 
 /* ---------- jendela balas cepat (pesan masuk saat sedang di halaman lain) ---------- */
@@ -521,7 +521,12 @@ function paintPin(){const box=$$("#rmPin");if(!box)return;const c=CH.convs.get(C
   const d=document.createElement("div");d.className="rm-pin";d.innerHTML=`${ic("pin",16)}<span></span>`;d.querySelector("span").textContent=m?snip(m):L("Pesan disematkan","Pinned message");
   d.onclick=()=>jumpTo(c.pinned_msg);box.appendChild(d);
   if(!m)sb.from("couple_msgs").select("*").eq("id",c.pinned_msg).maybeSingle().then(({data})=>{if(data&&box.isConnected)d.querySelector("span").textContent=snip(data)},()=>{})}
-function paintNote(){const box=$$("#rmNote");if(box)box.innerHTML=""} /* enkripsi berjalan otomatis di belakang layar — tidak ada banner */
+/* enkripsi berjalan otomatis di belakang layar — tidak ada banner. Satu-satunya catatan: chat pribadi dengan orang yang belum berteman */
+function paintNote(){const box=$$("#rmNote");if(!box)return;box.innerHTML="";const c=CH.convs.get(CH.open);if(!c||c.kind!=="dm"||!R.friendState)return;const u=peer(c);if(!u)return;const st=R.friendState(u);if(st==="friend")return;
+  const d=document.createElement("div");d.className="rm-note";
+  d.innerHTML=`<span>👋</span><div><b>${L("Kalian belum berteman","You're not friends")}</b>${st==="in"?L("Dia mengirim permintaan pertemanan.","They sent you a friend request."):st==="out"?L("Menunggu dia menerima permintaanmu.","Waiting for them to accept."):L("Pesan baru bisa dikirim setelah berteman.","You can message once you're friends.")}</div>${st==="in"?`<button class="sm pri" data-fa="accept">${L("Terima","Accept")}</button>`:st==="none"?`<button class="sm pri" data-fa="request">＋ ${L("Tambah teman","Add friend")}</button>`:""}`;
+  box.appendChild(d);const b=d.querySelector("[data-fa]");if(b)b.onclick=async()=>{b.disabled=true;try{await R.friendAct(u,b.dataset.fa);paintNote()}catch(e){b.disabled=false;status(e.message||String(e),"err")}}}
+document.addEventListener("ravi-friends",()=>{try{paintNote()}catch(e){}});
 document.addEventListener("click",e=>{const m=e.target.closest&&e.target.closest(".mb");if(!m||!E2())return;const st=E2().state();
   if((st==="needpw"||st==="nokey")&&/🔒/.test(m.textContent||"")&&E2().autoUnlock)E2().autoUnlock({ask:true})});
 
@@ -789,7 +794,8 @@ async function sendBody(cid,o){const plain=R.pack(o);const tmp=tmpMsg(cid,plain)
     const inp=$$("#rmTxt");if(inp&&!inp.value&&o.t){inp.value=o.t;inp.dispatchEvent(new Event("input"))}status(e.message||String(e),"err");return}
   if(sealed!==plain&&window.RAVI_E2E)tmp.body=sealed;CH.pend.set(sealed,tmp);
   const {data,error}=await sb.from("couple_msgs").insert({conv_id:cid,body:sealed}).select().single();
-  if(error){CH.pend.delete(sealed);tmp.failed=true;const tk=document.querySelector("#m"+CSS.escape(String(tmp.id))+" .tk");if(tk)tk.dataset.s="fail";status(L("Pesan gagal terkirim: ","Message not sent: ")+error.message,"err");return}
+  if(error){CH.pend.delete(sealed);tmp.failed=true;const tk=document.querySelector("#m"+CSS.escape(String(tmp.id))+" .tk");if(tk)tk.dataset.s="fail";
+    const cv=CH.convs.get(cid),nf=cv&&cv.kind==="dm"&&R.friendState&&R.friendState(peer(cv))!=="friend";status(nf?L("Pesan tidak terkirim: kalian belum berteman.","Not sent: you're not friends."):L("Pesan gagal terkirim: ","Message not sent: ")+error.message,"err");return}
   if(CH.pend.has(sealed))confirmTmp(tmp,data);
   if(window.RAVI_NOTIFY)window.RAVI_NOTIFY("msg",{conv:cid,to:memberUids(cid).filter(u=>u!==CH.me),title:CH.convs.get(cid).kind==="group"?title(CH.convs.get(cid)):meName(),body:R.isEnc(sealed)?"💬 "+L("Pesan baru","New message"):R.isStk(o.t)?"🧸 "+L("Stiker","Sticker"):(o.t||"📎").slice(0,120)})}
 async function sendRaw(cid,o,img){const sealed=await seal(cid,R.pack(o));const {error}=await sb.from("couple_msgs").insert({conv_id:cid,body:sealed,img:img||null});if(error)throw error;
@@ -810,22 +816,34 @@ function startCall(video){const c=CH.convs.get(CH.open),u=peer(c);if(!u)return;i
 
 /* ---------- lembar: chat baru, grup, anggota ---------- */
 function newChatSheet(){const me=R.S.members[CH.me]||{},admin=me.role==="admin";
-  const ppl=Object.keys(R.S.members).filter(u=>u!==CH.me).sort((a,b)=>R.name(a).localeCompare(R.name(b)));
+  R.loadFriends&&R.loadFriends().catch(()=>{});
+  const all=Object.keys(R.S.members).filter(u=>u!==CH.me).sort((a,b)=>R.name(a).localeCompare(R.name(b)));
+  const fs=u=>R.friendState?R.friendState(u):"friend";
+  const reqs=all.filter(u=>fs(u)==="in"),fr=all.filter(u=>fs(u)==="friend"),oth=all.filter(u=>fs(u)==="none"||fs(u)==="out");
+  const row=(u,btn)=>`<div class="sh-it fr-row" data-u="${u}" data-n="${esc(R.name(u).toLowerCase())}" role="button" tabindex="0"><span class="avw" style="position:relative;display:inline-flex">${R.avatar(u,44)}<span class="dot${PR()&&PR().online(u)?" on":""}"></span></span><span class="tx"><b></b><span></span></span>${btn||""}</div>`;
   const bg=modal(L("Chat baru","New chat"),`<input id="ncQ" type="search" placeholder="${L("Cari nama…","Search name…")}" style="margin-bottom:8px"><div class="sh-list">
-    <button class="sh-it" data-x="group"><span class="bi">${ic("group",22)}</span><span class="tx"><b>${L("Grup baru","New group")}</b><span>${L("Chat bareng beberapa orang","Chat with several people")}</span></span></button>
+    <button class="sh-it" data-x="group"><span class="bi">${ic("group",22)}</span><span class="tx"><b>${L("Grup baru","New group")}</b><span>${L("Chat bareng beberapa teman","Chat with several friends")}</span></span></button>
     ${admin?`<button class="sh-it" data-x="add"><span class="bi" style="background:#25d366">${ic("plus",22)}</span><span class="tx"><b>${L("Undang orang ke RaVi","Invite someone to RaVi")}</b><span>${L("Kirim link lewat WhatsApp — dia daftar sendiri","Send a link via WhatsApp — they sign up themselves")}</span></span></button>`:""}
-    <div class="crumb" style="padding:8px 10px 2px;font-weight:800">${L("Kontak di RaVi","Contacts on RaVi")} (${ppl.length})</div>
-    ${ppl.map(u=>`<button class="sh-it" data-u="${u}" data-n="${esc(R.name(u).toLowerCase())}"><span class="avw" style="position:relative;display:inline-flex">${R.avatar(u,44)}<span class="dot${PR()&&PR().online(u)?" on":""}"></span></span><span class="tx"><b></b><span></span></span></button>`).join("")||`<div class="crumb" style="padding:10px">${L("Belum ada anggota lain.","No other members yet.")}</div>`}</div>`,()=>true,L("Tutup","Close"));
+    ${reqs.length?`<div class="crumb fr-h">👋 ${L("Permintaan pertemanan","Friend requests")} (${reqs.length})</div>${reqs.map(u=>row(u,`<span class="fr-b"><button class="sm pri" data-fa="accept">${L("Terima","Accept")}</button><button class="sm" data-fa="decline">${L("Tolak","Decline")}</button></span>`)).join("")}`:""}
+    <div class="crumb fr-h">${L("Teman","Friends")} (${fr.length})</div>
+    ${fr.map(u=>row(u)).join("")||`<div class="crumb" style="padding:6px 10px">${L("Belum punya teman. Tambahkan dari daftar di bawah — chat bisa dimulai setelah dia menerima.","No friends yet. Add someone below — you can chat once they accept.")}</div>`}
+    ${oth.length?`<div class="crumb fr-h">${L("Orang lain di RaVi","Other people on RaVi")}</div>${oth.map(u=>row(u,fs(u)==="out"?`<span class="fr-b"><button class="sm" data-fa="cancel" title="${L("Batalkan permintaan","Cancel request")}">⏳ ${L("Diminta","Requested")}</button></span>`:`<span class="fr-b"><button class="sm pri" data-fa="request">＋ ${L("Tambah teman","Add friend")}</button></span>`)).join("")}`:""}</div>`,()=>true,L("Tutup","Close"));
   const cc=bg.querySelector(".c");if(cc)cc.style.display="none";
-  bg.querySelectorAll("[data-u]").forEach(b=>{const u=b.dataset.u;b.querySelector(".tx b").textContent=R.name(u);b.querySelector(".tx span").textContent=PR()&&PR().online(u)?"online":R.S.members[u]?.partner&&R.S.members[CH.me]?.partner?"💑 "+L("Pasangan","Partner"):lastSeenTxt(R.S.members[u]?.last_seen);
-    b.onclick=()=>{bg.remove();const c=[...CH.convs.values()].find(x=>x.kind==="dm"&&peer(x)===u);if(c)openRoom(c.id);else openDM(u)}});
-  const q=bg.querySelector("#ncQ");q.oninput=()=>{const t=q.value.trim().toLowerCase();bg.querySelectorAll("[data-u]").forEach(b=>b.style.display=!t||b.dataset.n.includes(t)?"":"none")};
+  bg.querySelectorAll(".fr-row").forEach(b=>{const u=b.dataset.u,st=fs(u);b.querySelector(".tx b").textContent=R.name(u);
+    b.querySelector(".tx span").textContent=st==="in"?L("Ingin berteman denganmu","Wants to be your friend"):st==="out"?L("Menunggu dia menerima","Waiting for them to accept"):st!=="friend"?L("Belum berteman","Not friends yet"):PR()&&PR().online(u)?"online":R.S.members[u]?.partner&&R.S.members[CH.me]?.partner?"💑 "+L("Pasangan","Partner"):lastSeenTxt(R.S.members[u]?.last_seen);
+    b.querySelectorAll("[data-fa]").forEach(x=>x.onclick=async e=>{e.stopPropagation();x.disabled=true;try{const r=await R.friendAct(u,x.dataset.fa);
+        status(r==="accepted"?L("Sekarang kalian berteman 🤝","You're now friends 🤝"):r==="pending"?L("Permintaan pertemanan terkirim","Friend request sent"):L("Selesai","Done"),"ok");bg.remove();newChatSheet()}catch(err){x.disabled=false;status(err.message||String(err),"err")}});
+    const openIt=()=>{if(fs(u)!=="friend"){contactInfo(u);bg.remove();return}bg.remove();const c=[...CH.convs.values()].find(x=>x.kind==="dm"&&peer(x)===u);if(c)openRoom(c.id);else openDM(u)};
+    b.onclick=openIt;b.onkeydown=e=>{if(e.key==="Enter")openIt()}});
+  const q=bg.querySelector("#ncQ");q.oninput=()=>{const t=q.value.trim().toLowerCase();bg.querySelectorAll(".fr-row").forEach(b=>b.style.display=!t||b.dataset.n.includes(t)?"":"none")};
   bg.querySelector('[data-x="group"]').onclick=()=>{bg.remove();groupSheet()};
   const a=bg.querySelector('[data-x="add"]');if(a)a.onclick=()=>{bg.remove();window.RAVI_INVITE?window.RAVI_INVITE():addMemberSheet()}}
-function groupSheet(){const ppl=Object.keys(R.S.members).filter(u=>u!==CH.me).sort((a,b)=>R.name(a).localeCompare(R.name(b))),sel=new Set();const EMO=["👥","💑","👨‍👩‍👧","🎉","🍜","✈️","🏠","💼","🎮","📚","⚽","🐄"];let emo=EMO[0];
+const frCss=document.createElement("style");frCss.textContent=`.fr-h{padding:10px 10px 2px;font-weight:800}.fr-row{cursor:pointer}.fr-b{display:flex;gap:6px;flex:none;margin-left:auto}.fr-b .sm{white-space:nowrap}`;document.head.appendChild(frCss);
+window.RAVI_FRIENDS=()=>R.init().then(newChatSheet);
+function groupSheet(){const ppl=Object.keys(R.S.members).filter(u=>u!==CH.me&&(!R.isFriend||R.isFriend(u))).sort((a,b)=>R.name(a).localeCompare(R.name(b))),sel=new Set();const EMO=["👥","💑","👨‍👩‍👧","🎉","🍜","✈️","🏠","💼","🎮","📚","⚽","🐄"];let emo=EMO[0];
   const bg=modal(L("Grup baru","New group"),`<label>${L("Nama grup","Group name")}</label><input id="gnN" maxlength="60" placeholder="${L("mis. Keluarga, Trip Bali","e.g. Family, Bali trip")}">
     <div class="tl-row" style="margin:8px 0;flex-wrap:wrap;gap:4px" id="gnE">${EMO.map(e=>`<button class="sm${e===emo?" pri":""}" data-e="${e}" style="font-size:18px;min-width:40px">${e}</button>`).join("")}</div>
-    <div class="crumb" style="font-weight:800;margin:6px 0">${L("Pilih anggota","Choose members")}</div><div class="sh-list">${ppl.map(u=>`<button class="sh-it" data-u="${u}"><span class="ck">✓</span>${R.avatar(u,40)}<span class="tx"><b></b></span></button>`).join("")||`<div class="crumb">${L("Belum ada anggota lain. Admin bisa menambah anggota lewat ＋ → Tambah anggota.","No other members yet. The admin can add members via ＋ → Add member.")}</div>`}</div>
+    <div class="crumb" style="font-weight:800;margin:6px 0">${L("Pilih anggota","Choose members")}</div><div class="sh-list">${ppl.map(u=>`<button class="sh-it" data-u="${u}"><span class="ck">✓</span>${R.avatar(u,40)}<span class="tx"><b></b></span></button>`).join("")||`<div class="crumb">${L("Belum ada teman. Grup hanya bisa berisi teman — tambahkan teman dulu lewat ＋ → Chat baru.","No friends yet. Groups can only include friends — add friends first via ＋ → New chat.")}</div>`}</div>
     <div class="msg err hide" id="gnM" style="margin-top:8px"></div>`,
     async g=>{const n=g.querySelector("#gnN").value.trim(),m=g.querySelector("#gnM");const fail=t=>{m.textContent=t;m.classList.remove("hide");return false};
       if(!n)return fail(L("Isi nama grup dulu.","Enter a group name."));if(!sel.size)return fail(L("Pilih minimal 1 anggota.","Pick at least 1 member."));
@@ -845,8 +863,12 @@ function addMemberSheet(){
       btn.disabled=true;btn.textContent="…";try{await window.RAVI_FN({action:"add_member",name:n,email:e,password:p});await R.loadMembers();status(L("Anggota ditambahkan: ","Member added: ")+n,"ok")}catch(err){return fail(err.message||String(err))}},L("Tambah","Add"))}
 function contactInfo(u){if(!u)return;const mem=R.S.members[u]||{};
   const bg=modal(R.name(u),`<div style="display:flex;flex-direction:column;align-items:center;gap:6px;margin-bottom:10px">${R.avatar(u,96)}<div class="crumb">${PR()&&PR().online(u)?"🟢 online":esc(lastSeenTxt(mem.last_seen))}</div>${mem.partner&&R.S.members[CH.me]?.partner?`<div class="pill p-ok">💑 ${L("Pasangan","Partner")}</div>`:""}</div>
-    <div class="act-list" style="display:flex;flex-direction:column;gap:6px"><button class="sm" data-a="sc">🔐 ${L("Kode keamanan enkripsi","Encryption security code")}</button><button class="sm" data-a="star">⭐ ${L("Pesan berbintang","Starred messages")}</button><button class="sm" data-a="wp">🖼️ Wallpaper</button>${R.S.members[CH.me]?.role==="admin"&&!mem.partner?`<button class="sm" data-a="kick" style="color:var(--red)">🚫 ${L("Keluarkan dari RaVi","Remove from RaVi")}</button>`:""}</div>`,()=>true,"OK");
+    <div class="act-list" style="display:flex;flex-direction:column;gap:6px">${(()=>{const st=R.friendState?R.friendState(u):"friend";if(mem.partner&&R.S.members[CH.me]?.partner)return "";
+      return st==="friend"?`<button class="sm pri" data-a="chat">💬 ${L("Kirim pesan","Message")}</button><button class="sm" data-fa="remove">${L("Hapus pertemanan","Unfriend")}</button>`:st==="in"?`<button class="sm pri" data-fa="accept">🤝 ${L("Terima pertemanan","Accept friend request")}</button><button class="sm" data-fa="decline">${L("Tolak","Decline")}</button>`:st==="out"?`<button class="sm" data-fa="cancel">⏳ ${L("Permintaan terkirim · batalkan","Request sent · cancel")}</button>`:`<button class="sm pri" data-fa="request">＋ ${L("Tambah teman","Add friend")}</button><div class="crumb" style="text-align:center">${L("Kalian bisa chat setelah dia menerima.","You can chat once they accept.")}</div>`})()}<button class="sm" data-a="sc">🔐 ${L("Kode keamanan enkripsi","Encryption security code")}</button><button class="sm" data-a="star">⭐ ${L("Pesan berbintang","Starred messages")}</button><button class="sm" data-a="wp">🖼️ Wallpaper</button>${R.S.members[CH.me]?.role==="admin"&&!mem.partner?`<button class="sm" data-a="kick" style="color:var(--red)">🚫 ${L("Keluarkan dari RaVi","Remove from RaVi")}</button>`:""}</div>`,()=>true,"OK");
   const cc=bg.querySelector(".c");if(cc)cc.style.display="none";
+  bg.querySelectorAll("[data-fa]").forEach(x=>x.onclick=async()=>{const act=x.dataset.fa;if(act==="remove"&&!confirm(L("Hapus pertemanan dengan ","Unfriend ")+R.name(u)+L("? Kalian tidak bisa saling kirim pesan pribadi lagi.","? You won't be able to message each other privately.")))return;
+    x.disabled=true;try{const r=await R.friendAct(u,act);status(r==="accepted"?L("Sekarang kalian berteman 🤝","You're now friends 🤝"):r==="pending"?L("Permintaan pertemanan terkirim","Friend request sent"):L("Selesai","Done"),"ok");bg.remove();paintHead&&paintHead()}catch(err){x.disabled=false;status(err.message||String(err),"err")}});
+  const ch=bg.querySelector('[data-a="chat"]');if(ch)ch.onclick=()=>{bg.remove();const c=[...CH.convs.values()].find(x=>x.kind==="dm"&&peer(x)===u);if(c)openRoom(c.id);else openDM(u)};
   const kk=bg.querySelector('[data-a="kick"]');if(kk)kk.onclick=()=>{bg.remove();window.RAVI_REMOVE_MEMBER&&window.RAVI_REMOVE_MEMBER(u,()=>{scheduleInbox()})};
   bg.querySelector('[data-a="sc"]').onclick=()=>{bg.remove();E2()&&E2().safetyDialog(u,R.name(u))};
   bg.querySelector('[data-a="star"]').onclick=()=>{bg.remove();starredSheet()};bg.querySelector('[data-a="wp"]').onclick=()=>{bg.remove();wallSheet()}}
@@ -860,8 +882,8 @@ function groupInfo(c){const ms=active(c),meAdmin=(ms.find(x=>x.u===CH.me)||{}).r
   const n=bg.querySelector("#giN");if(n){n.value=c.name||"";bg.querySelector("#giSave").onclick=async()=>{const v=n.value.trim();if(!v)return;const {error}=await sb.from("couple_convs").update({name:v}).eq("id",c.id);if(error){alert(error.message);return}c.name=v;paintHead();paintInbox();status(L("Nama grup diganti","Group renamed"),"ok")}}
   bg.querySelectorAll("[data-sc]").forEach(b=>b.onclick=()=>{bg.remove();E2()&&E2().safetyDialog(b.dataset.sc,R.name(b.dataset.sc))});
   bg.querySelectorAll("[data-rm]").forEach(b=>b.onclick=async()=>{if(!confirm(L("Keluarkan ","Remove ")+R.name(b.dataset.rm)+"?"))return;const {error}=await sb.rpc("ravi_group_remove",{c:c.id,u:b.dataset.rm});if(error){alert(error.message);return}bg.remove();await loadInbox();paintHead()});
-  const add=bg.querySelector('[data-a="add"]');if(add)add.onclick=()=>{bg.remove();const have=new Set(ms.map(x=>x.u));const ppl=Object.keys(R.S.members).filter(u=>!have.has(u)),sel=new Set();
-    const g2=modal(L("Tambah anggota","Add members"),`<div class="sh-list">${ppl.map(u=>`<button class="sh-it" data-u="${u}"><span class="ck">✓</span>${R.avatar(u,40)}<span class="tx"><b></b></span></button>`).join("")||`<div class="crumb">${L("Semua anggota RaVi sudah ada di grup ini.","Every RaVi member is already in this group.")}</div>`}</div>`,
+  const add=bg.querySelector('[data-a="add"]');if(add)add.onclick=()=>{bg.remove();const have=new Set(ms.map(x=>x.u));const ppl=Object.keys(R.S.members).filter(u=>!have.has(u)&&(!R.isFriend||R.isFriend(u))),sel=new Set();
+    const g2=modal(L("Tambah anggota","Add members"),`<div class="sh-list">${ppl.map(u=>`<button class="sh-it" data-u="${u}"><span class="ck">✓</span>${R.avatar(u,40)}<span class="tx"><b></b></span></button>`).join("")||`<div class="crumb">${L("Semua temanmu sudah ada di grup ini.","All your friends are already in this group.")}</div>`}</div>`,
       async()=>{if(!sel.size)return false;const {error}=await sb.rpc("ravi_group_add",{c:c.id,p_members:[...sel]});if(error){alert(error.message);return false}await loadInbox();paintHead();sendBody(c.id,{t:"➕ "+[...sel].map(R.name).join(", ")+L(" ditambahkan oleh "," added by ")+meName()})},L("Tambah","Add"));
     g2.querySelectorAll("[data-u]").forEach(b=>{b.querySelector(".tx b").textContent=R.name(b.dataset.u);b.onclick=()=>{const u=b.dataset.u;sel.has(u)?sel.delete(u):sel.add(u);b.classList.toggle("on")}})};
   bg.querySelector('[data-a="star"]').onclick=()=>{bg.remove();starredSheet()};bg.querySelector('[data-a="wp"]').onclick=()=>{bg.remove();wallSheet()};

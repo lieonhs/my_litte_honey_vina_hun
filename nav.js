@@ -201,7 +201,7 @@ function drawRail(){let r=document.getElementById("sxRail");const on=document.do
   const cur=typeof route!=="undefined"?route:"",tab=window.RAVI_NOTIF_TAB_CUR||"act";
   const partner=!window.RS||!RS.S.me||RS.isPartner(RS.S.me);
   const adm=window.RAVI_ADMIN&&window.RAVI_ADMIN.isAdmin();
-  const items=[["fin",L("Keuangan","Money")],["sched",L("Jurnal Harian","Daily journal")],["-"],["chat",L("Chat","Chat")],["calls",L("Panggilan","Calls")],["notif",L("Notifikasi","Notifications")],...(partner?[["feed","Feed"]]:[]),["-"],["more",L("Alat & lainnya","Tools & more")],...(adm?[["admin",L("Panel Admin","Admin Panel")]]:[])];
+  const items=[["fin",L("Keuangan","Money")],["sched",L("Jurnal Harian","Daily journal")],["-"],["chat",L("Chat","Chat")],["calls",L("Panggilan","Calls")],["notif",L("Notifikasi","Notifications")],["feed","Feed"],["-"],["more",L("Alat & lainnya","Tools & more")],...(adm?[["admin",L("Panel Admin","Admin Panel")]]:[])];
   const sec=secOf(cur);
   const ap=window.RAVI_ADMIN_PENDING?window.RAVI_ADMIN_PENDING():0;
   const isOn=k=>(k==="fin"||k==="sched"||k==="more")?sec===k:k==="calls"?cur==="notif"&&tab==="calls":k==="notif"?cur==="notif"&&tab!=="calls":k===cur;

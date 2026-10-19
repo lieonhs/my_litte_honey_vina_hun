@@ -349,3 +349,13 @@ begin
 end $$;
 revoke all on function public.ravi_escrow_key() from public, anon;
 grant execute on function public.ravi_escrow_key() to authenticated;
+
+-- ===== Pertemanan: chat pribadi, grup & feed hanya dengan teman =====
+-- (diterapkan lewat migrasi ravi_friends + ravi_feed_friends)
+-- couple_friends(user_a<user_b, requested_by, status pending|accepted)
+-- are_friends(x,y): sama orang / sesama pasangan / status accepted
+-- ravi_friend(other, act): request | accept | decline | cancel | remove
+-- ravi_dm, ravi_group_create, ravi_group_add: menolak orang yang belum berteman
+-- policy restrictive dm_needs_friend di couple_msgs (insert ke chat pribadi butuh pertemanan)
+-- couple_posts.aud uuid[]: siapa yang boleh melihat postingan (postingan lama = pasangan)
+-- post_select/insert/update & cmt_select/insert memakai aud
