@@ -97,7 +97,7 @@ window.RAVI_MENU={open:openMenu,close:closeMenu};
    MODE "BERDUA" DI LAPTOP: Chat, Feed & Notifikasi memakai bingkai yang sama
    (rel ikon di kiri ala WhatsApp Web / Instagram) supaya pindah halaman tidak melompat.
    ===================================================================== */
-const SX=new Set(["chat","feed","notif"]);
+const SX=new Set(["chat","feed","notif","security"]);
 const sxCss=document.createElement("style");sxCss.textContent=`
 #sxRail{display:none}
 @media (min-width:861px){
@@ -105,7 +105,8 @@ const sxCss=document.createElement("style");sxCss.textContent=`
  html.sx header,html.sx aside#nav,html.sx .ms-hbtn,html.sx #tabbar{display:none!important}
  html.sx #sxRail{display:flex;position:fixed;left:0;top:0;bottom:0;width:var(--railW);z-index:45;flex-direction:column;align-items:center;gap:6px;padding:14px 0;background:var(--card);border-right:1px solid var(--line);animation:railIn .22s ease-out}
  html.sx main{margin-left:var(--railW)!important;padding-top:18px!important;max-width:none!important}
- html.sx #view{max-width:640px;margin:0 auto}
+ html.sx #view{max-width:680px;margin:0 auto}
+ html.sx #view .region{border-radius:18px}
  html.sx #status:not(.hide){position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:60;max-width:min(560px,90vw);box-shadow:0 6px 20px rgba(0,0,0,.18)}
  #sxRail .rl{all:unset;cursor:pointer;width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;color:var(--mute);position:relative;font-size:21px;transition:background .18s,color .18s,transform .18s}
  #sxRail .rl:hover,#sxRail .rl:focus-visible{background:var(--th);color:var(--ink)}#sxRail .rl:active{transform:scale(.92)}
@@ -126,7 +127,7 @@ body.mode-swap main{animation:viewIn .24s ease-out}
 @media (prefers-reduced-motion:reduce){#view.vt,body.mode-swap main,html.sx #sxRail,html.cx-desk .cx{animation:none!important}}`;document.head.appendChild(sxCss);
 const ic=(d)=>`<svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 const RI={chat:ic('<path d="M4 5h16v11H8l-4 4z"/>'),calls:ic('<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/>'),
-  notif:ic('<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/>'),feed:ic('<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/>'),
+  notif:ic('<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/>'),feed:ic('<rect x="7" y="3" width="14" height="14" rx="2.5"/><path d="M3 7v11.5A2.5 2.5 0 0 0 5.5 21H17"/><path d="M14 13.6s-3.2-2-3.2-3.9a1.6 1.6 0 0 1 3.2-.3 1.6 1.6 0 0 1 3.2.3c0 1.9-3.2 3.9-3.2 3.9z"/>'),
   dash:ic('<path d="M3 11 12 3l9 8"/><path d="M5 10v10h14V10"/>')};
 function drawRail(){let r=document.getElementById("sxRail");const on=document.documentElement.classList.contains("sx");if(!on){if(r)r.remove();return}
   const cur=typeof route!=="undefined"?route:"",tab=window.RAVI_NOTIF_TAB_CUR||"act";
@@ -137,7 +138,7 @@ function drawRail(){let r=document.getElementById("sxRail");const on=document.do
   const un=+(document.querySelector('aside a[data-r="chat"] .qbadge')?.textContent||0)||0,nf=window.RAVI_NOTIF_COUNT?window.RAVI_NOTIF_COUNT():0;
   r.innerHTML=`<img class="lg" src="icon-192.png" alt="RaVi">`+items.map(([k,n])=>`<button class="rl${isOn(k)?" on":""}" data-rl="${k}" aria-label="${n}"${isOn(k)?' aria-current="page"':""}>${RI[k]}<span class="tip">${n}</span>${k==="chat"?`<span class="rb" id="rlUn"${un?"":" hidden"}>${un||""}</span>`:k==="notif"?`<span class="rb" id="rlNf"${nf?"":" hidden"}>${nf||""}</span>`:""}</button>`).join("")+
     `<span style="flex:1"></span><button class="rl" data-rl="dash" aria-label="${L("Kembali ke RaVi","Back to RaVi")}">${RI.dash}<span class="tip">${L("Kembali ke RaVi","Back to RaVi")}</span></button>
-     <button class="rl me" data-rl="security" aria-label="${L("Akun & keamanan","Account & security")}">${window.RS&&RS.S.me?RS.avatar(RS.S.me,36):"👤"}<span class="tip">${L("Akun & keamanan","Account & security")}</span></button>`;
+     <button class="rl me${cur==="security"?" on":""}" data-rl="security" aria-label="${L("Akun & keamanan","Account & security")}">${window.RS&&RS.S.me?RS.avatar(RS.S.me,36):"👤"}<span class="tip">${L("Akun & keamanan","Account & security")}</span></button>`;
   r.querySelectorAll("[data-rl]").forEach(b=>b.onclick=()=>{const k=b.dataset.rl;if(k==="calls"){window.RAVI_NOTIF_TAB="calls";go("notif");return}if(k==="notif"){window.RAVI_NOTIF_TAB="act"}go(k)})}
 function applyMode(r){const h=document.documentElement,was=h.classList.contains("sx"),on=SX.has(r);
   h.classList.toggle("sx",on);if(was!==on&&matchMedia("(min-width:861px)").matches){document.body.classList.remove("mode-swap");void document.body.offsetWidth;document.body.classList.add("mode-swap");setTimeout(()=>document.body.classList.remove("mode-swap"),300)}

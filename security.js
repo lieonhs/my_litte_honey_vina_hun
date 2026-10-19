@@ -76,12 +76,19 @@ function pinDialog(title,len){return new Promise(res=>{let step=1,first="";
 async function vSecurity(v){
   const lk=getLock();
   v.innerHTML=page(L("Bantuan","Help"),"🔒 "+L("Keamanan","Security"))+`<div class="region"><div class="rb crumb">${L("Memuat…","Loading…")}</div></div>`;
+  if(window.RS)await RS.init().catch(()=>{});
   let aal=null,factors=[],pushOn=false;
   try{aal=(await sb.auth.mfa.getAuthenticatorAssuranceLevel()).data;factors=((await sb.auth.mfa.listFactors()).data||{}).totp||[]}catch(e){}
   try{const r=await navigator.serviceWorker?.getRegistration();pushOn=!!(r&&await r.pushManager.getSubscription())}catch(e){}
   if(route!=="security")return;
   const mfaOn=factors.length>0;
-  v.innerHTML=page(L("Bantuan","Help"),"🔒 "+L("Keamanan","Security"))+
+  if(!document.getElementById("accCss")){const c=document.createElement("style");c.id="accCss";c.textContent=`.acc-card{display:flex;gap:14px;align-items:center;padding:16px;border-radius:20px;margin-bottom:14px;background:linear-gradient(135deg,var(--accS),var(--card) 75%);border:1px solid var(--line);animation:viewIn .25s ease-out}
+.acc-card .tx{flex:1;min-width:0}.acc-card b{display:block;font-size:19px}.acc-card .tx>span{display:block;color:var(--mute);font-size:13px;overflow:hidden;text-overflow:ellipsis}
+.acc-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}.acc-tags span{font-size:11.5px;font-weight:800;padding:3px 9px;border-radius:99px;background:var(--card);border:1px solid var(--line)}
+.sec-row{transition:background .15s}.sec-row:hover{background:color-mix(in srgb,var(--th) 60%,transparent)}`;document.head.appendChild(c)}
+  const me=window.RS&&RS.S.me?RS.S.members[RS.S.me]:null,em=(document.getElementById("who")?.textContent||"").split(" ")[0];
+  v.innerHTML=page(L("Akun","Account"),"🔒 "+L("Akun & Keamanan","Account & Security"))+
+   `<div class="acc-card">${window.RS&&RS.S.me?RS.avatar(RS.S.me,64):"👤"}<div class="tx"><b>${esc(me?.name||em||"")}</b><span>${esc(em)}</span><div class="acc-tags">${me?.role==="admin"?`<span>👑 Admin</span>`:""}${me?.partner?`<span>💑 ${L("Pasangan","Partner")}</span>`:""}${mfaOn?`<span>🔐 2FA</span>`:""}${lk?`<span>🔢 PIN</span>`:""}</div></div></div>`+
    `<div class="region"><div class="rh">🛡️ ${L("Perlindungan akun","Account protection")}</div><div class="rb">
     <div class="sec-row"><span class="ic">🔐</span><div class="tx"><b>${L("Verifikasi 2 langkah (2FA)","Two-step verification (2FA)")} · ${mfaOn?`<span class="sec-ok">${L("Aktif","On")}</span>`:`<span class="sec-no">${L("Belum aktif","Off")}</span>`}</b>
      <div class="crumb">${L("Login butuh password + 6 angka dari Google Authenticator. Kalau password bocor, akun tetap aman. Database ikut menolak akses tanpa kode ini.","Sign-in needs your password + 6 digits from Google Authenticator. If your password leaks, the account stays safe. The database also refuses access without the code.")}</div><div id="mfaBox"></div></div>
