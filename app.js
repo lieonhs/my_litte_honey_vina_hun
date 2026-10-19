@@ -545,8 +545,27 @@ async function mfaGate(){
     $("mf_b").onclick=ok;inp.oninput=()=>{if(inp.value.replace(/\D/g,"").length===6)ok()};inp.onkeydown=e=>{if(e.key==="Enter")ok()};
     $("mf_x").onclick=async()=>{await sb.auth.signOut();mfaBusy=false;res(false)}})}
 
+/* ---------- keanggotaan: akun baru harus disetujui admin dulu ---------- */
+async function memberGate(uid){
+  try{const {data,error}=await sb.rpc("is_couple");if(error||data!==false)return true}catch(e){return true}
+  let rq=null;try{rq=(await sb.from("ravi_join_requests").select("status,name,created_at").eq("user_id",uid).maybeSingle()).data}catch(e){}
+  if(rq&&rq.status==="pending"){showWaiting(rq);return false}
+  try{localStorage.setItem("ravi_kicked",rq&&rq.status==="rejected"?"rejected":"1")}catch(e){}
+  await sb.auth.signOut();return false}
+function showWaiting(rq){let el=$("login");if(!el){el=document.createElement("div");el.id="login";el.className="login";document.body.appendChild(el)}
+  el.innerHTML=`<div class="box"><div style="background:var(--hdr);color:var(--hdrInk);padding:14px 16px;font-weight:600">RaVi</div>
+   <div style="padding:18px;text-align:center"><div style="font-size:46px;line-height:1">⏳</div><b style="display:block;font-size:17px;margin:8px 0 4px">Menunggu persetujuan admin</b>
+   <div class="crumb" style="line-height:1.5">Halo <b id="wtN"></b>! Akunmu sudah dibuat. Admin RaVi perlu menyetujui dulu sebelum kamu bisa masuk. Halaman ini akan terbuka otomatis begitu disetujui.</div>
+   <div class="crumb" style="margin-top:10px">Waiting for the admin to approve your account.</div>
+   <button class="sm" id="wtOut" style="margin-top:16px">Keluar</button></div></div>`;
+  $("wtN").textContent=rq.name||"";$("wtOut").onclick=async()=>{await sb.auth.signOut();location.reload()};
+  const t=setInterval(async()=>{try{const {data}=await sb.rpc("is_couple");if(data===true){clearInterval(t);const ss=(await sb.auth.getSession()).data.session;
+      if(ss){$("login")?.remove();startData(ss.user.id,ss.user.email)}else location.reload();return}
+    const {data:r}=await sb.from("ravi_join_requests").select("status").eq("user_id",(await sb.auth.getSession()).data.session.user.id).maybeSingle();
+    if(r&&r.status==="rejected"){clearInterval(t);try{localStorage.setItem("ravi_kicked","rejected")}catch(e){}await sb.auth.signOut();location.reload()}}catch(e){}},8000)}
 async function startData(uid,email){
   if(!(await mfaGate()))return;
+  if(!(await memberGate(uid)))return;
   $("login")?.remove();if(email)$("who").textContent=email+" · IDR";sample=receiptReader;col=makeCol(uid);
   col.onSnapshot(snap=>{closed=[];window.BILLS=null;window.PREFS=null;window.EVDOCS=[];window.DIARY={};window.NOTES=[];window.QUEST=null;window.TOOLS=null;accState={};jeDocs=[];legacyTx=[];budgets={};legacyPlans={};coaExtra=[];
     snap.docs.forEach(doc=>{const v=doc.data(),k=doc.id;

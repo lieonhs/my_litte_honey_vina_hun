@@ -185,12 +185,14 @@ async function guard(){if(busy||typeof sb==="undefined"||!sb||typeof col==="unde
   try{const {data:s}=await sb.auth.getSession();if(!s||!s.session)return;
     const {data,error}=await sb.rpc("is_couple");if(error)return;      /* jaringan putus ≠ dikeluarkan */
     if(data===true){was=true;return}
-    if(data===false&&was!==false){was=false;try{localStorage.setItem("ravi_kicked","1")}catch(e){}await sb.auth.signOut();location.reload()}}
+    if(data===false&&was!==false){was=false;let rq=null;try{rq=(await sb.from("ravi_join_requests").select("status").eq("user_id",s.session.user.id).maybeSingle()).data}catch(e){}
+      if(rq&&rq.status==="pending"){location.reload();return}
+      try{localStorage.setItem("ravi_kicked",rq&&rq.status==="rejected"?"rejected":"1")}catch(e){}await sb.auth.signOut();location.reload()}}
   catch(e){}finally{busy=false}}
 setInterval(()=>{if(!document.hidden)guard()},30000);
 document.addEventListener("visibilitychange",()=>{if(!document.hidden)guard()});
 addEventListener("load",()=>setTimeout(guard,4000));
 /* pesan di layar login */
 if(typeof showLogin==="function"){const _sl=showLogin;showLogin=function(msg){let k=null;try{k=localStorage.getItem("ravi_kicked");localStorage.removeItem("ravi_kicked")}catch(e){}
-  return _sl.call(this,k?L("Akunmu sudah dikeluarkan dari RaVi oleh admin.","Your account was removed from RaVi by the admin."):msg)}}
+  return _sl.call(this,k==="rejected"?L("Permintaan bergabungmu ditolak admin RaVi.","Your request to join was declined by the RaVi admin."):k?L("Akunmu sudah dikeluarkan dari RaVi oleh admin.","Your account was removed from RaVi by the admin."):msg)}}
 })();

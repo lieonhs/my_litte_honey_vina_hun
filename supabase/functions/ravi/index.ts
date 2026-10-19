@@ -148,6 +148,7 @@ Deno.serve(async (req) => {
     } else uid = cu.user?.id ?? null;
     const { error: iErr } = await admin.from("couple_members").upsert({ user_id: uid, name }, { onConflict: "user_id", ignoreDuplicates: true });
     if (iErr) return json({ error: iErr.message }, 500);
+    await admin.from("ravi_join_requests").upsert({ user_id: uid, name, email, status: "approved", decided_at: new Date().toISOString(), decided_by: user.id }, { onConflict: "user_id" });
     return json({ ok: true, user_id: uid });
   }
 
@@ -164,6 +165,29 @@ Deno.serve(async (req) => {
     await admin.from("couple_conv_members").update({ role: "left" }).eq("user_id", uid);
     await admin.from("push_subs").delete().eq("user_id", uid);
     await admin.from("couple_members").delete().eq("user_id", uid);
+    return json({ ok: true });
+  }
+
+  // 7) Admin menyetujui / menolak permintaan bergabung.
+  if (body.action === "approve_join" || body.action === "reject_join") {
+    if (me.role !== "admin") return json({ error: "Hanya admin RaVi." }, 403);
+    const uid = String((body as { user_id?: string }).user_id ?? "");
+    const { data: rq } = await admin.from("ravi_join_requests").select("*").eq("user_id", uid).maybeSingle();
+    if (!rq || rq.status !== "pending") return json({ error: "Permintaan tidak ditemukan / sudah diputuskan." }, 404);
+    const now = new Date().toISOString();
+    if (body.action === "reject_join") {
+      await admin.auth.admin.updateUserById(uid, { ban_duration: "876000h" });
+      await admin.from("ravi_join_requests").update({ status: "rejected", decided_at: now, decided_by: user.id }).eq("user_id", uid);
+      return json({ ok: true });
+    }
+    const { error: iErr } = await admin.from("couple_members").upsert({ user_id: uid, name: rq.name }, { onConflict: "user_id", ignoreDuplicates: true });
+    if (iErr) return json({ error: iErr.message }, 500);
+    await admin.from("ravi_join_requests").update({ status: "approved", decided_at: now, decided_by: user.id }).eq("user_id", uid);
+    try {
+      const key = uid < user.id ? uid + ":" + user.id : user.id + ":" + uid;
+      const { data: c } = await admin.from("couple_convs").upsert({ kind: "dm", dm_key: key, created_by: user.id }, { onConflict: "dm_key" }).select("id").single();
+      if (c) await admin.from("couple_conv_members").upsert([{ conv_id: c.id, user_id: uid }, { conv_id: c.id, user_id: user.id }], { onConflict: "conv_id,user_id", ignoreDuplicates: true });
+    } catch (_) { /* tidak wajib */ }
     return json({ ok: true });
   }
 

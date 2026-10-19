@@ -1,6 +1,8 @@
 // Edge Function "ravi-join": pendaftaran lewat LINK UNDANGAN dari admin RaVi.
 // Tanpa login (verify_jwt = false) — keamanan dari kode undangan acak, sekali pakai, berlaku 7 hari.
+// Akun baru BELUM bisa memakai RaVi sampai admin menyetujui (ravi_join_requests → Panel Admin).
 import { createClient } from "npm:@supabase/supabase-js@2";
+import webpush from "npm:web-push@3.6.7";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -42,13 +44,19 @@ Deno.serve(async (req) => {
     return json({ error: /already|registered|exists/i.test(cErr?.message ?? "") ? "Email ini sudah terdaftar. Coba masuk (login) saja." : (cErr?.message ?? "Gagal membuat akun.") }, 400);
   }
   const uid = cu.user.id;
-  await admin.from("couple_members").upsert({ user_id: uid, name }, { onConflict: "user_id", ignoreDuplicates: true });
+  await admin.from("ravi_join_requests").upsert({ user_id: uid, name, email, code, status: "pending" }, { onConflict: "user_id" });
   await admin.from("ravi_invites").update({ used_by: uid, used_at: new Date().toISOString() }).eq("code", code);
-  // langsung buat chat dengan pengundang
+  // beri tahu admin: pusat notifikasi + notifikasi HP
+  const { data: admins } = await admin.from("couple_members").select("user_id").eq("role", "admin");
+  for (const a of admins ?? []) await admin.from("couple_activity").insert({ target: a.user_id, actor: uid, kind: "join", ref: uid, meta: { n: name } });
   try {
-    const key = dmKey(uid, inv.created_by);
-    const { data: c } = await admin.from("couple_convs").upsert({ kind: "dm", dm_key: key, created_by: inv.created_by }, { onConflict: "dm_key" }).select("id").single();
-    if (c) await admin.from("couple_conv_members").upsert([{ conv_id: c.id, user_id: uid }, { conv_id: c.id, user_id: inv.created_by }], { onConflict: "conv_id,user_id", ignoreDuplicates: true });
+    const { data: k } = await admin.from("ravi_keys").select("vapid_pub,vapid_priv").eq("id", 1).maybeSingle();
+    if (k && admins?.length) {
+      webpush.setVapidDetails("mailto:ravi@example.com", k.vapid_pub, k.vapid_priv);
+      const { data: subs } = await admin.from("push_subs").select("endpoint,sub").in("user_id", admins.map((a) => a.user_id));
+      const payload = JSON.stringify({ kind: "act", title: "RaVi · Permintaan bergabung", body: name + " ingin bergabung. Setujui di Panel Admin.", url: "./?go=admin", tag: "join" });
+      for (const s of subs ?? []) { try { await webpush.sendNotification(s.sub, payload, { TTL: 86400 }); } catch (_) { /* abaikan */ } }
+    }
   } catch (_) { /* tidak wajib */ }
   return json({ ok: true });
 });

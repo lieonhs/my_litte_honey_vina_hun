@@ -29,6 +29,7 @@ function describe(a){const who=R.name(a.actor),m=a.meta||{};
     case "post":return [who,L(" memposting foto baru."," posted a new photo."),"📷"];
     case "react":{const s=window.RAVI_CHAT&&findMsg(a.ref);return [who,L(" bereaksi "," reacted ")+(m.e||"❤️")+L(" ke pesanmu"," to your message")+(s?": “"+window.RAVI_CHAT.snip(s).slice(0,60)+"”":"."),m.e||"❤️"]}
     case "group":{const t=window.RAVI_CHAT?window.RAVI_CHAT.title(a.ref):"";return [who,L(" menambahkanmu ke grup "," added you to the group ")+(t?"“"+t+"”":"")+".","👥"]}
+    case "join":return [m.n||who,L(" ingin bergabung ke RaVi — ketuk untuk menyetujui"," wants to join RaVi — tap to review"),"🛡️"];
     case "call":return [who,m.r==="done"?(m.v?L(" video call denganmu"," video-called you"):L(" meneleponmu"," called you"))+" · "+fmt(m.d||0):m.r==="declined"?L(" — panggilan ditolak"," — call declined"):L(" — panggilan tak terjawab"," — missed call"),m.v?"🎥":"📞"];
     default:return [who,"",  "🔔"]}}
 const fmt=s=>Math.floor(s/60)+":"+String(s%60).padStart(2,"0");
@@ -60,7 +61,7 @@ function draw(v){if(!v)return;
   if(tab==="act"){if(!acts.length)body=`<div class="nf-empty">${window.pipi?R.pipiM("happy",80,"vnel"):""}<p>${L("Belum ada aktivitas. Like, komentar, reaksi pesan, dan undangan grup akan muncul di sini.","No activity yet. Likes, comments, message reactions and group invites show up here.")}</p></div>`;
     else{let last="";for(const a of acts){const g=group(a.created_at);if(g!==last){body+=`<div class="nf-sec">${g}</div>`;last=g}
       const p=(a.kind==="like"||a.kind==="comment"||a.kind==="post")?postOf(a):null;
-      body+=`<div class="nf-it${a.read_at?"":" new"}" data-a="${a.id}" role="button" tabindex="0"><span class="avw">${R.avatar(a.actor,46)}<span class="em"></span></span><div class="tx"><b></b><span class="d"></span><span class="tm">${R.ago(a.created_at)}</span></div>${p?`<img data-img="${esc(p.img)}" alt="">`:""}</div>`}}}
+      body+=`<div class="nf-it${a.read_at?"":" new"}" data-a="${a.id}" role="button" tabindex="0"><span class="avw">${a.kind==="join"?`<span class="rv-av txt" style="width:46px;height:46px;font-size:19px;background:#7c5cff">${esc(((a.meta||{}).n||"?").charAt(0).toUpperCase())}</span>`:R.avatar(a.actor,46)}<span class="em"></span></span><div class="tx"><b></b><span class="d"></span><span class="tm">${R.ago(a.created_at)}</span></div>${p?`<img data-img="${esc(p.img)}" alt="">`:""}</div>`}}}
   else{if(!calls.length)body=`<div class="nf-empty">📞<p>${L("Belum ada panggilan. Telepon atau video call dari Chat.","No calls yet. Start a voice or video call from Chat.")}</p></div>`;
     else{let last="";for(const a of calls){const g=group(a.created_at);if(g!==last){body+=`<div class="nf-sec">${g}</div>`;last=g}
       const m=a.meta||{},out=a.actor===N.me,other=out?a.target:a.actor,miss=!out&&m.r!=="done";
@@ -80,7 +81,7 @@ function draw(v){if(!v)return;
 async function markSeen(tab){const ids=N.list.filter(a=>a.target===N.me&&!a.read_at&&(tab==="calls"?a.kind==="call":a.kind!=="call")).map(a=>a.id);if(!ids.length)return;
   const ts=new Date().toISOString();setTimeout(()=>{N.list.forEach(a=>{if(ids.includes(a.id))a.read_at=ts});emit()},1200);
   try{await sb.from("couple_activity").update({read_at:ts}).in("id",ids)}catch(e){}}
-function openAct(a){if(a.kind==="like"||a.kind==="post"||a.kind==="comment"){const p=postOf(a);go("feed");if(p)setTimeout(()=>document.getElementById("post"+p.id)?.scrollIntoView({block:"start",behavior:"smooth"}),350);return}
+function openAct(a){if(a.kind==="join"){go("admin");return}if(a.kind==="like"||a.kind==="post"||a.kind==="comment"){const p=postOf(a);go("feed");if(p)setTimeout(()=>document.getElementById("post"+p.id)?.scrollIntoView({block:"start",behavior:"smooth"}),350);return}
   if(a.kind==="react"&&window.RAVI_CHAT){const c=(a.meta||{}).c;if(c){go("chat");window.RAVI_CHAT.jump(c,+a.ref)}return}
   if(a.kind==="group"&&window.RAVI_CHAT){go("chat");window.RAVI_CHAT.open(a.ref)}}
 function toast(a){if(route==="notif")return;const [w,d,e]=describe(a);
