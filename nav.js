@@ -92,4 +92,59 @@ const _go=go;go=function(r){closeMenu(true);return _go.apply(this,arguments)};
 new MutationObserver(()=>drawTabs()).observe(document.getElementById("nav")||document.body,{childList:true,subtree:true});
 addEventListener("load",()=>{drawTabs();headerBtn()});
 window.RAVI_MENU={open:openMenu,close:closeMenu};
+
+/* =====================================================================
+   MODE "BERDUA" DI LAPTOP: Chat, Feed & Notifikasi memakai bingkai yang sama
+   (rel ikon di kiri ala WhatsApp Web / Instagram) supaya pindah halaman tidak melompat.
+   ===================================================================== */
+const SX=new Set(["chat","feed","notif"]);
+const sxCss=document.createElement("style");sxCss.textContent=`
+#sxRail{display:none}
+@media (min-width:861px){
+ html.sx{--railW:68px}
+ html.sx header,html.sx aside#nav,html.sx .ms-hbtn,html.sx #tabbar{display:none!important}
+ html.sx #sxRail{display:flex;position:fixed;left:0;top:0;bottom:0;width:var(--railW);z-index:45;flex-direction:column;align-items:center;gap:6px;padding:14px 0;background:var(--card);border-right:1px solid var(--line);animation:railIn .22s ease-out}
+ html.sx main{margin-left:var(--railW)!important;padding-top:18px!important;max-width:none!important}
+ html.sx #view{max-width:640px;margin:0 auto}
+ html.sx #status:not(.hide){position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:60;max-width:min(560px,90vw);box-shadow:0 6px 20px rgba(0,0,0,.18)}
+ #sxRail .rl{all:unset;cursor:pointer;width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;color:var(--mute);position:relative;font-size:21px;transition:background .18s,color .18s,transform .18s}
+ #sxRail .rl:hover,#sxRail .rl:focus-visible{background:var(--th);color:var(--ink)}#sxRail .rl:active{transform:scale(.92)}
+ #sxRail .rl.on{background:var(--accS);color:var(--acc)}
+ #sxRail .rl.on::before{content:"";position:absolute;left:-11px;top:10px;bottom:10px;width:4px;border-radius:0 4px 4px 0;background:var(--acc)}
+ #sxRail .rl .rb{position:absolute;top:3px;right:3px;min-width:16px;height:16px;border-radius:99px;background:#ff4d6d;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 3px}#sxRail .rl .rb[hidden]{display:none}
+ #sxRail .lg{width:40px;height:40px;border-radius:12px;margin-bottom:8px;display:block}
+ #sxRail .rl.me .rv-av{width:36px;height:36px}
+ #sxRail .tip{position:absolute;left:58px;white-space:nowrap;background:var(--ink);color:var(--bg);font-size:12px;font-weight:700;padding:4px 8px;border-radius:8px;opacity:0;pointer-events:none;transform:translateX(-4px);transition:opacity .15s,transform .15s}
+ #sxRail .rl:hover .tip{opacity:1;transform:none}
+}
+@keyframes railIn{from{transform:translateX(-100%)}to{transform:none}}
+@keyframes sxIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+/* pergantian halaman yang halus di semua halaman */
+#view.vt{animation:viewIn .2s ease-out}
+@keyframes viewIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+body.mode-swap main{animation:viewIn .24s ease-out}
+@media (prefers-reduced-motion:reduce){#view.vt,body.mode-swap main,html.sx #sxRail,html.cx-desk .cx{animation:none!important}}`;document.head.appendChild(sxCss);
+const ic=(d)=>`<svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const RI={chat:ic('<path d="M4 5h16v11H8l-4 4z"/>'),calls:ic('<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/>'),
+  notif:ic('<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/>'),feed:ic('<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/>'),
+  dash:ic('<path d="M3 11 12 3l9 8"/><path d="M5 10v10h14V10"/>')};
+function drawRail(){let r=document.getElementById("sxRail");const on=document.documentElement.classList.contains("sx");if(!on){if(r)r.remove();return}
+  const cur=typeof route!=="undefined"?route:"",tab=window.RAVI_NOTIF_TAB_CUR||"act";
+  const partner=!window.RS||!RS.S.me||RS.isPartner(RS.S.me);
+  const items=[["chat",L("Chat","Chat")],["calls",L("Panggilan","Calls")],["notif",L("Notifikasi","Notifications")],...(partner?[["feed","Feed"]]:[])];
+  const isOn=k=>k==="calls"?cur==="notif"&&tab==="calls":k==="notif"?cur==="notif"&&tab!=="calls":k===cur;
+  if(!r){r=document.createElement("nav");r.id="sxRail";r.setAttribute("aria-label",L("Navigasi Berdua","Together navigation"));document.body.appendChild(r)}
+  const un=+(document.querySelector('aside a[data-r="chat"] .qbadge')?.textContent||0)||0,nf=window.RAVI_NOTIF_COUNT?window.RAVI_NOTIF_COUNT():0;
+  r.innerHTML=`<img class="lg" src="icon-192.png" alt="RaVi">`+items.map(([k,n])=>`<button class="rl${isOn(k)?" on":""}" data-rl="${k}" aria-label="${n}"${isOn(k)?' aria-current="page"':""}>${RI[k]}<span class="tip">${n}</span>${k==="chat"?`<span class="rb" id="rlUn"${un?"":" hidden"}>${un||""}</span>`:k==="notif"?`<span class="rb" id="rlNf"${nf?"":" hidden"}>${nf||""}</span>`:""}</button>`).join("")+
+    `<span style="flex:1"></span><button class="rl" data-rl="dash" aria-label="${L("Kembali ke RaVi","Back to RaVi")}">${RI.dash}<span class="tip">${L("Kembali ke RaVi","Back to RaVi")}</span></button>
+     <button class="rl me" data-rl="security" aria-label="${L("Akun & keamanan","Account & security")}">${window.RS&&RS.S.me?RS.avatar(RS.S.me,36):"👤"}<span class="tip">${L("Akun & keamanan","Account & security")}</span></button>`;
+  r.querySelectorAll("[data-rl]").forEach(b=>b.onclick=()=>{const k=b.dataset.rl;if(k==="calls"){window.RAVI_NOTIF_TAB="calls";go("notif");return}if(k==="notif"){window.RAVI_NOTIF_TAB="act"}go(k)})}
+function applyMode(r){const h=document.documentElement,was=h.classList.contains("sx"),on=SX.has(r);
+  h.classList.toggle("sx",on);if(was!==on&&matchMedia("(min-width:861px)").matches){document.body.classList.remove("mode-swap");void document.body.offsetWidth;document.body.classList.add("mode-swap");setTimeout(()=>document.body.classList.remove("mode-swap"),300)}
+  drawRail()}
+const _go3=go;go=function(r){const prev=typeof route!=="undefined"?route:null;applyMode(r);const o=_go3.apply(this,arguments);
+  const v=document.getElementById("view");if(v&&prev!==r){v.classList.remove("vt");void v.offsetWidth;v.classList.add("vt");setTimeout(()=>v.classList.remove("vt"),260)}
+  setTimeout(drawRail,0);return o};
+document.addEventListener("ravi-notif",drawRail);document.addEventListener("ravi-unread",()=>{const b=document.getElementById("rlUn");if(b){const n=+(document.querySelector('aside a[data-r="chat"] .qbadge')?.textContent||0)||0;b.hidden=!n;b.textContent=n||""}});
+addEventListener("load",()=>{applyMode(typeof route!=="undefined"?route:"");setTimeout(drawRail,2500)});
 })();

@@ -196,16 +196,9 @@ const css=document.createElement("style");css.textContent=`
 @media (min-width:861px){.cx-fab{display:none}}
 .cx-blank{margin:auto;text-align:center;color:var(--mute);max-width:34ch;padding:20px;font-size:14px;line-height:1.5}
 /* ---- tampilan laptop ala WhatsApp Web: layar penuh + rel ikon ---- */
-.cx-rail{display:none}
 @media (min-width:861px){
- html.cx-desk header,html.cx-desk aside#nav,html.cx-desk #tabbar,html.cx-desk .ms-hbtn{display:none!important}
  html.cx-desk body{overflow:hidden}
- html.cx-desk .cx{position:fixed;inset:0;z-index:40;height:auto;min-height:0;border:0;border-radius:0;grid-template-columns:64px minmax(320px,30%) 1fr}
- .cx-rail{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 0;background:var(--th);border-right:1px solid var(--line)}
- .rl{all:unset;cursor:pointer;width:44px;height:44px;border-radius:99px;display:flex;align-items:center;justify-content:center;color:var(--mute);position:relative;font-size:20px}
- .rl:hover,.rl:focus-visible{background:color-mix(in srgb,var(--ink) 8%,transparent)}.rl.on{background:color-mix(in srgb,var(--ink) 12%,transparent);color:var(--ink)}
- .rl .rb{position:absolute;top:2px;right:2px;min-width:16px;height:16px;border-radius:99px;background:#25d366;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 3px}.rl .rb[hidden]{display:none}
- .rl.me .rv-av{width:34px;height:34px}
+ html.cx-desk .cx{position:fixed;top:0;bottom:0;right:0;left:var(--railW,64px);z-index:40;height:auto;min-height:0;border:0;border-radius:0;grid-template-columns:minmax(320px,32%) 1fr;animation:sxIn .22s ease-out}
  html.cx-desk .cx-top h1{font-size:21px}
  html.cx-desk .cx-inbox{background:var(--card)}
  html.cx-desk .rm-h{min-height:60px;padding-left:14px} html.cx-desk #rmBack{display:none}
@@ -393,14 +386,7 @@ function viewChat(v){
   R.withInit(v,"💬 Chat",()=>{init().then(()=>drawShell(v)).catch(()=>R.setupCard(v,"💬 Chat"))})}
 function drawShell(v){
   const unN=window.RAVI_NOTIF_COUNT?window.RAVI_NOTIF_COUNT():0;
-  v.innerHTML=`<div class="cx" id="cx"><nav class="cx-rail" aria-label="${L("Navigasi chat","Chat navigation")}">
-     <button class="rl on" data-rl="chat" title="Chat" aria-label="Chat"><svg class="ico" viewBox="0 0 24 24" width="24" height="24"><path d="M4 5h16v11H8l-4 4z"/></svg><span class="rb" id="rlUn" hidden></span></button>
-     <button class="rl" data-rl="calls" title="${L("Panggilan","Calls")}" aria-label="${L("Panggilan","Calls")}">${ic("phone",24)}</button>
-     <button class="rl" data-rl="notif" title="${L("Notifikasi","Notifications")}" aria-label="${L("Notifikasi","Notifications")}">${ic("bell",24)}<span class="rb" id="rlNf"${unN?"":" hidden"}>${unN||""}</span></button>
-     ${R.isPartner(CH.me)?`<button class="rl" data-rl="feed" title="Feed" aria-label="Feed">${ic("img",24)}</button>`:""}
-     <span style="flex:1"></span>
-     <button class="rl" data-rl="dash" title="${L("Kembali ke RaVi","Back to RaVi")}" aria-label="${L("Kembali ke RaVi","Back to RaVi")}">🏠</button>
-     <button class="rl me" data-rl="security" title="${L("Akun & keamanan","Account & security")}" aria-label="${L("Akun & keamanan","Account & security")}">${R.avatar(CH.me,34)}</button></nav>
+  v.innerHTML=`<div class="cx" id="cx">
     <section class="cx-inbox" aria-label="${L("Daftar chat","Chat list")}">
      <div class="cx-top"><h1>💬 Chat</h1>
       <button class="cx-ib" id="cxCalls" aria-label="${L("Log panggilan","Call log")}" title="${L("Log panggilan","Call log")}">${ic("call")}</button>
@@ -416,7 +402,6 @@ function drawShell(v){
   const q=$$("#cxQ",v);q.value=CH.q;q.oninput=()=>{CH.q=q.value;paintInbox()};
   v.querySelectorAll("[data-f]").forEach(b=>b.onclick=()=>{filt=b.dataset.f;v.querySelectorAll("[data-f]").forEach(x=>x.classList.toggle("on",x===b));paintInbox()});
   $$("#cxNew",v).onclick=$$("#cxFab",v).onclick=newChatSheet;const ad=$$("#cxAdd",v);if(ad)ad.onclick=()=>window.RAVI_INVITE?window.RAVI_INVITE():addMemberSheet();
-  v.querySelectorAll("[data-rl]").forEach(b=>b.onclick=()=>{const r=b.dataset.rl;if(r==="chat")return;if(r==="calls"){window.RAVI_NOTIF_TAB="calls";go("notif");return}go(r)});
   document.documentElement.classList.add("cx-desk");
   $$("#cxBell",v).onclick=()=>go("notif");$$("#cxCalls",v).onclick=()=>{window.RAVI_NOTIF_TAB="calls";go("notif")};
   paintInbox();paintNotes();paintBell();

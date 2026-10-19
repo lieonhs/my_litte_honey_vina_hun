@@ -53,7 +53,7 @@ const css=document.createElement("style");css.textContent=`
 const group=t=>{const d=(Date.now()-new Date(t))/864e5,n=new Date(),x=new Date(t);if(x.toDateString()===n.toDateString())return L("Hari ini","Today");if(d<7)return L("7 hari terakhir","Last 7 days");if(d<30)return L("30 hari terakhir","Last 30 days");return L("Sebelumnya","Earlier")};
 function draw(v){if(!v)return;
   const acts=N.list.filter(a=>a.target===N.me&&a.kind!=="call"),calls=N.list.filter(a=>a.kind==="call");
-  const tab=window.RAVI_NOTIF_TAB||N.tab;window.RAVI_NOTIF_TAB=null;N.tab=tab;
+  const tab=window.RAVI_NOTIF_TAB||N.tab;window.RAVI_NOTIF_TAB=null;N.tab=tab;window.RAVI_NOTIF_TAB_CUR=tab;
   const missed=calls.filter(a=>a.target===N.me&&!a.read_at&&(a.meta||{}).r!=="done").length;
   const newActs=acts.filter(a=>!a.read_at).length;
   let body="";
@@ -69,7 +69,7 @@ function draw(v){if(!v)return;
   v.innerHTML=page(L("Berdua","Together"),"🔔 "+L("Notifikasi","Notifications"))+
     `<div class="nf-tabs" role="tablist"><button data-t="act" class="${tab==="act"?"on":""}">${L("Aktivitas","Activity")}${newActs?`<span class="b">${newActs}</span>`:""}</button><button data-t="calls" class="${tab==="calls"?"on":""}">📞 ${L("Panggilan","Calls")}${missed?`<span class="b">${missed}</span>`:""}</button></div>
      <div class="region"><div class="rb">${body}</div></div>`;
-  v.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{N.tab=b.dataset.t;draw(v)});
+  v.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{N.tab=b.dataset.t;draw(v);document.dispatchEvent(new CustomEvent("ravi-notif"))});
   v.querySelectorAll("[data-a]").forEach(el=>{const a=N.list.find(x=>x.id==el.dataset.a),[w,d,e]=describe(a);el.querySelector(".tx b").textContent=w;el.querySelector(".tx .d").textContent=d;el.querySelector(".em").textContent=e;
     el.onclick=()=>openAct(a);el.onkeydown=ev=>{if(ev.key==="Enter")openAct(a)}});
   v.querySelectorAll("[data-c]").forEach(el=>{const a=N.list.find(x=>x.id==el.dataset.c),o=a.actor===N.me?a.target:a.actor;el.querySelector(".tx b").textContent=R.name(o);
