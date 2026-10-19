@@ -130,6 +130,22 @@ const sxCss=document.createElement("style");sxCss.textContent=`
  #sxRail .rl.on{background:var(--accS);color:var(--acc)}
  #sxRail .rl.on::before{content:"";position:absolute;left:-11px;top:10px;bottom:10px;width:4px;border-radius:0 4px 4px 0;background:var(--acc)}
  #sxRail .rl .rb{position:absolute;top:3px;right:3px;min-width:16px;height:16px;border-radius:99px;background:#ff4d6d;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 3px}#sxRail .rl .rb[hidden]{display:none}
+ /* warna per bagian */
+ #sxRail .rl{--c:var(--acc)}
+ #sxRail .rl[data-rl=fin]{--c:#16a34a}#sxRail .rl[data-rl=sched]{--c:#f59e0b}#sxRail .rl[data-rl=chat]{--c:#0ea5e9}#sxRail .rl[data-rl=calls]{--c:#14b8a6}
+ #sxRail .rl[data-rl=notif]{--c:#ef4444}#sxRail .rl[data-rl=feed]{--c:#ec4899}#sxRail .rl[data-rl=more]{--c:#8b5cf6}#sxRail .rl[data-rl=admin]{--c:#6366f1}#sxRail .rl[data-rl=out]{--c:#94a3b8}
+ #sxRail .rl[data-rl]:not(.me){color:var(--c);background:color-mix(in srgb,var(--c) 9%,transparent)}
+ #sxRail .rl[data-rl]:not(.me):hover,#sxRail .rl[data-rl]:not(.me):focus-visible{background:color-mix(in srgb,var(--c) 18%,transparent);color:var(--c)}
+ #sxRail .rl[data-rl].on:not(.me){background:var(--c);color:#fff;box-shadow:0 6px 14px color-mix(in srgb,var(--c) 40%,transparent)}
+ #sxRail .rl.on::before{background:var(--c)!important}
+ #sxRail .rl[data-rl=out]{background:transparent}
+ html[data-sxs=fin]{--sxc:#16a34a}html[data-sxs=sched]{--sxc:#f59e0b}html[data-sxs=more]{--sxc:#8b5cf6}
+ html.sxp .sxp-head{background:linear-gradient(180deg,color-mix(in srgb,var(--sxc) 12%,var(--card)),var(--card))}
+ html.sxp .sxp-head h2{color:var(--sxc)}
+ html.sxp aside#nav .grp{color:var(--sxc)!important}
+ html.sxp aside#nav a.on{background:color-mix(in srgb,var(--sxc) 14%,transparent)!important;color:var(--sxc)!important;box-shadow:inset 3px 0 0 var(--sxc)!important}
+ html.sxp aside#nav a:hover{background:color-mix(in srgb,var(--sxc) 8%,transparent)}
+ html[data-sxs=sched] .sxp-money,html[data-sxs=more] .sxp-money{display:none}
  #sxRail .sep{width:28px;height:1px;background:var(--line);margin:4px 0}
  #sxRail .lg{width:40px;height:40px;border-radius:12px;margin-bottom:8px;display:block}
  #sxRail .rl.me .rv-av{width:36px;height:36px}

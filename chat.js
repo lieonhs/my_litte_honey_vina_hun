@@ -526,7 +526,7 @@ document.addEventListener("click",e=>{const m=e.target.closest&&e.target.closest
   if((st==="needpw"||st==="nokey")&&/🔒/.test(m.textContent||"")&&E2().autoUnlock)E2().autoUnlock({ask:true})});
 
 /* ---------- gambar pesan ---------- */
-const sysTop=c=>`<div class="rm-sys y" id="rmE2">🔐 ${L("Pesan & panggilan terenkripsi end-to-end. Tidak ada orang di luar chat ini, termasuk server, yang bisa membaca. Ketuk untuk kode keamanan.","Messages and calls are end-to-end encrypted. No one outside this chat, not even the server, can read them. Tap for the security code.")}</div>`;
+const sysTop=c=>`<div class="rm-sys y" id="rmE2">🔐 ${L("Pesan, foto & panggilan dienkripsi. Isinya tidak bisa dibaca dari database tanpa akses akun RaVi. Ketuk untuk kode keamanan.","Messages, photos and calls are encrypted. They can't be read from the database without RaVi account access. Tap for the security code.")}</div>`;
 function renderAll(cid,scroll){const list=$$("#rmList");if(!list)return;const st=CH.msgs.get(cid),c=CH.convs.get(cid);
   const voIds=st.list.filter(m=>m.img&&!CH.views.has(m.id)&&R.parse(R.pt(m.body)).vo).map(m=>m.id);if(voIds.length)loadViews(voIds).then(()=>{if(CH.open===cid)voIds.forEach(id=>{const m=st.list.find(x=>x.id===id);if(m)patchBubble(m)})}).catch(()=>{});
   const msgs=st.list.filter(m=>!CH.hidden.has(m.id));const fr=document.createDocumentFragment();
