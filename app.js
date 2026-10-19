@@ -95,7 +95,7 @@ function reconRows(){return CASH.map(a=>{const gl=bal(a.c,"9999-12-31"),st=accSt
 const NAV=[["Beranda",[["dash","Dashboard"]]],["Transaksi",[["input","Input Transaksi"],["journal","Jurnal Umum"]]],["Buku Besar",[["gl","Inquiry Buku Besar"],["tb","Neraca Saldo"],["recon","Rekonsiliasi Kas & Bank"]]],["Perencanaan",[["budget","Anggaran"]]],["Pelaporan",[["fs","Laporan Keuangan"]]],["Pengaturan",[["coa","Bagan Akun (COA)"],["period","Periode Akuntansi"]]]];
 function renderNav(){$("nav").innerHTML=NAV.map(([g,items])=>`<div class="grp">${g}</div>`+items.map(([k,n])=>`<a href="#" data-r="${k}" class="${route===k?"on":""}">${n}</a>`).join("")).join("");
   $("nav").querySelectorAll("a").forEach(a=>a.onclick=e=>{e.preventDefault();go(a.dataset.r)})}
-function go(r){route=r;$("nav").classList.remove("open");try{localStorage.setItem("bbp_route",r)}catch(e){}render();window.scrollTo(0,0)}
+function go(r){route=r;$("nav").classList.remove("open");try{localStorage.setItem("bbp_route",r);sessionStorage.setItem("bbp_route_s",r)}catch(e){}render();window.scrollTo(0,0)}
 $("ham").onclick=e=>{e.stopPropagation();$("nav").classList.toggle("open")};
 document.addEventListener("click",e=>{if($("nav").classList.contains("open")&&!$("nav").contains(e.target))$("nav").classList.remove("open")});
 const page=(crumb,title,acts="")=>`<div class="crumb">${crumb}</div><div class="ph"><h1>${title}</h1><div class="acts">${acts}</div></div>`;
@@ -591,7 +591,8 @@ async function startData(uid,email){
     render()},e=>status("Gagal memuat data: "+e.message,"err"))}
 
 /* ================= START ================= */
-try{const r=localStorage.getItem("bbp_route");if(r)route=r}catch(e){}
+/* buka aplikasi (sudah login) → langsung Chat; muat ulang di tab yang sama tetap di halaman terakhir */
+try{const r=sessionStorage.getItem("bbp_route_s");route=r||"chat"}catch(e){route="chat"}
 render();
 (async()=>{
   if(!sb){const why=!window.supabase?"Library Supabase gagal dimuat (cek koneksi internet, lalu muat ulang).":"config.js belum diisi atau salah (SUPABASE_URL & SUPABASE_ANON_KEY).";
