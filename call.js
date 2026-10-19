@@ -115,7 +115,7 @@ async function end(msg,isErr,kind){const dur=C.t0?Math.round((Date.now()-C.t0)/1
   const other=C.lastOther,res=kind||(dur?"done":"missed");
   if(wasCaller&&other){try{if(window.RS)RS.activity(other,"call",null,{v:video?1:0,d:dur||0,r:res});
     if(window.RAVI_CHAT){const cid=await window.RAVI_CHAT.dmWith(other);await window.RAVI_CHAT.sendBody(cid,{t:"[call:"+(video?"video":"voice")+":"+(dur||0)+":"+res+"]"})}}catch(e){}}}
-function reset(){clearInterval(C.pushIv);clearTimeout(C.wd1);clearTimeout(C.wd2);clearTimeout(C.ringT);clearInterval(C.ringIv);clearInterval(C.timer);try{C.pc&&C.pc.close()}catch(e){}
+function reset(){C.min=false;clearInterval(C.pushIv);clearTimeout(C.wd1);clearTimeout(C.wd2);clearTimeout(C.ringT);clearInterval(C.ringIv);clearInterval(C.timer);try{C.pc&&C.pc.close()}catch(e){}
   [C.local,C.share].forEach(s=>s&&s.getTracks().forEach(t=>t.stop()));
   Object.assign(C,{pc:null,local:null,remote:null,share:null,state:"idle",muted:false,camOff:false,t0:0,pendingIce:[],role:null,id:null,note:"",peerVideo:null,restarted:false});draw()}
 const fmt=s=>Math.floor(s/60)+":"+String(s%60).padStart(2,"0");
@@ -160,16 +160,32 @@ const css=document.createElement("style");css.textContent=`
 .cl-head-btns{display:flex;gap:6px;margin-left:auto}.cl-head-btns button{all:unset;cursor:pointer;width:38px;height:38px;border-radius:99px;display:flex;align-items:center;justify-content:center;font-size:18px;background:var(--accS)}
 .cl-head-btns button:focus-visible{outline:3px solid var(--acc)}
 .ch-call{align-self:center;font-size:12.5px;font-weight:700;color:var(--mute);background:var(--card);border:1px solid var(--line);border-radius:99px;padding:5px 12px;margin:6px 0;display:flex;gap:6px;align-items:center}
-.ch-call button{all:unset;cursor:pointer;color:var(--acc);font-weight:800}`;document.head.appendChild(css);
+.ch-call button{all:unset;cursor:pointer;color:var(--acc);font-weight:800}
+/* tombol kecilkan + mode mengambang (tetap bisa chat saat menelepon) */
+#callUI .cl-minb{all:unset;cursor:pointer;position:absolute;left:max(12px,env(safe-area-inset-left,0px));top:calc(12px + env(safe-area-inset-top,0px));z-index:4;width:42px;height:42px;border-radius:99px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.18);font-size:20px}
+#callUI.vid .cl-who{left:max(64px,env(safe-area-inset-left,0px))}
+#callUI.min{inset:auto;right:max(12px,env(safe-area-inset-right,0px));top:calc(12px + env(safe-area-inset-top,0px));width:auto;min-width:230px;height:auto;border-radius:20px;padding:8px 8px 8px 12px;flex-direction:row;gap:8px;box-shadow:0 12px 30px rgba(0,0,0,.35);cursor:pointer;animation:clMin .2s ease-out;z-index:450}
+@keyframes clMin{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:none}}
+#callUI.min .cl-pulse,#callUI.min .cl-lv,#callUI.min .cl-minb,#callUI.min .cl-who .pipi{display:none}
+#callUI.min .cl-who{position:static;flex-direction:column;align-items:flex-start;gap:0;text-align:left;flex:1;min-width:0}
+#callUI.min .cl-name{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px}#callUI.min .cl-st{font-size:12px}
+#callUI.min .cl-bar{position:static;padding:0;gap:6px;flex-wrap:nowrap}#callUI.min .cl-b{width:40px;height:40px;font-size:17px}#callUI.min .cl-b small{display:none}
+#callUI.min #clCam,#callUI.min #clFlip,#callUI.min #clShare{display:none}
+#callUI.min.vid{width:180px;min-width:0;height:240px;padding:0;flex-direction:column;justify-content:flex-end;overflow:hidden}
+#callUI.min.vid .cl-rv{position:absolute;inset:0}#callUI.min.vid .cl-who{display:none}#callUI.min.vid .cl-bar{position:relative;justify-content:center;padding:8px}
+@media (max-width:860px){#callUI.min{left:12px;right:12px;top:auto;bottom:calc(84px + env(safe-area-inset-bottom,0px))}#callUI.min.vid{left:auto}}
+html.cx-full #callUI.min{bottom:calc(76px + env(safe-area-inset-bottom,0px))}`;document.head.appendChild(css);
 function draw(){
   if(C.state==="idle"){if(C.ui){C.ui.remove();C.ui=null}return}
   if(!C.ui){C.ui=document.createElement("div");C.ui.id="callUI";C.ui.setAttribute("role","dialog");C.ui.setAttribute("aria-label",L("Panggilan","Call"));document.body.appendChild(C.ui)}
   const hasRemoteVid=C.remote&&C.remote.getVideoTracks().length&&(C.peerVideo===null?C.video:C.peerVideo),showVid=C.state==="live"&&hasRemoteVid,localVid=C.local&&C.local.getVideoTracks().length&&!C.camOff;
   const st={calling:L("Memanggil…","Calling…"),ringing:C.video?L("Video call masuk","Incoming video call"):L("Panggilan suara masuk","Incoming voice call"),connecting:L("Menyambungkan…","Connecting…"),live:""}[C.state];
-  C.ui.className=showVid?"vid":"";
+  const canMin=C.state!=="ringing";if(!canMin)C.min=false;
+  C.ui.className=(showVid?"vid":"")+(C.min?" min":"");
   C.ui.innerHTML=`${showVid?`<video class="cl-rv" autoplay playsinline></video>`:`<audio class="cl-ra" autoplay></audio>`}
    ${localVid?`<video class="cl-lv${C.facing==="environment"||C.share?" back":""}" autoplay playsinline muted></video>`:""}
    ${C.state==="ringing"||C.state==="calling"?`<span class="cl-pulse"></span>`:""}
+   ${canMin?`<button class="cl-minb" id="clMin" aria-label="${L("Kecilkan — buka chat sambil menelepon","Minimize — use chat during the call")}" title="${L("Kecilkan","Minimize")}">⌄</button>`:""}
    <div class="cl-who">${window.pipi?window.pipi(C.state==="live"?"happy":"party",120,avatarId(C.other)):""}<div class="cl-name"></div><div class="cl-st">${C.state==="live"?`<span class="cl-time">0:00</span>${C.video||C.peerVideo?" · 🎥":" · 📞"}${C.note?" · "+C.note:""}`:st}</div></div>
    <div class="cl-bar">${C.state==="ringing"?`<button class="cl-b red" id="clNo" aria-label="${L("Tolak","Decline")}">📵<small>${L("Tolak","Decline")}</small></button><button class="cl-b green" id="clYes" aria-label="${L("Angkat","Answer")}">${C.video?"🎥":"📞"}<small>${L("Angkat","Answer")}</small></button>`
     :`<button class="cl-b${C.muted?" off":""}" id="clMute" aria-pressed="${C.muted}" aria-label="${L("Bisukan","Mute")}">${C.muted?"🔇":"🎙️"}<small>${C.muted?L("Bisu","Muted"):L("Mik","Mic")}</small></button>
@@ -181,6 +197,9 @@ function draw(){
   const rv=C.ui.querySelector(".cl-rv,.cl-ra");if(rv&&C.remote){rv.srcObject=C.remote;rv.play&&rv.play().catch(()=>{})}
   const lv=C.ui.querySelector(".cl-lv");if(lv){lv.srcObject=C.share||C.local;lv.play&&lv.play().catch(()=>{})}
   const on=(id,f)=>{const b=C.ui.querySelector("#"+id);if(b)b.onclick=f};
+  on("clMin",e=>{e&&e.stopPropagation();C.min=true;draw();if(window.RAVI_CHAT&&typeof go==="function"){const o=C.other;(C.conv?Promise.resolve(C.conv):window.RAVI_CHAT.dmWith(o)).then(c=>{go("chat");window.RAVI_CHAT.open(c)}).catch(()=>go("chat"))}});
+  C.ui.onclick=e=>{if(C.min&&!e.target.closest(".cl-b")){C.min=false;draw()}};
+  C.ui.querySelectorAll(".cl-b").forEach(b=>b.addEventListener("click",e=>e.stopPropagation()));
   on("clYes",accept);on("clNo",decline);on("clEnd",hangup);on("clMute",toggleMute);on("clCam",toggleCam);on("clFlip",flip);on("clShare",shareScreen);tick()}
 
 window.RAVI_CALL={start,state:()=>C.state,peer:()=>C.other,

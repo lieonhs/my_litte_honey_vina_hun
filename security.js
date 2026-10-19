@@ -85,10 +85,10 @@ async function vSecurity(v){
   if(!document.getElementById("accCss")){const c=document.createElement("style");c.id="accCss";c.textContent=`.acc-card{display:flex;gap:14px;align-items:center;padding:16px;border-radius:20px;margin-bottom:14px;background:linear-gradient(135deg,var(--accS),var(--card) 75%);border:1px solid var(--line);animation:viewIn .25s ease-out}
 .acc-card .tx{flex:1;min-width:0}.acc-card b{display:block;font-size:19px}.acc-card .tx>span{display:block;color:var(--mute);font-size:13px;overflow:hidden;text-overflow:ellipsis}
 .acc-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}.acc-tags span{font-size:11.5px;font-weight:800;padding:3px 9px;border-radius:99px;background:var(--card);border:1px solid var(--line)}
-.sec-row{transition:background .15s}.sec-row:hover{background:color-mix(in srgb,var(--th) 60%,transparent)}`;document.head.appendChild(c)}
+.acc-bio{font-size:13px;margin-top:6px;line-height:1.4}.acc-song{font-size:12.5px;color:var(--acc);font-weight:700;margin-top:4px}.sec-row{transition:background .15s}.sec-row:hover{background:color-mix(in srgb,var(--th) 60%,transparent)}`;document.head.appendChild(c)}
   const me=window.RS&&RS.S.me?RS.S.members[RS.S.me]:null,em=(document.getElementById("who")?.textContent||"").split(" ")[0];
   v.innerHTML=page(L("Akun","Account"),"🔒 "+L("Akun & Keamanan","Account & Security"))+
-   `<div class="acc-card">${window.RS&&RS.S.me?RS.avatar(RS.S.me,64):"👤"}<div class="tx"><b>${esc(me?.name||em||"")}</b><span>${esc(em)}</span><div class="acc-tags">${me?.role==="admin"?`<span>👑 Admin</span>`:""}${me?.partner?`<span>💑 ${L("Pasangan","Partner")}</span>`:""}${mfaOn?`<span>🔐 2FA</span>`:""}${lk?`<span>🔢 PIN</span>`:""}</div></div></div>`+
+   `<div class="acc-card">${window.RS&&RS.S.me?RS.avatar(RS.S.me,64):"👤"}<div class="tx"><b>${esc(me?.name||em||"")}</b><span>${esc(em)}</span><div class="acc-tags">${me?.role==="admin"?`<span>👑 Admin</span>`:""}${me?.partner?`<span>💑 ${L("Pasangan","Partner")}</span>`:""}${mfaOn?`<span>🔐 2FA</span>`:""}${lk?`<span>🔢 PIN</span>`:""}</div>${me?.bio?`<div class="acc-bio"></div>`:""}${me?.song?.t?`<div class="acc-song"></div>`:""}</div><button class="sm pri" id="pfEdit">✏️ ${L("Edit profil","Edit profile")}</button></div>`+
    `<div class="region"><div class="rh">🛡️ ${L("Perlindungan akun","Account protection")}</div><div class="rb">
     <div class="sec-row"><span class="ic">🔐</span><div class="tx"><b>${L("Verifikasi 2 langkah (2FA)","Two-step verification (2FA)")} · ${mfaOn?`<span class="sec-ok">${L("Aktif","On")}</span>`:`<span class="sec-no">${L("Belum aktif","Off")}</span>`}</b>
      <div class="crumb">${L("Login butuh password + 6 angka dari Google Authenticator. Kalau password bocor, akun tetap aman. Database ikut menolak akses tanpa kode ini.","Sign-in needs your password + 6 digits from Google Authenticator. If your password leaks, the account stays safe. The database also refuses access without the code.")}</div><div id="mfaBox"></div></div>
@@ -195,4 +195,8 @@ addEventListener("load",()=>setTimeout(guard,4000));
 /* pesan di layar login */
 if(typeof showLogin==="function"){const _sl=showLogin;showLogin=function(msg){let k=null;try{k=localStorage.getItem("ravi_kicked");localStorage.removeItem("ravi_kicked")}catch(e){}
   return _sl.call(this,k==="rejected"?L("Permintaan bergabungmu ditolak admin RaVi.","Your request to join was declined by the RaVi admin."):k?L("Akunmu sudah dikeluarkan dari RaVi oleh admin.","Your account was removed from RaVi by the admin."):msg)}}
+document.addEventListener("click",e=>{if(e.target.closest&&e.target.closest("#pfEdit")&&window.RAVI_PROFILE)window.RAVI_PROFILE()});
+document.addEventListener("ravi-profile",()=>{if(typeof route!=="undefined"&&route==="security"&&typeof go==="function")go("security")});
+/* isi bio & lagu (teks, aman dari HTML) */
+new MutationObserver(()=>{const m=window.RS&&RS.S.me?RS.S.members[RS.S.me]:null;if(!m)return;const b=document.querySelector(".acc-card .acc-bio");if(b&&!b.textContent)b.textContent=m.bio||"";const sg=document.querySelector(".acc-card .acc-song");if(sg&&!sg.textContent)sg.textContent=RS.songTxt(m.song)}).observe(document.getElementById("view")||document.body,{childList:true,subtree:true});
 })();

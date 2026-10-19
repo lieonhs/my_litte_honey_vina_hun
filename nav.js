@@ -191,7 +191,7 @@ function panel(){const a=document.getElementById("nav"),h=document.documentEleme
     <div class="row"><span>⬆ ${L("Masuk","In")} <b>${rp(mo.inc)}</b></span><span>⬇ ${L("Keluar","Out")} <b>${rp(mo.exp)}</b></span></div></div>`:"");
   const mc=hd.querySelector(".sxp-money");if(mc){mc.onclick=()=>go("recon");mc.onkeydown=e=>{if(e.key==="Enter")go("recon")}}
   let ft=a.querySelector(".sxp-foot");if(!ft){ft=document.createElement("div");ft.className="sxp-foot"}a.appendChild(ft);
-  const ids=["questBtn","lookBtn","langBtn","themeBtn"].map(i=>document.getElementById(i)).filter(Boolean),who=document.getElementById("who");
+  const ids=["questBtn","lookBtn","langBtn","themeBtn"].map(i=>document.getElementById(i)).filter(x=>x&&getComputedStyle(x).display!=="none"),who=document.getElementById("who");
   ft.innerHTML=`<div class="who"></div>`+ids.map((b,i)=>`<button class="sm" data-px="${i}"></button>`).join("");
   ft.querySelector(".who").textContent=who?who.textContent:"";
   ft.querySelectorAll("[data-px]").forEach(b=>{const o=ids[+b.dataset.px];b.textContent=o.textContent.trim()||"•";b.title=o.title||o.getAttribute("aria-label")||"";b.onclick=()=>{o.click();setTimeout(panel,60)}})}

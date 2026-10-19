@@ -180,7 +180,7 @@ function sendTyping(cid,on){const x=CH.chans.get(cid);if(!x)return;const now=Dat
 
 /* ---------- isi pesan ---------- */
 const callRe=/^\[call:(voice|video):(\d+):(\w+)\]$/;
-function snip(m){if(!m)return "";const o=R.parse(R.pt(m.body));if(R.isStk(o.t))return "🧸 "+L("Stiker","Sticker");
+function snip(m){if(!m)return "";const o=R.parse(R.pt(m.body));if(R.isStk(o.t))return "🧸 "+L("Stiker","Sticker");if(o.sg)return "🎵 "+(o.sg.t||L("Lagu","Song"));if(o.loc)return "📍 "+L("Lokasi","Location");
   const cm=callRe.exec(o.t||"");if(cm)return (cm[1]==="video"?"🎥 ":"📞 ")+(cm[3]==="done"?L("Panggilan","Call"):L("Panggilan tak terjawab","Missed call"));
   if(o.vo)return (o.vo===1?"①":"②")+" "+L("Foto ","Photo ")+(o.vo===1?L("sekali lihat","view once"):L("dua kali lihat","view twice"));
   if(o.f)return R.fIcon(o.f.m)+" "+o.f.n;if(m.img&&!o.t)return "📷 "+L("Foto","Photo");if(m.img)return "📷 "+o.t;return (o.t||"").replace(/\s+/g," ").slice(0,90)}
@@ -471,7 +471,7 @@ document.addEventListener("ravi-e2e",()=>{if(route!=="chat")return;paintInbox();
    TAMPILAN: ruang chat
    ===================================================================== */
 async function openDM(u){try{const {data,error}=await sb.rpc("ravi_dm",{other:u});if(error)throw error;await loadInbox();openRoom(data)}catch(e){status(L("Gagal membuka chat: ","Couldn't open chat: ")+(e.message||e),"err")}}
-function openRoom(cid,o={}){if(!CH.convs.has(cid))return;
+function openRoom(cid,o={}){{const w=document.getElementById("qrWin");if(w&&w.dataset.c===String(cid))qrClose()}if(!CH.convs.has(cid))return;
   if(route!=="chat"){CH.open=cid;go("chat");return}
   if(CH.open&&CH.open!==cid){saveDraft();sendTyping(CH.open,false)}
   CH.open=cid;CH.reply=null;CH.stkOpen=false;CH.below=0;
@@ -580,9 +580,9 @@ function fillBubble(el,m,c,o,cont){const mine=m.sender===CH.me,stk=R.isStk(o.t)&
   const onlyImg=m.img&&!o.vo&&!o.t&&!o.r&&!o.f&&!o.fwd;
   el.className="mb "+(mine?"me":"them")+(cont?" cont":"")+(stk?" stk":"")+(onlyImg?" only-img":"");
   const rx=Object.entries(m.reacts||{});const grp=c.kind==="group"&&!mine&&!cont;
-  el.innerHTML=`<div class="bb">${grp?`<b class="who" style="color:${nameColor(m.sender)}"></b>`:""}${o.fwd?`<span class="fw">${ic("fwd",14)} ${L("Diteruskan","Forwarded")}</span>`:""}${o.r?`<button class="q" data-jump="${+o.r.id||0}"><b></b><span></span></button>`:""}${m.img&&o.vo?voHTML(m,c,o):m.img?`<img class="ph" data-img="${esc(m.img)}" alt="${L("Foto","Photo")}">`:""}${o.f?`<div class="fl"><span class="fi">${R.fIcon(o.f.m)}</span><div class="fm"><b></b><span>${R.fmtSize(o.f.s||0)}</span></div><button data-open aria-label="${L("Buka","Open")}">${/^video\//.test(o.f.m)?"▶":/^image\//.test(o.f.m)?"👁":"⬇"}</button></div><div class="md"></div>`:""}${stk?`<span class="stk-w" data-stk="${R.stkKey(o.t)}">${R.stkSVG(R.stkKey(o.t),132)}</span>`:o.t?`<span class="tx"></span>`:""}<span class="meta">${CH.stars.has(m.id)?`<span class="st">⭐</span>`:""}<span class="tm">${hhmm(m.created_at)}</span>${mine?TICK:""}</span></div>${rx.length?rxPill(rx):""}<button class="chev" tabindex="-1" aria-hidden="true">${ic("down",16)}</button>`;
+  el.innerHTML=`<div class="bb">${grp?`<b class="who" style="color:${nameColor(m.sender)}"></b>`:""}${o.fwd?`<span class="fw">${ic("fwd",14)} ${L("Diteruskan","Forwarded")}</span>`:""}${o.r?`<button class="q" data-jump="${+o.r.id||0}"><b></b><span></span></button>`:""}${m.img&&o.vo?voHTML(m,c,o):m.img?`<img class="ph" data-img="${esc(m.img)}" alt="${L("Foto","Photo")}">`:""}${o.f?`<div class="fl"><span class="fi">${R.fIcon(o.f.m)}</span><div class="fm"><b></b><span>${R.fmtSize(o.f.s||0)}</span></div><button data-open aria-label="${L("Buka","Open")}">${/^video\//.test(o.f.m)?"▶":/^image\//.test(o.f.m)?"👁":"⬇"}</button></div><div class="md"></div>`:""}${o.sg||o.loc?mediaCard(o):""}${stk?`<span class="stk-w" data-stk="${R.stkKey(o.t)}">${R.stkSVG(R.stkKey(o.t),132)}</span>`:o.t?`<span class="tx"></span>`:""}<span class="meta">${CH.stars.has(m.id)?`<span class="st">⭐</span>`:""}<span class="tm">${hhmm(m.created_at)}</span>${mine?TICK:""}</span></div>${rx.length?rxPill(rx):""}<button class="chev" tabindex="-1" aria-hidden="true">${ic("down",16)}</button>`;
   if(grp)el.querySelector(".who").textContent=R.name(m.sender);
-  const tx=el.querySelector(".tx");if(tx)tx.textContent=o.t;
+  const tx=el.querySelector(".tx");if(tx)tx.textContent=o.t;if(o.sg||o.loc)wireMedia(el,o);
   const q=el.querySelector(".q");if(q&&o.r){q.querySelector("b").textContent=o.r.w||"";q.querySelector("span").textContent=o.r.s||"";if(o.r.u)q.style.setProperty("--qc",nameColor(o.r.u))}
   const fn=el.querySelector(".fl .fm b");if(fn)fn.textContent=o.f.n;
   const tk=el.querySelector(".tk");if(tk)tk.dataset.s=tickState(m,c);
@@ -654,9 +654,53 @@ function wireRoom(cid){const c=CH.convs.get(cid),body=$$("#rmBody"),t=$$("#rmTxt
     if(CH.tray.length){const items=CH.tray.splice(0);items.forEach(it=>{if(R.isPhoto(it.file))it.vo=CH.vo});CH.vo=0;paintTray();let cap=CH.vo?"":body;for(const it of items){await sendFile(cid,it,it.vo?"":cap,r);if(!it.vo)cap=""}if(cap&&items.every(x=>x.vo))sendBody(cid,{t:cap});return}
     sendBody(cid,{t:body,r})}}
 function attMenu(btn){const old=$$(".rm-att");if(old){old.remove();return}const rm=$$("#rm");const d=document.createElement("div");d.className="rm-att";
-  d.innerHTML=`<button data-a="img"><span style="background:#7f66ff">${ic("img")}</span>${L("Foto & video","Photos & videos")}</button><button data-a="file"><span style="background:#5157ae">${ic("file")}</span>${L("Dokumen","Document")}</button>`;
+  d.innerHTML=`<button data-a="img"><span style="background:#7f66ff">${ic("img")}</span>${L("Foto & video","Photos & videos")}</button><button data-a="file"><span style="background:#5157ae">${ic("file")}</span>${L("Dokumen","Document")}</button><button data-a="song"><span style="background:#1db954;font-size:19px">🎵</span>${L("Lagu","Song")}</button><button data-a="loc"><span style="background:#1fa855;font-size:19px">📍</span>${L("Lokasi","Location")}</button>`;
   rm.appendChild(d);const close=e=>{if(!d.contains(e.target)&&e.target!==btn){d.remove();document.removeEventListener("pointerdown",close,true)}};setTimeout(()=>document.addEventListener("pointerdown",close,true),0);
-  d.querySelector('[data-a="img"]').onclick=()=>{d.remove();$$("#rmFile").click()};d.querySelector('[data-a="file"]').onclick=()=>{d.remove();$$("#rmAny").click()}}
+  d.querySelector('[data-a="img"]').onclick=()=>{d.remove();$$("#rmFile").click()};d.querySelector('[data-a="file"]').onclick=()=>{d.remove();$$("#rmAny").click()};
+  d.querySelector('[data-a="song"]').onclick=()=>{d.remove();songSheet(CH.open)};d.querySelector('[data-a="loc"]').onclick=()=>{d.remove();locSheet(CH.open)}}
+/* ---------- bagikan lagu ---------- */
+function songSheet(cid){if(!cid)return;const me=R.S.members[CH.me]||{},cur=me.song;
+  const bg=modal("🎵 "+L("Bagikan lagu","Share a song"),`${cur&&cur.t?`<button class="sm" id="sgMine" style="width:100%;margin-bottom:10px">▶ ${L("Lagu yang lagi kudengar: ","What I'm listening to: ")}<b></b></button>`:""}
+    <label>${L("Link Spotify atau YouTube","Spotify or YouTube link")}</label><input id="sgL" maxlength="300" placeholder="https://open.spotify.com/track/…">
+    <div class="crumb" style="margin:4px 0 8px">${L("Di Spotify: ⋯ → Bagikan → Salin link lagu. Di YouTube: Bagikan → Salin link.","In Spotify: ⋯ → Share → Copy song link. In YouTube: Share → Copy link.")}</div>
+    <div class="tl-row" style="gap:6px"><input id="sgT" maxlength="80" placeholder="${L("Judul lagu","Song title")}" style="flex:1"><input id="sgA" maxlength="60" placeholder="${L("Penyanyi","Artist")}" style="flex:1"></div>
+    <label style="margin-top:8px">${L("Pesan (opsional)","Message (optional)")}</label><input id="sgM" maxlength="300" placeholder="${L("mis. Lagu ini kamu banget 🥺","e.g. This song is so you 🥺")}">
+    <div class="msg err hide" id="sgE" style="margin-top:8px"></div>`,
+    async g=>{const u=g.querySelector("#sgL").value.trim(),t=g.querySelector("#sgT").value.trim(),a=g.querySelector("#sgA").value.trim(),e=g.querySelector("#sgE");
+      const fail=x=>{e.textContent=x;e.classList.remove("hide");return false};
+      if(!u&&!t)return fail(L("Isi link atau judul lagunya.","Enter a link or the song title."));if(u&&!R.songOK(u))return fail(L("Link harus dari Spotify atau YouTube.","The link must be from Spotify or YouTube."));
+      sendBody(cid,{t:g.querySelector("#sgM").value.trim(),sg:{u:u||undefined,t:t||undefined,a:a||undefined}})},L("Kirim","Send"));
+  const mb=bg.querySelector("#sgMine");if(mb){mb.querySelector("b").textContent=cur.t+(cur.a?" — "+cur.a:"");mb.onclick=()=>{bg.querySelector("#sgL").value=cur.u||"";bg.querySelector("#sgT").value=cur.t||"";bg.querySelector("#sgA").value=cur.a||""}}
+  setTimeout(()=>bg.querySelector("#sgL")?.focus(),50)}
+/* ---------- bagikan lokasi ---------- */
+function locSheet(cid){if(!cid)return;if(!navigator.geolocation){status(L("Perangkat ini tidak bisa membaca lokasi.","This device can't read location."),"warn");return}
+  status(L("Mengambil lokasi…","Getting location…"),"");
+  navigator.geolocation.getCurrentPosition(pos=>{status("");const c=pos.coords,loc={lat:+c.latitude.toFixed(6),lng:+c.longitude.toFixed(6),acc:Math.round(c.accuracy||0)};
+    const bg=modal("📍 "+L("Kirim lokasi","Send location"),`<div class="loc-map"><iframe title="${L("Peta","Map")}" loading="lazy" referrerpolicy="no-referrer" src="${locFrame(loc)}"></iframe></div>
+      <div class="crumb" style="margin-top:8px">${L("Akurasi sekitar ","Accurate to about ")}${loc.acc} m · ${L("Lokasi hanya terlihat oleh anggota chat ini (terenkripsi).","Only members of this chat can see it (encrypted).")}</div>
+      <label style="margin-top:8px">${L("Keterangan (opsional)","Note (optional)")}</label><input id="lcN" maxlength="80" placeholder="${L("mis. Aku di sini 😊","e.g. I'm here 😊")}">`,
+      ()=>{sendBody(cid,{t:bg.querySelector("#lcN").value.trim(),loc})},L("Kirim lokasi","Send location"))},
+    err=>{status(err.code===1?L("Izin lokasi ditolak. Izinkan lokasi untuk RaVi di pengaturan browser.","Location permission denied. Allow location for RaVi in your browser settings."):L("Gagal mengambil lokasi: ","Couldn't get location: ")+err.message,"err")},
+    {enableHighAccuracy:true,timeout:15000,maximumAge:30000})}
+const locFrame=l=>{const d=.004;return "https://www.openstreetmap.org/export/embed.html?bbox="+[l.lng-d,l.lat-d,l.lng+d,l.lat+d].join("%2C")+"&layer=mapnik&marker="+l.lat+"%2C"+l.lng};
+const locLink=l=>"https://www.google.com/maps?q="+l.lat+","+l.lng;
+function mediaCard(o){if(o.sg){const e=R.songEmbed(o.sg.u),ti=o.sg.t||(e&&e.k==="youtube"?L("Video YouTube","YouTube video"):L("Lagu Spotify","Spotify song"));
+    return `<div class="sg-card${e&&e.k==="youtube"?" yt":""}" data-sg><div class="sg-h"><span class="sg-ic">${e&&e.k==="youtube"?"▶":"🎵"}</span><div class="sg-tx"><b></b><span></span></div>${e&&e.src?`<button class="sg-play" aria-label="${L("Putar","Play")}">▶</button>`:""}</div><div class="sg-emb"></div>${o.sg.u?`<a class="sg-open" target="_blank" rel="noopener noreferrer">${L("Buka di ","Open in ")}${e&&e.k==="youtube"?"YouTube":"Spotify"} ↗</a>`:""}</div>`}
+  if(o.loc)return `<div class="lc-card" data-lc><div class="lc-pin">📍</div><div class="lc-tx"><b>${L("Lokasi","Location")}</b><span>${o.loc.lat}, ${o.loc.lng}${o.loc.acc?" · ±"+o.loc.acc+" m":""}</span></div><div class="lc-emb"></div><div class="lc-act"><button class="sm" data-lcmap>🗺️ ${L("Lihat peta","View map")}</button><a class="sm" target="_blank" rel="noopener noreferrer" href="${locLink(o.loc)}">${L("Petunjuk arah","Directions")} ↗</a></div></div>`;return ""}
+function wireMedia(el,o){const sc=el.querySelector("[data-sg]");if(sc&&o.sg){const e=R.songEmbed(o.sg.u);sc.querySelector(".sg-tx b").textContent=o.sg.t||(e&&e.k==="youtube"?L("Video YouTube","YouTube video"):L("Lagu Spotify","Spotify song"));sc.querySelector(".sg-tx span").textContent=o.sg.a||"";
+    const a=sc.querySelector(".sg-open");if(a)a.href=o.sg.u;const pb=sc.querySelector(".sg-play");
+    if(pb)pb.onclick=ev=>{ev.stopPropagation();const box=sc.querySelector(".sg-emb");if(box.firstChild){box.innerHTML="";pb.textContent="▶";return}
+      box.innerHTML=`<iframe title="${L("Pemutar lagu","Song player")}" loading="lazy" allow="autoplay; clipboard-write; encrypted-media; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin" style="height:${e.h||0}px"></iframe>`;box.querySelector("iframe").src=e.src+(e.k==="youtube"?"?autoplay=1":"");pb.textContent="■"}}
+  const lc=el.querySelector("[data-lc]");if(lc&&o.loc){lc.querySelector("[data-lcmap]").onclick=ev=>{ev.stopPropagation();const box=lc.querySelector(".lc-emb");if(box.firstChild){box.innerHTML="";return}box.innerHTML=`<iframe title="${L("Peta","Map")}" loading="lazy" referrerpolicy="no-referrer"></iframe>`;box.querySelector("iframe").src=locFrame(o.loc)}}}
+const mcCss=document.createElement("style");mcCss.textContent=`
+.sg-card,.lc-card{min-width:min(260px,62vw);max-width:320px;border-radius:12px;background:color-mix(in srgb,var(--ink) 6%,transparent);padding:8px;margin-bottom:4px}
+.sg-h{display:flex;gap:10px;align-items:center}.sg-ic{width:44px;height:44px;border-radius:10px;flex:none;display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff;background:linear-gradient(135deg,#1db954,#127a37)}
+.sg-card.yt .sg-ic{background:linear-gradient(135deg,#ff3d3d,#c40000)}.sg-tx{flex:1;min-width:0}.sg-tx b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sg-tx span{display:block;font-size:12.5px;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sg-play{all:unset;cursor:pointer;width:36px;height:36px;border-radius:99px;background:#1db954;color:#fff;display:flex;align-items:center;justify-content:center;flex:none;font-size:14px}.sg-card.yt .sg-play{background:#e00}
+.sg-emb iframe{width:100%;border:0;border-radius:12px;margin-top:8px;display:block}.sg-card.yt .sg-emb iframe{aspect-ratio:16/9;height:auto!important}
+.sg-open{display:inline-block;font-size:12px;margin-top:6px;color:inherit;opacity:.8}
+.lc-card{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;align-items:center}.lc-pin{font-size:30px}.lc-tx b{display:block}.lc-tx span{font-size:12px;opacity:.75}
+.lc-emb{grid-column:1/-1}.lc-emb iframe,.loc-map iframe{width:100%;height:200px;border:0;border-radius:12px;display:block}.lc-act{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap}.lc-act a{text-decoration:none}`;document.head.appendChild(mcCss);
 function addTray(files){for(const f of files.slice(0,10)){if(f.size>R.MAXF){status(L("Terlalu besar (maks. 50 MB): ","Too large (max 50 MB): ")+f.name,"warn");continue}
     CH.tray.push({file:f,prev:/^image\//.test(f.type)?URL.createObjectURL(f):null})}paintTray();$$("#rmTxt")?.focus()}
 function paintTray(){const box=$$("#rmTray");if(!box)return;const t0=$$("#rmTxt");if(!CH.tray.length){box.innerHTML="";CH.vo=0;if(t0)t0.placeholder=L("Ketik pesan","Message");return}
@@ -816,7 +860,7 @@ function startCall(video){const c=CH.convs.get(CH.open),u=peer(c);if(!u)return;i
 
 /* ---------- lembar: chat baru, grup, anggota ---------- */
 function newChatSheet(){const me=R.S.members[CH.me]||{},admin=me.role==="admin";
-  R.loadFriends&&R.loadFriends().catch(()=>{});
+  if(R.loadEmails&&!newChatSheet._em){newChatSheet._em=1;R.loadEmails().then(()=>{const o=document.getElementById("ncQ");if(o){o.closest(".sheetBg")?.remove();newChatSheet()}}).finally(()=>setTimeout(()=>newChatSheet._em=0,30000))}
   const all=Object.keys(R.S.members).filter(u=>u!==CH.me).sort((a,b)=>R.name(a).localeCompare(R.name(b)));
   const fs=u=>R.friendState?R.friendState(u):"friend";
   const reqs=all.filter(u=>fs(u)==="in"),fr=all.filter(u=>fs(u)==="friend"),oth=all.filter(u=>fs(u)==="none"||fs(u)==="out");
@@ -830,7 +874,7 @@ function newChatSheet(){const me=R.S.members[CH.me]||{},admin=me.role==="admin";
     ${oth.length?`<div class="crumb fr-h">${L("Orang lain di RaVi","Other people on RaVi")}</div>${oth.map(u=>row(u,fs(u)==="out"?`<span class="fr-b"><button class="sm" data-fa="cancel" title="${L("Batalkan permintaan","Cancel request")}">⏳ ${L("Diminta","Requested")}</button></span>`:`<span class="fr-b"><button class="sm pri" data-fa="request">＋ ${L("Tambah teman","Add friend")}</button></span>`)).join("")}`:""}</div>`,()=>true,L("Tutup","Close"));
   const cc=bg.querySelector(".c");if(cc)cc.style.display="none";
   bg.querySelectorAll(".fr-row").forEach(b=>{const u=b.dataset.u,st=fs(u);b.querySelector(".tx b").textContent=R.name(u);
-    b.querySelector(".tx span").textContent=st==="in"?L("Ingin berteman denganmu","Wants to be your friend"):st==="out"?L("Menunggu dia menerima","Waiting for them to accept"):st!=="friend"?L("Belum berteman","Not friends yet"):PR()&&PR().online(u)?"online":R.S.members[u]?.partner&&R.S.members[CH.me]?.partner?"💑 "+L("Pasangan","Partner"):lastSeenTxt(R.S.members[u]?.last_seen);
+    b.querySelector(".tx span").textContent=st==="in"?L("Ingin berteman denganmu","Wants to be your friend"):st==="out"?L("Menunggu dia menerima","Waiting for them to accept"):st!=="friend"?L("Belum berteman","Not friends yet"):(R.S.emails&&R.S.emails[u]?"✉️ "+R.S.emails[u]+" · ":"")+(PR()&&PR().online(u)?"online":R.S.members[u]?.partner&&R.S.members[CH.me]?.partner?"💑 "+L("Pasangan","Partner"):lastSeenTxt(R.S.members[u]?.last_seen));
     b.querySelectorAll("[data-fa]").forEach(x=>x.onclick=async e=>{e.stopPropagation();x.disabled=true;try{const r=await R.friendAct(u,x.dataset.fa);
         status(r==="accepted"?L("Sekarang kalian berteman 🤝","You're now friends 🤝"):r==="pending"?L("Permintaan pertemanan terkirim","Friend request sent"):L("Selesai","Done"),"ok");bg.remove();newChatSheet()}catch(err){x.disabled=false;status(err.message||String(err),"err")}});
     const openIt=()=>{if(fs(u)!=="friend"){contactInfo(u);bg.remove();return}bg.remove();const c=[...CH.convs.values()].find(x=>x.kind==="dm"&&peer(x)===u);if(c)openRoom(c.id);else openDM(u)};
@@ -838,7 +882,7 @@ function newChatSheet(){const me=R.S.members[CH.me]||{},admin=me.role==="admin";
   const q=bg.querySelector("#ncQ");q.oninput=()=>{const t=q.value.trim().toLowerCase();bg.querySelectorAll(".fr-row").forEach(b=>b.style.display=!t||b.dataset.n.includes(t)?"":"none")};
   bg.querySelector('[data-x="group"]').onclick=()=>{bg.remove();groupSheet()};
   const a=bg.querySelector('[data-x="add"]');if(a)a.onclick=()=>{bg.remove();window.RAVI_INVITE?window.RAVI_INVITE():addMemberSheet()}}
-const frCss=document.createElement("style");frCss.textContent=`.fr-h{padding:10px 10px 2px;font-weight:800}.fr-row{cursor:pointer}.fr-b{display:flex;gap:6px;flex:none;margin-left:auto}.fr-b .sm{white-space:nowrap}`;document.head.appendChild(frCss);
+const frCss=document.createElement("style");frCss.textContent=`.fr-h{padding:10px 10px 2px;font-weight:800}.ci-bio{font-size:13.5px;text-align:center;max-width:300px;line-height:1.4}.ci-song{font-size:13px;font-weight:700;color:var(--acc);text-decoration:none}.ci-em{font-size:12.5px}.fr-row{cursor:pointer}.fr-b{display:flex;gap:6px;flex:none;margin-left:auto}.fr-b .sm{white-space:nowrap}`;document.head.appendChild(frCss);
 window.RAVI_FRIENDS=()=>R.init().then(newChatSheet);
 function groupSheet(){const ppl=Object.keys(R.S.members).filter(u=>u!==CH.me&&(!R.isFriend||R.isFriend(u))).sort((a,b)=>R.name(a).localeCompare(R.name(b))),sel=new Set();const EMO=["👥","💑","👨‍👩‍👧","🎉","🍜","✈️","🏠","💼","🎮","📚","⚽","🐄"];let emo=EMO[0];
   const bg=modal(L("Grup baru","New group"),`<label>${L("Nama grup","Group name")}</label><input id="gnN" maxlength="60" placeholder="${L("mis. Keluarga, Trip Bali","e.g. Family, Bali trip")}">
@@ -862,10 +906,12 @@ function addMemberSheet(){
       if(!n||!/^\S+@\S+\.\S+$/.test(e))return fail(L("Isi nama & email yang benar.","Enter a valid name & email."));if(p.length<8)return fail(L("Password minimal 8 karakter.","Password needs 8+ characters."));
       btn.disabled=true;btn.textContent="…";try{await window.RAVI_FN({action:"add_member",name:n,email:e,password:p});await R.loadMembers();status(L("Anggota ditambahkan: ","Member added: ")+n,"ok")}catch(err){return fail(err.message||String(err))}},L("Tambah","Add"))}
 function contactInfo(u){if(!u)return;const mem=R.S.members[u]||{};
-  const bg=modal(R.name(u),`<div style="display:flex;flex-direction:column;align-items:center;gap:6px;margin-bottom:10px">${R.avatar(u,96)}<div class="crumb">${PR()&&PR().online(u)?"🟢 online":esc(lastSeenTxt(mem.last_seen))}</div>${mem.partner&&R.S.members[CH.me]?.partner?`<div class="pill p-ok">💑 ${L("Pasangan","Partner")}</div>`:""}</div>
+  const bg=modal(R.name(u),`<div style="display:flex;flex-direction:column;align-items:center;gap:6px;margin-bottom:10px">${R.avatar(u,96)}<div class="crumb">${PR()&&PR().online(u)?"🟢 online":esc(lastSeenTxt(mem.last_seen))}</div>${mem.partner&&R.S.members[CH.me]?.partner?`<div class="pill p-ok">💑 ${L("Pasangan","Partner")}</div>`:""}<div class="ci-em crumb"></div><div class="ci-bio"></div><a class="ci-song" target="_blank" rel="noopener noreferrer"></a></div>
     <div class="act-list" style="display:flex;flex-direction:column;gap:6px">${(()=>{const st=R.friendState?R.friendState(u):"friend";if(mem.partner&&R.S.members[CH.me]?.partner)return "";
       return st==="friend"?`<button class="sm pri" data-a="chat">💬 ${L("Kirim pesan","Message")}</button><button class="sm" data-fa="remove">${L("Hapus pertemanan","Unfriend")}</button>`:st==="in"?`<button class="sm pri" data-fa="accept">🤝 ${L("Terima pertemanan","Accept friend request")}</button><button class="sm" data-fa="decline">${L("Tolak","Decline")}</button>`:st==="out"?`<button class="sm" data-fa="cancel">⏳ ${L("Permintaan terkirim · batalkan","Request sent · cancel")}</button>`:`<button class="sm pri" data-fa="request">＋ ${L("Tambah teman","Add friend")}</button><div class="crumb" style="text-align:center">${L("Kalian bisa chat setelah dia menerima.","You can chat once they accept.")}</div>`})()}<button class="sm" data-a="sc">🔐 ${L("Kode keamanan enkripsi","Encryption security code")}</button><button class="sm" data-a="star">⭐ ${L("Pesan berbintang","Starred messages")}</button><button class="sm" data-a="wp">🖼️ Wallpaper</button>${R.S.members[CH.me]?.role==="admin"&&!mem.partner?`<button class="sm" data-a="kick" style="color:var(--red)">🚫 ${L("Keluarkan dari RaVi","Remove from RaVi")}</button>`:""}</div>`,()=>true,"OK");
   const cc=bg.querySelector(".c");if(cc)cc.style.display="none";
+  {const bi=bg.querySelector(".ci-bio");bi.textContent=mem.bio||"";const sg=bg.querySelector(".ci-song");sg.textContent=R.songTxt?R.songTxt(mem.song):"";if(mem.song&&mem.song.u&&/^https:\/\//.test(mem.song.u))sg.href=mem.song.u;else sg.removeAttribute("href");
+    const em=bg.querySelector(".ci-em");const fillEm=()=>{const e=R.S.emails&&R.S.emails[u];em.textContent=e?"✉️ "+e:""};fillEm();if(R.loadEmails)R.loadEmails().then(fillEm)}
   bg.querySelectorAll("[data-fa]").forEach(x=>x.onclick=async()=>{const act=x.dataset.fa;if(act==="remove"&&!confirm(L("Hapus pertemanan dengan ","Unfriend ")+R.name(u)+L("? Kalian tidak bisa saling kirim pesan pribadi lagi.","? You won't be able to message each other privately.")))return;
     x.disabled=true;try{const r=await R.friendAct(u,act);status(r==="accepted"?L("Sekarang kalian berteman 🤝","You're now friends 🤝"):r==="pending"?L("Permintaan pertemanan terkirim","Friend request sent"):L("Selesai","Done"),"ok");bg.remove();paintHead&&paintHead()}catch(err){x.disabled=false;status(err.message||String(err),"err")}});
   const ch=bg.querySelector('[data-a="chat"]');if(ch)ch.onclick=()=>{bg.remove();const c=[...CH.convs.values()].find(x=>x.kind==="dm"&&peer(x)===u);if(c)openRoom(c.id);else openDM(u)};

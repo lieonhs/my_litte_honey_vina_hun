@@ -359,3 +359,9 @@ grant execute on function public.ravi_escrow_key() to authenticated;
 -- policy restrictive dm_needs_friend di couple_msgs (insert ke chat pribadi butuh pertemanan)
 -- couple_posts.aud uuid[]: siapa yang boleh melihat postingan (postingan lama = pasangan)
 -- post_select/insert/update & cmt_select/insert memakai aud
+
+-- ===== Profil: bio, foto, lagu yang lagi didengar; email terlihat oleh teman =====
+-- (migrasi ravi_profile_fields)
+-- couple_members.bio (<=160), .photo (path di bucket couple), .song jsonb {t,a,u}
+-- grant update (bio, photo, song) ke authenticated (baris sendiri via cm_update_own)
+-- ravi_friend_emails(): email diri sendiri + teman saja
