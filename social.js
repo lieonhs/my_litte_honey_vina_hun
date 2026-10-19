@@ -121,6 +121,7 @@ async function fillImgs(root,ikFn){const imgs=[...root.querySelectorAll("img[dat
   imgs.forEach(i=>{const p=i.dataset.img,s=E2()?E2().imgSrc(p,u(p),ikFn?ikFn(p):PK[p]):u(p);if(s){i.src=s;i.dataset.done="1"}})}
 function dl(url,nm){const a=document.createElement("a");a.href=url;a.download=nm||"file";a.rel="noopener";document.body.appendChild(a);a.click();a.remove()}
 
+const cmUrls={};async function cmImg(f){if(cmUrls[f.p])return cmUrls[f.p];const u=await fileURL(f);cmUrls[f.p]=u;return u}
 /* aktivitas untuk pusat notifikasi (tanpa isi pesan) */
 async function activity(target,kind,ref,meta){if(!target||target===S.me)return;try{await sb.from("couple_activity").insert({target,kind,ref:ref!=null?String(ref):null,meta:meta||{}})}catch(e){}}
 async function unActivity(kind,ref){try{await sb.from("couple_activity").delete().eq("actor",S.me).eq("kind",kind).eq("ref",String(ref))}catch(e){}}
@@ -139,7 +140,17 @@ const css=document.createElement("style");css.textContent=`
 .fd-act button:active{transform:scale(.85)}.fd-act button:focus-visible{outline:3px solid var(--acc);border-radius:8px}
 .fd-likes{font-weight:800;font-size:13.5px;padding:2px 14px}.fd-cap{padding:2px 14px 6px;font-size:14px;line-height:1.45;overflow-wrap:anywhere}
 .fd-cm{padding:0 14px;font-size:13.5px;line-height:1.5;overflow-wrap:anywhere}.fd-cm b{margin-right:4px}
-.fd-add{display:flex;gap:6px;padding:8px 10px 12px}.fd-add input{flex:1;min-width:0;border-radius:99px}
+.fd-add{display:flex;gap:4px;align-items:center;padding:8px 10px 12px}.fd-add input[data-cin]{flex:1;min-width:0;border-radius:99px}
+.fd-ic{all:unset;cursor:pointer;width:36px;height:36px;border-radius:99px;display:inline-flex;align-items:center;justify-content:center;font-size:19px;flex:none;transition:background .15s,transform .15s}
+.fd-ic:hover,.fd-ic:focus-visible{background:var(--th)}.fd-ic:active{transform:scale(.9)}.fd-ic.on{background:var(--accS)}
+.fd-stk{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:4px;padding:6px 10px 10px;max-height:220px;overflow-y:auto;border-top:1px dashed var(--line);animation:fdS .18s ease-out}
+.fd-stk button{all:unset;cursor:pointer;display:flex;align-items:center;justify-content:center;min-height:64px;border-radius:12px}.fd-stk button:hover{background:var(--th)}.fd-stk .pipi{animation:none!important}
+.fd-emo{display:flex;gap:2px;overflow-x:auto;padding:6px 10px 0;border-top:1px dashed var(--line);scrollbar-width:none}.fd-emo button{all:unset;cursor:pointer;font-size:22px;padding:4px 6px;border-radius:10px;flex:none}.fd-emo button:hover{background:var(--th)}
+.fd-emo+.fd-stk{border-top:0}
+@keyframes fdS{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.fd-cm .cmx{margin:4px 0 2px 0}.fd-cm .cmx:empty{display:none}.fd-cm .cmx img{display:block;max-width:220px;max-height:260px;border-radius:12px;object-fit:cover;background:var(--th);cursor:zoom-in}
+.fd-cm .cmx .stk-w{display:inline-block}.fd-cm .rp{font-size:11.5px;margin-left:6px}
+.fd-cm.new{animation:fdS .25s ease-out}
 .fd-heart{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:90px;pointer-events:none;animation:fdh .8s ease-out forwards}
 @keyframes fdh{0%{transform:scale(.3);opacity:0}30%{transform:scale(1.1);opacity:1}100%{transform:scale(1);opacity:0}}
 .fd-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;margin-bottom:12px}.fd-grid button{all:unset;cursor:pointer;aspect-ratio:1;background:var(--th);overflow:hidden}.fd-grid img{width:100%;height:100%;object-fit:cover;display:block}
@@ -175,13 +186,17 @@ function drawFeed(v){
       <div class="fd-act"><button data-like="${p.id}" aria-pressed="${liked}" aria-label="${L("Suka","Like")}">${liked?"❤️":"🤍"}</button><button data-cfocus="${p.id}" aria-label="${L("Komentar","Comment")}">💬</button></div>
       <div class="fd-likes">${(p.likes||[]).length?(esc((p.likes||[]).map(name).join(" & "))+L(" menyukai ini"," liked this")):L("Belum ada yang suka","No likes yet")}</div>
       ${p.caption&&parse(pt(p.caption)).t?`<div class="fd-cap"><b class="au"></b> <span class="cp"></span></div>`:""}
-      ${cm.map(c=>`<div class="fd-cm" data-c="${c.id}"><b></b><span></span>${c.author===S.me?` <button class="lnk" data-cdel="${c.id}" style="font-size:11px">${L("hapus","delete")}</button>`:""}</div>`).join("")}
-      <div class="fd-add"><input data-cin="${p.id}" placeholder="${L("Tambah komentar…","Add a comment…")}" maxlength="300"><button class="sm" data-csend="${p.id}">${L("Kirim","Send")}</button></div></article>`}).join("")
+      ${cm.map(c=>`<div class="fd-cm" data-c="${c.id}"><b></b><span class="ct"></span><div class="cmx"></div><button class="lnk rp" data-crp="${p.id}" data-who="${esc(name(c.author))}">${L("Balas","Reply")}</button>${c.author===S.me?` <button class="lnk rp" data-cdel="${c.id}">${L("hapus","delete")}</button>`:""}</div>`).join("")}
+      <div class="fd-add"><button class="fd-ic" data-cstk="${p.id}" aria-label="${L("Stiker","Sticker")}" title="${L("Stiker","Sticker")}">🧸</button><label class="fd-ic" title="${L("Foto","Photo")}" aria-label="${L("Balas dengan foto","Reply with a photo")}">📷<input type="file" accept="image/*" data-cimg="${p.id}" hidden></label>
+       <input data-cin="${p.id}" placeholder="${L("Tambah komentar…","Add a comment…")}" maxlength="300"><button class="sm" data-csend="${p.id}">${L("Kirim","Send")}</button></div><div data-cstkp="${p.id}"></div></article>`}).join("")
    :`<div class="region"><div class="rb"><div class="pipi-card" style="margin:0">${window.pipi?window.pipi("party",64,"vnel"):""}<div class="bubble"><b>${L("Feed khusus kalian berdua","A feed just for you two")}</b><div>${L("Posting foto momen sehari-hari. Yang bisa lihat, like, dan komentar cuma kalian berdua.","Post everyday moments. Only the two of you can see, like and comment.")}</div></div></div></div></div>`);
   window.scrollTo({top:y});
   fillCaps(v);
   v.querySelectorAll(".fd-post").forEach(el=>{const p=posts.find(x=>x.id==el.dataset.p);el.querySelectorAll(".au").forEach(a=>a.textContent=name(p.author));const cp=el.querySelector(".cp");if(cp)cp.textContent=parse(pt(p.caption)).t;
-    (S.comments[p.id]||[]).forEach(c=>{const r=el.querySelector(`[data-c="${c.id}"]`);r.querySelector("b").textContent=name(c.author);r.querySelector("span").textContent=pt(c.body)})});
+    (S.comments[p.id]||[]).forEach(c=>{const r=el.querySelector(`[data-c="${c.id}"]`);r.querySelector("b").textContent=name(c.author);const o=parse(pt(c.body)),x=r.querySelector(".cmx");
+      if(isStk(o.t)){r.querySelector(".ct").textContent="";x.innerHTML=`<span class="stk-w" data-stk="${stkKey(o.t)}">${stkSVG(stkKey(o.t),88)}</span>`;fillCaps(x)}
+      else{r.querySelector(".ct").textContent=o.t;if(o.f&&/^image\//.test(o.f.m)){x.innerHTML=`<img alt="${L("Foto","Photo")}">`;const im=x.querySelector("img");cmImg(o.f).then(u=>{if(u)im.src=u}).catch(()=>{});
+        im.onclick=()=>{const bg=modal(L("Foto","Photo"),`<img alt="" style="width:100%;border-radius:12px">`,()=>true,"OK");bg.querySelector("img").src=im.src;const cc=bg.querySelector(".c");if(cc)cc.style.display="none"}}}})});
   const ik={};posts.forEach(p=>ik[p.img]=ikOf(p.img,p.caption));fillImgs(v,p=>ik[p]);
   v.querySelectorAll("[data-fm]").forEach(b=>b.onclick=()=>{fdMode=b.dataset.fm;drawFeed(v)});
   v.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{fdMode="list";drawFeed(v);document.getElementById("post"+b.dataset.go)?.scrollIntoView({block:"start"})});
@@ -191,12 +206,24 @@ function drawFeed(v){
   v.querySelectorAll("[data-like]").forEach(b=>b.onclick=()=>like(+b.dataset.like));
   v.querySelectorAll("[data-dbl]").forEach(img=>{let last=0;img.addEventListener("click",()=>{const n=Date.now();if(n-last<350){const id=+img.dataset.dbl;const h=document.createElement("div");h.className="fd-heart";h.textContent="❤️";img.parentElement.appendChild(h);setTimeout(()=>h.remove(),900);if(!(S.posts.find(x=>x.id===id).likes||[]).includes(S.me))like(id)}last=n})});
   v.querySelectorAll("[data-cfocus]").forEach(b=>b.onclick=()=>v.querySelector(`[data-cin="${b.dataset.cfocus}"]`)?.focus());
-  const sendC=async id=>{const inp=v.querySelector(`[data-cin="${id}"]`),body=inp.value.trim();if(!body)return;inp.value="";inp.blur();
-    let sealed;try{sealed=await sealCap(body)}catch(e){inp.value=body;status(e.message,"warn");return}const {data,error}=await sb.from("couple_comments").insert({post_id:id,body:sealed}).select().single();if(error){status(error.message,"err");return}
+  const sendC=async(id,extra)=>{const inp=v.querySelector(`[data-cin="${id}"]`),body=inp.value.trim();if(!body&&!extra)return;
+    const o=extra&&extra.stk?{t:extra.stk}:{t:extra&&extra.stk?"":body,f:extra&&extra.f};if(!(extra&&extra.stk))inp.value="";inp.blur();
+    let sealed;try{sealed=await sealCap(pack(o))}catch(e){inp.value=body;status(e.message,"warn");return}const {data,error}=await sb.from("couple_comments").insert({post_id:id,body:sealed}).select().single();if(error){status(error.message,"err");return}
+    S.lastNewC=data.id;
     const a=S.comments[id]=S.comments[id]||[];if(!a.some(c=>c.id===data.id))a.push(data);drawFeed(v);
     const post=S.posts.find(x=>x.id===id);if(post)activity(post.author,"comment",data.id,{p:id});
     if(window.RAVI_NOTIFY)window.RAVI_NOTIFY("post",{to:partners().filter(u=>u!==S.me),body:"💬 "+L("Komentar baru","New comment")})};
   v.querySelectorAll("[data-csend]").forEach(b=>b.onclick=()=>sendC(+b.dataset.csend));
+  if(S.lastNewC){const n=v.querySelector(`[data-c="${S.lastNewC}"]`);if(n)n.classList.add("new");S.lastNewC=null}
+  v.querySelectorAll("[data-crp]").forEach(b=>b.onclick=()=>{const i=v.querySelector(`[data-cin="${b.dataset.crp}"]`);i.value="@"+b.dataset.who+" ";i.focus()});
+  v.querySelectorAll("[data-cstk]").forEach(b=>b.onclick=()=>{const id=b.dataset.cstk,box=v.querySelector(`[data-cstkp="${id}"]`);if(box.innerHTML){box.innerHTML="";b.classList.remove("on");return}
+    v.querySelectorAll("[data-cstkp]").forEach(x=>x.innerHTML="");v.querySelectorAll("[data-cstk]").forEach(x=>x.classList.remove("on"));b.classList.add("on");
+    const keys=[...EMOTES,...KATA.map((_,i)=>"k:"+i).slice(0,12),...MOODS5.map(m=>"vnel:"+m),"cpkencan:happy","cpselfie:happy","cpcocok:happy"];
+    box.innerHTML=`<div class="fd-emo">${UNI.map(e=>`<button data-em="${e}">${e}</button>`).join("")}</div><div class="fd-stk">${[...new Set(keys)].map(k=>`<button data-sk="${k}" data-stk="${k}" aria-label="${L("Kirim stiker","Send sticker")}">${stkSVG(k,58)}</button>`).join("")}</div>`;fillCaps(box);
+    box.querySelectorAll("[data-em]").forEach(x=>x.onclick=()=>{const i=v.querySelector(`[data-cin="${id}"]`);i.value+=x.dataset.em;i.focus()});
+    box.querySelectorAll("[data-sk]").forEach(x=>x.onclick=()=>{box.innerHTML="";b.classList.remove("on");sendC(+id,{stk:"[stk:"+x.dataset.sk+"]"})})});
+  v.querySelectorAll("[data-cimg]").forEach(fi=>fi.onchange=async()=>{const f=fi.files[0],id=+fi.dataset.cimg;fi.value="";if(!f)return;
+    status(L("Mengunggah foto…","Uploading photo…"),"");try{const path=await upPhoto(f,1280);await sendC(id,{f:{p:path,n:"foto.jpg",s:f.size,m:"image/jpeg",e:/\.enc$/.test(path),k:PK[path]||undefined}});status("")}catch(e){status(L("Gagal mengunggah: ","Upload failed: ")+(e.message||e),"err")}});
   v.querySelectorAll("[data-cin]").forEach(i=>i.onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();sendC(+i.dataset.cin)}});
   v.querySelectorAll("[data-cdel]").forEach(b=>b.onclick=async()=>{const id=+b.dataset.cdel;await sb.from("couple_comments").delete().eq("id",id);unActivity("comment",id);for(const k in S.comments)S.comments[k]=S.comments[k].filter(c=>c.id!==id);drawFeed(v)});
   v.querySelectorAll("[data-pdel]").forEach(b=>b.onclick=()=>{const p=S.posts.find(x=>x.id===+b.dataset.pdel);modal(L("Hapus postingan?","Delete post?"),`<div class="crumb">${L("Foto, like, dan komentarnya ikut terhapus.","The photo, likes and comments are deleted too.")}</div>`,async()=>{

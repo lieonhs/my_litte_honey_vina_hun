@@ -25,7 +25,7 @@ function subscribe(){if(N.sub)return;N.sub=true;
 function describe(a){const who=R.name(a.actor),m=a.meta||{};
   switch(a.kind){
     case "like":return [who,L(" menyukai postinganmu."," liked your post."),"❤️"];
-    case "comment":{const c=findComment(a.ref);return [who,L(" mengomentari: "," commented: ")+(c?"“"+R.pt(c.body).slice(0,80)+"”":""),"💬"]}
+    case "comment":{const c=findComment(a.ref),o=c?R.parse(R.pt(c.body)):null;const t=!o?"":R.isStk(o.t)?"🧸 "+L("stiker","sticker"):o.f?"📷 "+L("foto","photo")+(o.t?" · "+o.t:""):o.t;return [who,L(" mengomentari: "," commented: ")+(t?"“"+t.slice(0,80)+"”":""),"💬"]}
     case "post":return [who,L(" memposting foto baru."," posted a new photo."),"📷"];
     case "react":{const s=window.RAVI_CHAT&&findMsg(a.ref);return [who,L(" bereaksi "," reacted ")+(m.e||"❤️")+L(" ke pesanmu"," to your message")+(s?": “"+window.RAVI_CHAT.snip(s).slice(0,60)+"”":"."),m.e||"❤️"]}
     case "group":{const t=window.RAVI_CHAT?window.RAVI_CHAT.title(a.ref):"";return [who,L(" menambahkanmu ke grup "," added you to the group ")+(t?"“"+t+"”":"")+".","👥"]}
