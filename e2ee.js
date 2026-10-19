@@ -83,16 +83,20 @@ function dialog(){const first=!E.row;
 
 /* ---------- banner di Chat & Feed ---------- */
 const css=document.createElement("style");css.textContent=`.e2-bar{display:flex;gap:8px;align-items:center;padding:7px 12px;border-bottom:1px solid var(--line);font-size:12.5px;line-height:1.4;background:var(--grnS)}
-.e2-bar.off{background:var(--accS)}.e2-bar.lock{background:var(--ambS)}.e2-bar b{display:block}.e2-bar>div{flex:1;min-width:0}`;document.head.appendChild(css);
+.e2-bar.off{background:var(--accS)}.e2-pill{font-weight:800;color:var(--grn)}.e2-bar.lock{background:var(--ambS)}.e2-bar b{display:block}.e2-bar>div{flex:1;min-width:0}`;document.head.appendChild(css);
 async function decorate(){if(typeof route==="undefined"||(route!=="chat"&&route!=="feed"))return;await load();if(!E.row)refreshSoon();
   const v=document.getElementById("view");if(!v)return;const host=route==="chat"?v.querySelector(".ch-wrap .ch-head"):v.querySelector(".ph");if(!host||v.querySelector(".e2-bar"))return;
   const bar=document.createElement("div");
   if(!enabled()){bar.className="e2-bar off";bar.innerHTML=`<span>🔓</span><div><b>${L("Enkripsi end-to-end belum aktif","End-to-end encryption is off")}</b>${L("Aktifkan supaya isi chat & feed tidak bisa dibaca server.","Turn it on so the server can't read chat and feed content.")}</div><button class="sm pri">${L("Aktifkan","Turn on")}</button>`}
   else if(!unlocked()){bar.className="e2-bar lock";bar.innerHTML=`<span>🔒</span><div><b>${L("Chat terkunci di perangkat ini","Chat is locked on this device")}</b>${L("Masukkan kata sandi chat untuk membaca & mengirim.","Enter the chat password to read and send.")}</div><button class="sm pri">${L("Buka","Unlock")}</button>`}
-  else{bar.className="e2-bar";bar.innerHTML=`<span>🔐</span><div>${L("Terenkripsi end-to-end. Hanya kamu dan pasanganmu yang bisa membaca.","End-to-end encrypted. Only you and your partner can read this.")}</div>`}
+  else{/* sudah aman: cukup penanda kecil, jangan makan tempat */
+    const cr=route==="chat"?v.querySelector(".ch-head .crumb"):null;
+    if(cr){if(!cr.querySelector(".e2-pill")){const p=document.createElement("span");p.className="e2-pill";p.title=L("Terenkripsi end-to-end","End-to-end encrypted");p.textContent=" · 🔐 E2E";cr.appendChild(p)}return}
+    bar.className="e2-bar";bar.innerHTML=`<span>🔐</span><div>${L("Terenkripsi end-to-end.","End-to-end encrypted.")}</div>`}
   const b=bar.querySelector("button");if(b)b.onclick=dialog;host.after(bar)}
 new MutationObserver(()=>{decorate().catch(()=>{})}).observe(document.getElementById("view")||document.body,{childList:true});
 document.addEventListener("ravi-e2e",()=>{if(typeof route==="undefined"||(route!=="chat"&&route!=="feed"))return;document.querySelectorAll("#view .e2-bar").forEach(b=>b.remove());if(window.RAVI_SOCIAL_REFRESH)window.RAVI_SOCIAL_REFRESH();decorate().catch(()=>{})});
 
+window.RAVI_E2E_DEC=async buf=>{if(!E.key)throw new Error(L("Buka kunci chat dulu.","Unlock the chat first."));return decBytes(E.key,buf)};
 window.RAVI_E2E={load,enabled,unlocked,encText,show,encBlob,imgSrc,dialog,forget};
 })();

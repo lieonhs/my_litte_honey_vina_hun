@@ -196,3 +196,7 @@ create policy "mfa_required_storage" on storage.objects as restrictive to authen
   array[(select auth.jwt()->>'aal')] <@ (
     select case when count(id) > 0 then array['aal2'] else array['aal1','aal2'] end
     from auth.mfa_factors where (select auth.uid()) = user_id and status = 'verified'));
+
+-- ===================== (G) KIRIM FILE DI CHAT =====================
+-- Bucket "couple" menerima semua jenis file (PDF, video, dokumen) sampai 50 MB.
+update storage.buckets set allowed_mime_types = null, file_size_limit = 52428800 where id = 'couple';

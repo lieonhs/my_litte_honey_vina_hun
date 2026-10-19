@@ -56,7 +56,7 @@ window.RAVI_SOCIAL_REFRESH=()=>{if(route==="chat"||route==="feed")refresh(route)
 function refresh(r){badge();if(route===r){const v=document.getElementById("view");if(!v)return;if(r==="chat")drawChat(v,true);else drawFeed(v)}}
 const unread=()=>S.msgs.filter(m=>m.sender!==S.me&&!m.read_at).length;
 function badge(){const a=document.querySelector('aside a[data-r="chat"]');if(a){let b=a.querySelector(".qbadge");const n=unread();if(n&&!b){b=document.createElement("span");b.className="qbadge";a.appendChild(b)}if(b){if(n)b.textContent=n;else b.remove()}}}
-function notifyMsg(m){if(route==="chat"&&!document.hidden)return;const pb=pt(m.body);const txt=/^\[call:/.test(pb||"")?"📞 "+L("Panggilan","Call"):isStk(pb)?"🧸 "+L("Stiker","Sticker"):isEnc(m.body)&&(pb==="…"||/^🔒/.test(pb))?"💬 "+L("Pesan baru","New message"):(pb||(m.img?"📷 "+L("Foto","Photo"):""));
+function notifyMsg(m){if(route==="chat"&&!document.hidden)return;const pb0=pt(m.body),po=parse(pb0),pb=po.f?fIcon(po.f.m)+" "+po.f.n:po.t;const txt=/^\[call:/.test(pb||"")?"📞 "+L("Panggilan","Call"):isStk(pb)?"🧸 "+L("Stiker","Sticker"):isEnc(m.body)&&(pb==="…"||/^🔒/.test(pb))?"💬 "+L("Pesan baru","New message"):(pb||(m.img?"📷 "+L("Foto","Photo"):""));
   if(window.doPeek)window.doPeek(true,{t:"💬 "+name(m.sender),d:txt.slice(0,80),r:"chat",m:"happy",w:8});
   try{if(document.hidden&&window.Notification&&Notification.permission==="granted")new Notification(name(m.sender),{body:txt.slice(0,120),icon:"icon-192.png",tag:"chat"})}catch(e){}}
 
@@ -131,6 +131,26 @@ const css=document.createElement("style");css.textContent=`
 .stk-grid button{all:unset;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:12px;padding:2px;min-height:72px}.stk-grid button:hover,.stk-grid button:focus-visible{background:var(--th)}
 .stk-grid .pipi{animation:none!important}.stk-grid.uni{grid-template-columns:repeat(auto-fill,minmax(44px,1fr))}.stk-grid.uni button{font-size:26px;min-height:44px}
 .rx-s{display:inline-flex;vertical-align:middle}.rx-s .pipi{animation:none!important}
+.ch-quote{all:unset;box-sizing:border-box;cursor:pointer;display:block;width:100%;border-left:3px solid currentColor;background:rgba(0,0,0,.08);border-radius:8px;padding:4px 8px;margin:0 0 5px;font-size:12.5px;line-height:1.35;overflow:hidden}
+.ch-b.them .ch-quote{border-left-color:var(--acc);background:var(--th)}.ch-quote b{display:block;font-size:11.5px}.ch-quote span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;opacity:.85;white-space:normal}
+.ch-fwd{display:block;font-size:11px;font-style:italic;opacity:.8;margin-bottom:3px}
+.ch-file{display:flex;gap:8px;align-items:center;min-width:200px;background:rgba(0,0,0,.08);border-radius:12px;padding:8px}.ch-b.them .ch-file{background:var(--th)}
+.ch-file .fi{font-size:26px}.ch-file .fm{flex:1;min-width:0}.ch-file .fm b{display:block;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ch-file .fm span{font-size:11px;opacity:.8}
+.ch-b.me .ch-file .sm{background:#fff;color:var(--acc);border-color:#fff}
+.ch-media video,.ch-media img{display:block;width:260px;max-width:100%;border-radius:12px;margin-top:6px;background:#000}.ch-media audio{width:240px;max-width:100%;margin-top:6px}
+.ch-b{transition:transform .15s}.ch-b.flash{animation:chf 1.4s}@keyframes chf{0%,60%{box-shadow:0 0 0 4px var(--acc)}100%{box-shadow:none}}
+.ch-replybar{display:flex;gap:8px;align-items:center;padding:6px 8px 6px 12px;border-top:1px solid var(--line);background:var(--card);border-left:4px solid var(--acc)}
+.ch-replybar>div{flex:1;min-width:0;font-size:12.5px}.ch-replybar b{display:block;color:var(--acc)}.ch-replybar .rs{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--mute)}
+.ch-tray{display:flex;gap:6px;overflow-x:auto;padding:8px;border-top:1px solid var(--line);background:var(--card)}
+.ch-ti{position:relative;flex:none;width:76px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10.5px}
+.ch-ti img,.ch-ti .fi{width:76px;height:76px;object-fit:cover;border-radius:12px;background:var(--th);display:flex;align-items:center;justify-content:center;font-size:30px}
+.ch-ti .tn{width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;color:var(--mute)}
+.ch-ti button{all:unset;cursor:pointer;position:absolute;top:-4px;right:-4px;width:22px;height:22px;border-radius:99px;background:#e5484d;color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center}
+.ch-wrap{position:relative}.ch-drop{display:none;position:absolute;inset:0;z-index:5;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:var(--acc);background:color-mix(in srgb,var(--accS) 88%,transparent);border:3px dashed var(--acc);border-radius:18px;pointer-events:none}
+.ch-wrap.dragging .ch-drop{display:flex}
+.act-rx{max-height:none;padding:0 0 8px;grid-template-columns:repeat(auto-fill,minmax(52px,1fr))}.act-rx button{min-height:52px}
+.act-list{display:flex;flex-direction:column;gap:4px}.act-list button{all:unset;cursor:pointer;padding:11px 12px;border-radius:12px;font-size:14.5px;font-weight:700}.act-list button:hover,.act-list button:focus-visible{background:var(--th)}.act-list .danger{color:var(--red)}
+@media (prefers-reduced-motion:reduce){.ch-b{transition:none}.ch-b.flash{animation:none;outline:3px solid var(--acc)}}
 .ch-empty{margin:auto;text-align:center;color:var(--mute);font-size:13.5px;max-width:28ch}
 .fd-post{border:1px solid var(--line);border-radius:18px;background:var(--card);overflow:hidden;margin-bottom:14px}
 .fd-top{display:flex;gap:10px;align-items:center;padding:10px 12px}.fd-top b{display:block;font-size:14px}.fd-top .crumb{font-size:12px}
@@ -165,57 +185,159 @@ function withInit(v,title,draw){
    CHAT
    ===================================================================== */
 let lastCount=-1;
+/* ---------- format pesan: teks biasa, atau "j1:{...}" untuk balasan / file / diteruskan (ikut terenkripsi) ---------- */
+function parse(shown){if(typeof shown==="string"&&shown.startsWith("j1:")){try{const o=JSON.parse(shown.slice(3));return {t:o.t||"",r:o.r||null,f:o.f||null,fwd:!!o.fwd}}catch(e){}}return {t:shown||"",r:null,f:null,fwd:false}}
+function pack(o){if(!o.r&&!o.f&&!o.fwd)return o.t||"";return "j1:"+JSON.stringify({t:o.t||undefined,r:o.r||undefined,f:o.f||undefined,fwd:o.fwd||undefined})}
+const MAXF=50*1024*1024;
+const fmtSize=n=>n<1024?n+" B":n<1048576?(n/1024).toFixed(0)+" KB":(n/1048576).toFixed(1).replace(".",",")+" MB";
+const fIcon=m=>/^video\//.test(m)?"🎬":/^audio\//.test(m)?"🎵":/pdf/.test(m)?"📕":/sheet|excel|csv/.test(m)?"📊":/word|document/.test(m)?"📄":/presentation|powerpoint/.test(m)?"📽️":/zip|rar|7z|compressed/.test(m)?"🗜️":/^image\//.test(m)?"🖼️":"📎";
+function snip(m){const o=parse(pt(m.body));if(isStk(o.t))return "🧸 "+L("Stiker","Sticker");if(/^\[call:/.test(o.t))return "📞 "+L("Panggilan","Call");
+  if(o.f)return fIcon(o.f.m)+" "+o.f.n;if(m.img&&!o.t)return "📷 "+L("Foto","Photo");return (o.t||"").slice(0,90)}
+async function uploadFile(file){if(file.size>MAXF)throw new Error(L("Ukuran maksimal 50 MB: ","Max size is 50 MB: ")+file.name);
+  let blob=file,ext=(/\.([a-z0-9]{1,6})$/i.exec(file.name||"")||[,"bin"])[1].toLowerCase(),ct=file.type||"application/octet-stream",enc=false;
+  if(E2()){await E2().load();if(E2().enabled()){if(!E2().unlocked()){E2().dialog();throw new Error(L("Chat terkunci. Masukkan kata sandi chat dulu.","Chat is locked. Enter the chat password first."))}
+    const r=await E2().encBlob(file);blob=new Blob([await r.blob.arrayBuffer()],{type:"application/octet-stream"});ext="enc";ct="application/octet-stream";enc=true}}
+  const path=S.me+"/f_"+Date.now().toString(36)+Math.random().toString(36).slice(2,6)+"."+ext;
+  const {error}=await sb.storage.from("couple").upload(path,blob,{contentType:ct});if(error)throw error;
+  return {p:path,n:(file.name||"file").slice(0,120),s:file.size,m:file.type||"application/octet-stream",e:enc}}
+async function fileURL(f){const u=(await urlsFor([f.p]))(f.p);if(!f.e)return u;
+  const r=await fetch(u);if(!r.ok)throw new Error("HTTP "+r.status);const buf=await r.arrayBuffer();
+  const key=E2();if(!key||!key.unlocked())throw new Error(L("Buka kunci chat dulu.","Unlock the chat first."));
+  const plain=await window.RAVI_E2E_DEC(buf);return URL.createObjectURL(new Blob([plain],{type:f.m}))}
+const isPhoto=f=>/^image\/(jpeg|png|webp|heic|heif)$/i.test(f.type||"");
+
 function drawChat(v,live){
   const other=Object.keys(S.members).find(u=>u!==S.me),oName=other?name(other):L("Pasangan","Partner");
   const list=v.querySelector(".ch-list"),atBottom=list?list.scrollHeight-list.scrollTop-list.clientHeight<80:true,prevTop=list?list.scrollTop:0;
   const ta=v.querySelector("#chTxt");if(ta)S.draft=ta.value;const hadFocus=ta&&document.activeElement===ta;
+  S.tray=S.tray||[];
   let html="",lastDay="";
   for(const m of S.msgs){const dl=dayLbl(m.created_at);if(dl!==lastDay){html+=`<div class="ch-day">${dl}</div>`;lastDay=dl}
     const mine=m.sender===S.me,rx=Object.values(m.reacts||{});
-    const shown=pt(m.body),stk=isStk(shown);
-    html+=`<div class="ch-b ${mine?"me":"them"}${stk?" stk":""}${rx.length?" hasrx":""}" data-m="${m.id}">${m.img?`<img data-img="${esc(m.img)}" alt="${L("Foto","Photo")}">`:""}${stk?`<span class="stk-w" data-stk="${stkKey(shown)}">${stkSVG(stkKey(shown),124)}</span>`:`<span class="bd"></span>`}<span class="t">${hhmm(m.created_at)}${mine?" "+(m.read_at?"✓✓":"✓"):""}</span>${rx.length?`<span class="rx">${[...new Set(rx)].map(rxHTML).join("")}</span>`:""}</div>`}
+    const o=parse(pt(m.body)),stk=isStk(o.t)&&!o.r&&!o.f;
+    html+=`<div class="ch-b ${mine?"me":"them"}${stk?" stk":""}${rx.length?" hasrx":""}" data-m="${m.id}" id="msg${m.id}">`+
+      (o.fwd?`<span class="ch-fwd">↪️ ${L("Diteruskan","Forwarded")}</span>`:"")+
+      (o.r?`<button class="ch-quote" data-jump="${+o.r.id||0}"><b></b><span></span></button>`:"")+
+      (m.img?`<img data-img="${esc(m.img)}" alt="${L("Foto","Photo")}">`:"")+
+      (o.f?`<div class="ch-file"><span class="fi">${fIcon(o.f.m)}</span><div class="fm"><b></b><span>${fmtSize(o.f.s||0)}${o.f.e?" · 🔐":""}</span></div><button class="sm" data-open="${m.id}">${/^video\//.test(o.f.m)?"▶ "+L("Putar","Play"):/^image\//.test(o.f.m)?L("Lihat","View"):"⬇ "+L("Unduh","Download")}</button></div><div class="ch-media" data-media="${m.id}"></div>`:"")+
+      (stk?`<span class="stk-w" data-stk="${stkKey(o.t)}">${stkSVG(stkKey(o.t),124)}</span>`:(o.t||!m.img&&!o.f?`<span class="bd"></span>`:""))+
+      `<span class="t">${hhmm(m.created_at)}${mine?" "+(m.read_at?"✓✓":"✓"):""}</span>${rx.length?`<span class="rx">${[...new Set(rx)].map(rxHTML).join("")}</span>`:""}</div>`}
   v.innerHTML=page(L("Berdua","Together"),"💬 Chat")+
-   `<div class="ch-wrap"><div class="ch-head">${window.pipi?window.pipi("happy",40,other&&/^vina/i.test(S.members[other]||"")?"vcap":other&&/^(rafi|el)/i.test(S.members[other]||"")?"erusa":"vnel"):""}<div><b></b><span class="crumb">${L("Ketuk 2× untuk ❤️ · tahan pesannya untuk reaksi · tahan pesanmu untuk hapus","Double-tap to ❤️ · long-press theirs to react · long-press yours to delete")}</span></div></div>
+   `<div class="ch-wrap" id="chWrap"><div class="ch-head">${window.pipi?window.pipi("happy",40,other&&/^vina/i.test(S.members[other]||"")?"vcap":other&&/^(rafi|el)/i.test(S.members[other]||"")?"erusa":"vnel"):""}<div><b></b><span class="crumb">${L("Tahan / klik kanan pesan untuk balas, teruskan, salin · geser ke kanan untuk balas","Long-press / right-click a message to reply, forward, copy · swipe right to reply")}</span></div></div>
     <div class="ch-list" role="log" aria-live="polite">${html||`<div class="ch-empty">${L("Belum ada pesan. Sapa duluan! 👋","No messages yet. Say hi first! 👋")}</div>`}</div>
-    <div class="ch-in"><label class="ch-ic" for="chFile" aria-label="${L("Kirim foto","Send photo")}" title="${L("Kirim foto","Send photo")}">📷</label><input type="file" id="chFile" accept="image/*" hidden><button class="ch-ic${stkOpen?" on":""}" id="chStk" aria-label="${L("Stiker","Stickers")}" aria-expanded="${stkOpen}" title="${L("Stiker","Stickers")}">🧸</button>
-     <textarea id="chTxt" rows="1" placeholder="${L("Tulis pesan…","Type a message…")}" aria-label="${L("Pesan","Message")}"></textarea><button class="ch-ic send" id="chSend" aria-label="${L("Kirim","Send")}"${S.sending?" disabled":""}>➤</button></div>
+    <div class="ch-drop" aria-hidden="true">📥 ${L("Lepas untuk mengirim","Drop to send")}</div>
+    ${S.reply?`<div class="ch-replybar"><div><b>↩️ ${L("Membalas","Replying to")} <span class="rw"></span></b><span class="rs"></span></div><button class="ch-ic" id="chRx" aria-label="${L("Batal balas","Cancel reply")}">✕</button></div>`:""}
+    ${S.tray.length?`<div class="ch-tray">${S.tray.map((x,i)=>`<div class="ch-ti">${x.prev?`<img src="${x.prev}" alt="">`:`<span class="fi">${fIcon(x.file.type||"")}</span>`}<span class="tn"></span><button data-trx="${i}" aria-label="${L("Hapus lampiran","Remove attachment")}">✕</button></div>`).join("")}</div>`:""}
+    <div class="ch-in"><label class="ch-ic" for="chFile" aria-label="${L("Kirim foto","Send photo")}" title="${L("Foto","Photo")}">📷</label><input type="file" id="chFile" accept="image/*" multiple hidden>
+     <label class="ch-ic" for="chAny" aria-label="${L("Kirim file","Send file")}" title="${L("File (maks. 50 MB)","File (max 50 MB)")}">📎</label><input type="file" id="chAny" multiple hidden>
+     <button class="ch-ic${stkOpen?" on":""}" id="chStk" aria-label="${L("Stiker","Stickers")}" aria-expanded="${stkOpen}" title="${L("Stiker","Stickers")}">🧸</button>
+     <textarea id="chTxt" rows="1" placeholder="${S.tray.length?L("Tambah keterangan…","Add a caption…"):L("Tulis pesan… (bisa tempel gambar)","Type a message… (paste images too)")}" aria-label="${L("Pesan","Message")}"></textarea><button class="ch-ic send" id="chSend" aria-label="${L("Kirim","Send")}"${S.sending?" disabled":""}>➤</button></div>
     ${stkOpen?`<div class="stk-panel"><div class="stk-tabs" role="tablist">${STABS().map(([k,n])=>`<button role="tab" aria-selected="${k===stkTab}" class="${k===stkTab?"on":""}" data-st="${k}">${n}</button>`).join("")}</div>
       <div class="stk-grid${stkTab==="emoji"?" uni":""}">${stkTab==="emoji"?UNI.map(e=>`<button data-q="${e}" aria-label="${e}">${e}</button>`).join(""):STABS().find(x=>x[0]===stkTab)[2].map(k=>`<button data-send="${k}" data-stk="${k}" aria-label="${L("Kirim stiker","Send sticker")}">${stkSVG(k,64)}</button>`).join("")}</div></div>`
      :`<div class="ch-quick">${EMOTES.map(k=>`<button data-send="${k}" aria-label="${L("Kirim emote","Send emote")}">${stkSVG(k,34)}</button>`).join("")}</div>`}</div>`;
   v.querySelector(".ch-head b").textContent=oName;
-  v.querySelectorAll(".ch-b").forEach(b=>{const m=S.msgs.find(x=>x.id==b.dataset.m),bd=b.querySelector(".bd");if(bd)bd.textContent=pt(m.body)||""});fillCaps(v);
-  const nl=v.querySelector(".ch-list");
+  v.querySelectorAll(".ch-b").forEach(b=>{const m=S.msgs.find(x=>x.id==b.dataset.m),o=parse(pt(m.body)),bd=b.querySelector(".bd");if(bd)bd.textContent=o.t||"";
+    const q=b.querySelector(".ch-quote");if(q&&o.r){q.querySelector("b").textContent=o.r.w||"";q.querySelector("span").textContent=o.r.s||""}
+    const fn=b.querySelector(".ch-file .fm b");if(fn&&o.f)fn.textContent=o.f.n});
+  if(S.reply){v.querySelector(".ch-replybar .rw").textContent=S.reply.w;v.querySelector(".ch-replybar .rs").textContent=S.reply.s}
+  v.querySelectorAll(".ch-tray .tn").forEach((n,i)=>n.textContent=S.tray[i].file.name||L("Tempelan","Pasted"));
+  fillCaps(v);
+  const nl=v.querySelector(".ch-list"),wrap=v.querySelector("#chWrap");
   const grow=()=>{const t=$("chTxt");t.style.height="auto";t.style.height=Math.min(120,t.scrollHeight)+"px"};
   const t=$("chTxt");t.value=S.draft;grow();if(hadFocus||(!live&&matchMedia("(min-width:861px)").matches))t.focus();
   if(atBottom||!live||S.msgs.length!==lastCount&&S.msgs[S.msgs.length-1]?.sender===S.me)nl.scrollTop=nl.scrollHeight;else nl.scrollTop=prevTop;lastCount=S.msgs.length;
   urlsFor(S.msgs.map(m=>m.img)).then(u=>v.querySelectorAll("[data-img]").forEach(i=>{const s=E2()?E2().imgSrc(i.dataset.img,u(i.dataset.img)):u(i.dataset.img);if(s)i.src=s;i.onload=()=>{if(atBottom||!live)nl.scrollTop=nl.scrollHeight}}));
   t.oninput=()=>{S.draft=t.value;grow()};
-  t.onkeydown=e=>{if(e.key==="Enter"&&!e.shiftKey&&matchMedia("(hover:hover)").matches){e.preventDefault();send()}};
+  t.onkeydown=e=>{if(e.key==="Enter"&&!e.shiftKey&&matchMedia("(hover:hover)").matches){e.preventDefault();send()}if(e.key==="Escape"&&S.reply){S.reply=null;drawChat(v,true)}};
+  /* tempel gambar / file dari clipboard */
+  t.addEventListener("paste",e=>{const fs=[...(e.clipboardData?.files||[])];if(!fs.length){const it=[...(e.clipboardData?.items||[])].filter(x=>x.kind==="file").map(x=>x.getAsFile()).filter(Boolean);fs.push(...it)}
+    if(fs.length){e.preventDefault();addTray(fs)}});
+  /* seret & lepas */
+  let dz=0;wrap.addEventListener("dragenter",e=>{if([...(e.dataTransfer?.types||[])].includes("Files")){e.preventDefault();dz++;wrap.classList.add("dragging")}});
+  wrap.addEventListener("dragover",e=>{if([...(e.dataTransfer?.types||[])].includes("Files"))e.preventDefault()});
+  wrap.addEventListener("dragleave",()=>{dz=Math.max(0,dz-1);if(!dz)wrap.classList.remove("dragging")});
+  wrap.addEventListener("drop",e=>{e.preventDefault();dz=0;wrap.classList.remove("dragging");const fs=[...(e.dataTransfer?.files||[])];if(fs.length)addTray(fs)});
+  function addTray(files){for(const f of files.slice(0,10)){if(f.size>MAXF){status(L("Terlalu besar (maks. 50 MB): ","Too large (max 50 MB): ")+f.name,"warn");continue}
+      S.tray.push({file:f,prev:/^image\//.test(f.type)?URL.createObjectURL(f):null})}drawChat(v,true);$("chTxt").focus()}
+  v.querySelectorAll("[data-trx]").forEach(b=>b.onclick=()=>{const x=S.tray.splice(+b.dataset.trx,1)[0];if(x&&x.prev)URL.revokeObjectURL(x.prev);drawChat(v,true)});
+  const rx=$("chRx");if(rx)rx.onclick=()=>{S.reply=null;drawChat(v,true)};
   $("chSend").onclick=send;
   v.querySelectorAll("[data-q]").forEach(b=>b.onclick=()=>{t.value+=b.dataset.q;S.draft=t.value;t.focus()});
   $("chStk").onclick=()=>{stkOpen=!stkOpen;drawChat(v,true)};
   v.querySelectorAll("[data-st]").forEach(b=>b.onclick=()=>{stkTab=b.dataset.st;drawChat(v,true)});
-  v.querySelectorAll("[data-send]").forEach(b=>b.onclick=()=>sendBody("[stk:"+b.dataset.send+"]"));
-  $("chFile").onchange=async e=>{const f=e.target.files[0];e.target.value="";if(!f)return;S.sending=true;status(L("Mengirim foto…","Sending photo…"),"");
-    try{const p=await upPhoto(f,1280);const {error}=await sb.from("couple_msgs").insert({body:S.draft.trim()?await seal(S.draft.trim()):null,img:p});if(error)throw error;S.draft="";status("");if(window.RAVI_NOTIFY)window.RAVI_NOTIFY("msg",{body:"📷 "+L("Foto","Photo")})}catch(err){status(L("Gagal kirim foto: ","Couldn't send photo: ")+(err.message||err),"err")}
-    S.sending=false;await loadMsgs().catch(()=>{});drawChat(v,false)};
-  v.querySelectorAll(".ch-b").forEach(b=>{const id=+b.dataset.m,m=S.msgs.find(x=>x.id===id);let last=0,hold=0;
-    b.addEventListener("click",async e=>{if(e.target.matches("img")){const bg=modal(L("Foto","Photo"),`<img alt="" style="width:100%;border-radius:12px">`,()=>true,"OK");bg.querySelector("img").src=e.target.src;const c=bg.querySelector(".c");if(c)c.style.display="none";return}
+  v.querySelectorAll("[data-send]").forEach(b=>b.onclick=()=>sendBody({t:"[stk:"+b.dataset.send+"]"}));
+  $("chFile").onchange=e=>{const fs=[...e.target.files];e.target.value="";if(fs.length)addTray(fs)};
+  $("chAny").onchange=e=>{const fs=[...e.target.files];e.target.value="";if(fs.length)addTray(fs)};
+  /* lompat ke pesan yang dikutip */
+  v.querySelectorAll("[data-jump]").forEach(q=>q.onclick=e=>{e.stopPropagation();const el=document.getElementById("msg"+q.dataset.jump);
+    if(el){el.scrollIntoView({block:"center",behavior:"smooth"});el.classList.add("flash");setTimeout(()=>el.classList.remove("flash"),1400)}else status(L("Pesan aslinya sudah tidak ada.","The original message is gone."),"warn")});
+  /* buka / putar / unduh file */
+  v.querySelectorAll("[data-open]").forEach(b=>b.onclick=async e=>{e.stopPropagation();const m=S.msgs.find(x=>x.id==b.dataset.open),o=parse(pt(m.body));if(!o.f)return;
+    b.disabled=true;const old=b.textContent;b.textContent="…";
+    try{const url=await fileURL(o.f);const box=v.querySelector(`[data-media="${m.id}"]`);
+      if(/^video\//.test(o.f.m)){box.innerHTML=`<video controls playsinline preload="metadata"></video>`;const vd=box.querySelector("video");vd.src=url;vd.play().catch(()=>{});b.textContent="⬇";b.disabled=false;b.onclick=ev=>{ev.stopPropagation();dl(url,o.f.n)}}
+      else if(/^audio\//.test(o.f.m)){box.innerHTML=`<audio controls></audio>`;box.querySelector("audio").src=url;b.textContent="⬇";b.disabled=false;b.onclick=ev=>{ev.stopPropagation();dl(url,o.f.n)}}
+      else if(/^image\//.test(o.f.m)){box.innerHTML=`<img alt="">`;box.querySelector("img").src=url;b.textContent="⬇";b.disabled=false;b.onclick=ev=>{ev.stopPropagation();dl(url,o.f.n)}}
+      else{dl(url,o.f.n);b.textContent=old;b.disabled=false}}
+    catch(err){b.textContent=old;b.disabled=false;status(L("Gagal membuka file: ","Couldn't open file: ")+(err.message||err),"err")}});
+  v.querySelectorAll(".ch-b").forEach(b=>{const id=+b.dataset.m,m=S.msgs.find(x=>x.id===id);let last=0,hold=0,sx=0,sy=0,swiped=false;
+    b.addEventListener("click",async e=>{if(e.target.closest("button,video,audio"))return;
+      if(e.target.matches("img")){const bg=modal(L("Foto","Photo"),`<img alt="" style="width:100%;border-radius:12px">`,()=>true,"OK");bg.querySelector("img").src=e.target.src;const c=bg.querySelector(".c");if(c)c.style.display="none";return}
       const now=Date.now();if(now-last<350){const r={...(m.reacts||{})};if(r[S.me])delete r[S.me];else r[S.me]="❤️";m.reacts=r;drawChat(v,true);await sb.from("couple_msgs").update({reacts:r}).eq("id",id)}last=now});
-    if(m.sender!==S.me){const start=()=>{hold=setTimeout(()=>reactPick(m,v),500)},stop=()=>clearTimeout(hold);
-      b.addEventListener("touchstart",start,{passive:true});b.addEventListener("touchend",stop);b.addEventListener("touchmove",stop);
-      b.addEventListener("contextmenu",e=>{e.preventDefault();reactPick(m,v)})}
-    if(m.sender===S.me){const start=()=>{hold=setTimeout(()=>delMsg(m,v),550)},stop=()=>clearTimeout(hold);
-      b.addEventListener("touchstart",start,{passive:true});b.addEventListener("touchend",stop);b.addEventListener("touchmove",stop);
-      b.addEventListener("contextmenu",e=>{e.preventDefault();delMsg(m,v)})}});
+    const start=e=>{const p=e.touches[0];sx=p.clientX;sy=p.clientY;swiped=false;hold=setTimeout(()=>{if(!swiped)actions(m,v)},500)};
+    const move=e=>{const p=e.touches[0],dx=p.clientX-sx,dy=Math.abs(p.clientY-sy);if(dy>12||Math.abs(dx)>12)clearTimeout(hold);
+      if(dx>0&&dy<30){b.style.transform=`translateX(${Math.min(dx,80)}px)`;if(dx>60)swiped=true}};
+    const end=()=>{clearTimeout(hold);b.style.transform="";if(swiped&&m.id>0){setReply(m,v)}};
+    b.addEventListener("touchstart",start,{passive:true});b.addEventListener("touchmove",move,{passive:true});b.addEventListener("touchend",end);
+    b.addEventListener("contextmenu",e=>{e.preventDefault();actions(m,v)})});
   markRead();badge();
-  async function send(){const body=t.value.trim();if(!body||S.sending)return;t.value="";S.draft="";grow();return sendBody(body,true)}
-  async function sendBody(body,fromText){if(S.sending)return;S.sending=true;
+  async function send(){const body=t.value.trim();if((!body&&!S.tray.length)||S.sending)return;t.value="";S.draft="";grow();
+    if(S.tray.length){const items=S.tray.splice(0);S.sending=true;drawChat(v,true);let cap=body,n=0;
+      for(const it of items){status(L("Mengirim ","Sending ")+(++n)+"/"+items.length+"…","");
+        try{const r=S.reply?{id:S.reply.id,w:S.reply.w,s:S.reply.s}:null;
+          if(isPhoto(it.file)){const p=await upPhoto(it.file,1600);const o={t:cap,r};const {error}=await sb.from("couple_msgs").insert({body:(cap||r)?await seal(pack(o)):null,img:p});if(error)throw error}
+          else{const fm=await uploadFile(it.file);const {error}=await sb.from("couple_msgs").insert({body:await seal(pack({t:cap,r,f:fm}))});if(error)throw error}
+          cap="";S.reply=null}catch(err){status(L("Gagal mengirim ","Couldn't send ")+(it.file.name||"")+": "+(err.message||err),"err")}
+        if(it.prev)URL.revokeObjectURL(it.prev)}
+      S.sending=false;if(!document.querySelector("#status.err"))status("");
+      if(window.RAVI_NOTIFY)window.RAVI_NOTIFY("msg",{body:pushText("📎 "+items.length+" "+L("lampiran","attachment(s)"),"💬 "+L("Pesan baru (terenkripsi)","New message (encrypted)"))});
+      await loadMsgs().catch(()=>{});drawChat(v,false);return}
+    const r=S.reply?{id:S.reply.id,w:S.reply.w,s:S.reply.s}:null;S.reply=null;return sendBody({t:body,r},true)}
+  async function sendBody(o,fromText){if(S.sending)return;S.sending=true;const body=pack(o);
     const tmp={id:-Date.now(),sender:S.me,body,created_at:new Date().toISOString(),reacts:{}};S.msgs.push(tmp);drawChat(v,false);
-    let sealed;try{sealed=await seal(body)}catch(e){S.sending=false;S.msgs=S.msgs.filter(x=>x.id!==tmp.id);if(fromText)S.draft=body;status(e.message,"warn");drawChat(v,false);return}
+    let sealed;try{sealed=await seal(body)}catch(e){S.sending=false;S.msgs=S.msgs.filter(x=>x.id!==tmp.id);if(fromText)S.draft=o.t||"";status(e.message,"warn");drawChat(v,false);return}
     const {data,error}=await sb.from("couple_msgs").insert({body:sealed}).select().single();S.sending=false;
-    S.msgs=S.msgs.filter(x=>x.id!==tmp.id);if(error){if(fromText)S.draft=body;status(L("Pesan gagal terkirim: ","Message not sent: ")+error.message,"err")}else{if(data&&!S.msgs.some(x=>x.id===data.id))S.msgs.push(data);if(window.RAVI_NOTIFY)window.RAVI_NOTIFY("msg",{body:pushText(isStk(body)?"🧸 "+L("Stiker","Sticker"):body,"💬 "+L("Pesan baru (terenkripsi)","New message (encrypted)"))})}
-    drawChat(v,false)}}
+    S.msgs=S.msgs.filter(x=>x.id!==tmp.id);if(error){if(fromText)S.draft=o.t||"";status(L("Pesan gagal terkirim: ","Message not sent: ")+error.message,"err")}else{if(data&&!S.msgs.some(x=>x.id===data.id))S.msgs.push(data);if(window.RAVI_NOTIFY)window.RAVI_NOTIFY("msg",{body:pushText(isStk(o.t)?"🧸 "+L("Stiker","Sticker"):(o.t||""),"💬 "+L("Pesan baru (terenkripsi)","New message (encrypted)"))})}
+    drawChat(v,false)}
+  S.sendBody=sendBody}
+function dl(url,name){const a=document.createElement("a");a.href=url;a.download=name||"file";a.rel="noopener";document.body.appendChild(a);a.click();a.remove()}
+function setReply(m,v){S.reply={id:m.id,w:name(m.sender),s:snip(m)};drawChat(v,true);$("chTxt")?.focus()}
+/* menu aksi pesan: reaksi, balas, teruskan, salin, hapus */
+function actions(m,v){if(m.id<0)return;const o=parse(pt(m.body)),mine=m.sender===S.me,opts=["❤️","stk:vnel:party","stk:vcap:happy","stk:erusa:party","stk:vorange:worried","stk:ekaget:worried","stk:pipi:party","😂"];
+  const bg=modal(L("Pesan","Message"),`<div class="stk-grid act-rx">${opts.map((x,i)=>`<button data-rp="${i}" aria-label="${L("Reaksi","Reaction")}">${x.startsWith("stk:")?stkSVG(x.slice(4),40):`<span style="font-size:28px">${x}</span>`}</button>`).join("")}</div>
+    <div class="act-list"><button data-a="reply">↩️ ${L("Balas","Reply")}</button><button data-a="fwd">↪️ ${L("Teruskan","Forward")}</button>${o.t&&!isStk(o.t)?`<button data-a="copy">📋 ${L("Salin teks","Copy text")}</button>`:""}${(m.reacts||{})[S.me]?`<button data-a="unreact">✖️ ${L("Hapus reaksiku","Remove my reaction")}</button>`:""}${mine?`<button data-a="del" class="danger">🗑️ ${L("Hapus untuk berdua","Delete for both")}</button>`:""}</div>`,()=>true,"OK");
+  const c=bg.querySelector(".c");if(c)c.style.display="none";const ok=bg.querySelector(".ok");if(ok)ok.textContent=L("Tutup","Close");
+  const setRx=async val=>{const r={...(m.reacts||{})};if(val)r[S.me]=val;else delete r[S.me];m.reacts=r;bg.remove();drawChat(v,true);await sb.from("couple_msgs").update({reacts:r}).eq("id",m.id)};
+  bg.querySelectorAll("[data-rp]").forEach(b=>b.onclick=()=>setRx(opts[+b.dataset.rp]));
+  bg.querySelectorAll("[data-a]").forEach(b=>b.onclick=async()=>{const a=b.dataset.a;bg.remove();
+    if(a==="reply")setReply(m,v);
+    else if(a==="copy"){try{await navigator.clipboard.writeText(o.t);status(L("Teks disalin 📋","Text copied 📋"),"ok")}catch(e){status(L("Browser menolak menyalin. Tahan teksnya untuk menyalin manual.","The browser blocked copying. Long-press the text to copy manually."),"warn")}}
+    else if(a==="unreact")setRx(null);
+    else if(a==="del")delMsg(m,v);
+    else if(a==="fwd")forward(m,o,v)})}
+function forward(m,o,v){const canShare=!!navigator.share;
+  const bg=modal(L("Teruskan pesan","Forward message"),`<div class="crumb" style="margin-bottom:8px"></div><div class="act-list">
+    <button data-f="chat">💬 ${L("Kirim ulang di chat ini","Send again in this chat")}</button><button data-f="note">📝 ${L("Simpan ke Catatan","Save to Notes")}</button>${canShare?`<button data-f="share">📤 ${L("Bagikan ke aplikasi lain (WhatsApp, dll.)","Share to another app (WhatsApp, etc.)")}</button>`:""}</div>`,()=>true,"OK");
+  bg.querySelector(".crumb").textContent="“"+snip(m)+"”";const c=bg.querySelector(".c");if(c)c.style.display="none";const ok=bg.querySelector(".ok");if(ok)ok.textContent=L("Tutup","Close");
+  bg.querySelectorAll("[data-f]").forEach(b=>b.onclick=async()=>{const k=b.dataset.f;bg.remove();
+    try{if(k==="chat"){if(m.img){const {error}=await sb.from("couple_msgs").insert({body:await seal(pack({t:o.t,fwd:true})),img:m.img});if(error)throw error;await loadMsgs();drawChat(v,false)}
+        else if(S.sendBody)S.sendBody({t:o.t,f:o.f,fwd:true})}
+      else if(k==="note"){if(!col)throw new Error("offline");const body=(o.t||"")+(o.f?"\n📎 "+o.f.n:"")+(m.img&&!o.t?"📷 "+L("Foto dari chat","Photo from chat"):"");
+        await col.doc("nt_"+Date.now()).set({kind:"note",title:L("Dari chat · ","From chat · ")+name(m.sender),body,color:"blue",pinned:false,tags:["chat"],items:[],created:Date.now(),updated:Date.now()});status(L("Disimpan ke Catatan 📝","Saved to Notes 📝"),"ok")}
+      else if(k==="share"){let files=[];
+        if(o.f||m.img){try{const url=o.f?await fileURL(o.f):(document.querySelector(`#msg${m.id} img`)?.src||"");if(url){const blob=await (await fetch(url)).blob();files=[new File([blob],o.f?o.f.n:"foto.jpg",{type:o.f?o.f.m:"image/jpeg"})]}}catch(e){}}
+        const data=files.length&&navigator.canShare&&navigator.canShare({files})?{files,text:o.t||undefined}:{text:o.t||snip(m)};await navigator.share(data)}}
+    catch(e){if(e&&e.name!=="AbortError")status(L("Gagal meneruskan: ","Couldn't forward: ")+(e.message||e),"err")}})}
 function reactPick(m,v){const opts=["❤️","stk:vnel:party","stk:vcap:happy","stk:erusa:party","stk:vorange:worried","stk:ekaget:worried","stk:pipi:party","😂"];
   const bg=modal(L("Beri reaksi","React"),`<div class="stk-grid">${opts.map((o,i)=>`<button data-rp="${i}" aria-label="${L("Reaksi","Reaction")}">${o.startsWith("stk:")?stkSVG(o.slice(4),48):`<span style="font-size:34px">${o}</span>`}</button>`).join("")}</div>${(m.reacts||{})[S.me]?`<button class="sm" id="rpX" style="margin-top:10px">${L("Hapus reaksiku","Remove my reaction")}</button>`:""}`,()=>true,"OK");
   const c=bg.querySelector(".c");if(c)c.style.display="none";
