@@ -22,8 +22,11 @@ async function ready(){if(C.ready)return C.ready;
     (data||[]).forEach(m=>C.names[m.user_id]=m.name);C.other=(data||[]).map(m=>m.user_id).find(u=>u!==C.me)||null;
     if(!C.other)throw new Error("nopartner");
     const key=[C.me,C.other].sort().join("-").replace(/-/g,"").slice(0,40);
-    C.ch=sb.channel("ravi-call-"+key,{config:{broadcast:{self:false}}});
-    C.ch.on("broadcast",{event:"sig"},({payload})=>onSig(payload)).subscribe();return true})();
+    loadIce();
+    const join=priv=>{const ch=sb.channel("ravi-call-"+key,{config:{private:priv,broadcast:{self:false}}});ch.on("broadcast",{event:"sig"},({payload})=>onSig(payload));return ch};
+    C.ch=join(true);C.priv=true;
+    C.ch.subscribe(st=>{if((st==="CHANNEL_ERROR"||st==="TIMED_OUT")&&C.priv){/* kebijakan channel privat belum dipasang (setup-ravi.sql) → pakai channel biasa */
+      try{sb.removeChannel(C.ch)}catch(e){}C.priv=false;C.ch=join(false);C.ch.subscribe();window.RAVI_CALL_PUBLIC=true}});return true})();
   C.ready.catch(()=>{C.ready=null});return C.ready}
 const send=p=>{try{C.ch&&C.ch.send({type:"broadcast",event:"sig",payload:{...p,from:C.me,id:p.id||C.id}})}catch(e){}};
 
@@ -40,12 +43,22 @@ async function getMedia(video){
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw new Error(L("Browser ini tidak mendukung panggilan. Pakai Chrome atau Safari terbaru.","This browser doesn't support calls. Use the latest Chrome or Safari."));
   try{return await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true},video:video?{facingMode:C.facing,width:{ideal:1280},height:{ideal:720}}:false})}
   catch(e){throw new Error(e.name==="NotAllowedError"?L("Izin mikrofon/kamera ditolak. Izinkan lewat ikon gembok di address bar.","Microphone/camera permission denied. Allow it via the lock icon in the address bar."):e.name==="NotFoundError"?L("Mikrofon/kamera tidak ditemukan.","No microphone/camera found."):e.message)}}
-function newPC(){const pc=new RTCPeerConnection({iceServers:ICE});C.remote=new MediaStream();
-  pc.onicecandidate=e=>{if(e.candidate)send({t:"ice",c:e.candidate})};
+let iceP=null,iceAt=0;
+function loadIce(force){if(!window.RAVI_FN)return Promise.resolve(null);if(!iceP||force||Date.now()-iceAt>6*3600e3){iceAt=Date.now();iceP=window.RAVI_FN({action:"ice"}).then(r=>r&&r.iceServers&&r.iceServers.length?r.iceServers:null).catch(()=>null)}return iceP}
+async function iceList(){const r=await Promise.race([loadIce(),new Promise(x=>setTimeout(()=>x(null),2500))]);return r||ICE}
+function newPC(list){const pc=new RTCPeerConnection({iceServers:list||ICE});C.remote=new MediaStream();
+  C.cand={host:0,srflx:0,relay:0,remote:0};
+  pc.onicecandidate=e=>{if(e.candidate){const ty=(/ typ (\w+)/.exec(e.candidate.candidate)||[])[1];if(ty in C.cand)C.cand[ty]++;send({t:"ice",c:e.candidate})}};
   pc.ontrack=e=>{e.streams[0]?e.streams[0].getTracks().forEach(t=>{if(!C.remote.getTracks().includes(t))C.remote.addTrack(t)}):C.remote.addTrack(e.track);draw()};
   pc.onconnectionstatechange=()=>{const s=pc.connectionState;if(s==="connected"){if(C.state!=="live"){C.state="live";C.t0=Date.now();stopTone();clearInterval(C.timer);C.timer=setInterval(tick,1000)}draw()}
     else if(s==="failed"){end(L("Koneksi gagal. Jaringan salah satu dari kalian mungkin memblokir panggilan langsung.","Connection failed. One of your networks may block direct calls."),true)}
     else if(s==="disconnected"){C.note=L("Sinyal lemah, menyambung ulang…","Weak signal, reconnecting…");draw()}};
+  clearTimeout(C.wd1);clearTimeout(C.wd2);
+  C.wd1=setTimeout(async()=>{if(C.pc!==pc||pc.connectionState==="connected")return;C.note=L("Mencoba jalur lain…","Trying another route…");draw();
+    try{if(C.role==="caller"){const o=await pc.createOffer({iceRestart:true});await pc.setLocalDescription(o);send({t:"offer",sdp:pc.localDescription})}}catch(e){}},12000);
+  C.wd2=setTimeout(()=>{if(C.pc!==pc||pc.connectionState==="connected")return;
+    const why=!C.cand.relay?L("Jaringan salah satu dari kalian memblokir sambungan langsung, dan server relay (TURN) belum aktif. Aktifkan TURN Cloudflare (langkah 3 di README), atau coba lagi saat kalian berdua di Wi-Fi.","One of your networks blocks direct connections and the relay (TURN) server isn't on yet. Turn on Cloudflare TURN (step 3 in the README), or try again while both of you are on Wi-Fi."):L("Sambungan tidak berhasil walau lewat relay. Coba lagi sebentar lagi.","Couldn't connect even through the relay. Try again shortly.");
+    send({t:"hangup"});end(why,true)},30000);
   C.local.getTracks().forEach(t=>pc.addTrack(t,C.local));return pc}
 async function flushIce(){const l=C.pendingIce;C.pendingIce=[];for(const c of l)try{await C.pc.addIceCandidate(c)}catch(e){}}
 
@@ -55,33 +68,34 @@ async function start(video){
   if(C.state!=="idle")return;
   C.video=video;C.role="caller";C.id=Date.now().toString(36);C.state="calling";C.note="";draw();
   try{C.local=await getMedia(video)}catch(e){C.state="idle";draw();alert(e.message);return}
-  draw();tone("out");send({t:"ring",video});
-  C.ringT=setTimeout(()=>{if(C.state==="calling"){send({t:"cancel"});end(L("Tidak dijawab","No answer"),true,"missed")}},35000)}
+  draw();tone("out");send({t:"ring",video});C.ringIv=setInterval(()=>{if(C.state==="calling")send({t:"ring",video})},3000);
+  if(window.RAVI_NOTIFY)window.RAVI_NOTIFY("call",{body:video?L("🎥 Video call masuk","🎥 Incoming video call"):L("📞 Panggilan suara masuk","📞 Incoming voice call")});
+  C.ringT=setTimeout(()=>{if(C.state==="calling"){send({t:"cancel"});end(L("Tidak dijawab","No answer"),true,"missed")}},45000)}
 async function accept(){stopTone();C.state="connecting";draw();
   try{C.local=await getMedia(C.video)}catch(e){send({t:"decline"});end(e.message,true);return}
-  C.pc=newPC();send({t:"accept"});draw()}
+  C.pc=newPC(await iceList());send({t:"accept"});draw()}
 function decline(){send({t:"decline"});stopTone();reset()}
 async function onSig(p){if(!p||p.from===C.me)return;
-  if(p.t==="ring"){if(C.state!=="idle"){send({t:"busy",id:p.id});return}
+  if(p.t==="ring"){if(p.id&&p.id===C.id)return;if(C.state!=="idle"){send({t:"busy",id:p.id});return}
     C.id=p.id;C.role="callee";C.video=!!p.video;C.state="ringing";C.note="";draw();tone("in");
     try{if(document.hidden&&window.Notification&&Notification.permission==="granted")new Notification(oName()+L(" menelepon"," is calling"),{body:p.video?L("Video call masuk","Incoming video call"):L("Panggilan suara masuk","Incoming voice call"),icon:"icon-192.png",tag:"call",requireInteraction:true})}catch(e){}
-    C.ringT=setTimeout(()=>{if(C.state==="ringing"){stopTone();reset()}},35000);return}
+    C.ringT=setTimeout(()=>{if(C.state==="ringing"){stopTone();reset()}},45000);return}
   if(p.id&&C.id&&p.id!==C.id)return;
   if(p.t==="cancel"&&C.state==="ringing"){stopTone();reset();status(L("Panggilan tak terjawab dari ","Missed call from ")+oName(),"warn");return}
   if(p.t==="busy"&&C.state==="calling"){end(L("Sedang dalam panggilan lain","On another call"),true);return}
   if(p.t==="decline"&&C.state==="calling"){end(L("Panggilan ditolak","Call declined"),true,"declined");return}
-  if(p.t==="accept"&&C.state==="calling"){clearTimeout(C.ringT);C.state="connecting";stopTone();draw();
-    C.pc=newPC();const off=await C.pc.createOffer();await C.pc.setLocalDescription(off);send({t:"offer",sdp:C.pc.localDescription});return}
+  if(p.t==="accept"&&C.state==="calling"){clearTimeout(C.ringT);clearInterval(C.ringIv);C.state="connecting";stopTone();draw();
+    C.pc=newPC(await iceList());const off=await C.pc.createOffer();await C.pc.setLocalDescription(off);send({t:"offer",sdp:C.pc.localDescription});return}
   if(p.t==="offer"&&C.pc){await C.pc.setRemoteDescription(p.sdp);await flushIce();const ans=await C.pc.createAnswer();await C.pc.setLocalDescription(ans);send({t:"answer",sdp:C.pc.localDescription});return}
   if(p.t==="answer"&&C.pc){await C.pc.setRemoteDescription(p.sdp);await flushIce();return}
-  if(p.t==="ice"){if(C.pc&&C.pc.remoteDescription)try{await C.pc.addIceCandidate(p.c)}catch(e){}else C.pendingIce.push(p.c);return}
+  if(p.t==="ice"){if(C.cand)C.cand.remote++;if(C.pc&&C.pc.remoteDescription)try{await C.pc.addIceCandidate(p.c)}catch(e){}else C.pendingIce.push(p.c);return}
   if(p.t==="cam"){C.peerVideo=!!p.on;draw();return}
   if(p.t==="hangup"&&C.state!=="idle"){end(L("Panggilan selesai","Call ended"),false);return}}
 function hangup(){send({t:C.state==="calling"?"cancel":"hangup"});end(L("Panggilan selesai","Call ended"),false,C.state==="calling"?"cancelled":null)}
 async function end(msg,isErr,kind){const dur=C.t0?Math.round((Date.now()-C.t0)/1000):0,wasCaller=C.role==="caller",video=C.video;
   stopTone();reset();if(msg)status(msg+(dur?" · "+fmt(dur):""),isErr?"warn":"ok");
   if(wasCaller)try{await sb.from("couple_msgs").insert({body:"[call:"+(video?"video":"voice")+":"+(dur||0)+":"+(kind||(dur?"done":"missed"))+"]"})}catch(e){}}
-function reset(){clearTimeout(C.ringT);clearInterval(C.timer);try{C.pc&&C.pc.close()}catch(e){}
+function reset(){clearTimeout(C.wd1);clearTimeout(C.wd2);clearTimeout(C.ringT);clearInterval(C.ringIv);clearInterval(C.timer);try{C.pc&&C.pc.close()}catch(e){}
   [C.local,C.share].forEach(s=>s&&s.getTracks().forEach(t=>t.stop()));
   Object.assign(C,{pc:null,local:null,remote:null,share:null,state:"idle",muted:false,camOff:false,t0:0,pendingIce:[],role:null,id:null,note:"",peerVideo:null});draw()}
 const fmt=s=>Math.floor(s/60)+":"+String(s%60).padStart(2,"0");

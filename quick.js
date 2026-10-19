@@ -13,6 +13,7 @@ const SKIP=new Set(["dash","tools","look","guide"]);
 const DEFAULTS=["input","chat","today","t_moment","games","t_wish"];
 const ICON={input:"📸",journal:"📒",gl:"🔍",tb:"⚖️",recon:"🏦",budget:"🎯",fs:"📊",coa:"🗂️",period:"🔒",today:"☀️",sched:"📅",diary:"✍️",notes:"📝",quest:"🏆",album:"🌟",games:"🎮",
   chat:"💬",feed:"📷",t_moment:"💑",t_split:"🧮",t_wish:"🐷",t_habit:"✅",t_wheel:"🎡",t_calc:"🏦",t_learn:"🌏",t_quote:"💬",t_focus:"⏱️",t_mood:"😊",t_capsule:"💌",t_bucket:"🪣",t_cards:"🃏",t_fx:"💱"};
+window.RAVI_ICON=ICON;
 function load(){try{return JSON.parse(localStorage.getItem(key())||"{}")}catch(e){return {}}}
 function save(u){try{localStorage.setItem(key(),JSON.stringify(u))}catch(e){}}
 /* skor = jumlah buka, makin lama tidak dibuka makin turun (setengahnya tiap 14 hari) */

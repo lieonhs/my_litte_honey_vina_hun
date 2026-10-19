@@ -118,3 +118,30 @@ Semua acara & jurnal disimpan di Supabase yang sama (per akun) — **tidak perlu
 | `manifest.webmanifest`, `icon.svg` | Add to Home screen | GitHub |
 | `supabase/schema.sql` | Tabel & aturan keamanan | Supabase SQL Editor |
 | `supabase/functions/read-receipt/index.ts` | Baca foto struk | Edge Function `read-receipt` |
+
+---
+
+## Setup fitur berdua (Chat, Feed, Telepon, Album, Notifikasi, Enkripsi)
+
+Cukup **3 langkah**, sekali saja:
+
+1. **Database** — Supabase → SQL Editor → New query → tempel seluruh isi `supabase/setup-ravi.sql` → **Run**.
+   (Cek dulu Authentication → Users: isinya hanya akun Rafi & Vina, karena skrip mendaftarkan semua akun yang ada sebagai pasangan.)
+2. **Edge Function `ravi`** — Edge Functions → Deploy a new function → Via Editor → nama **`ravi`** → tempel `supabase/functions/ravi/index.ts` → Deploy.
+   Kunci notifikasi (VAPID) dibuat otomatis oleh function ini, tidak perlu diisi manual.
+3. **(Opsional) Telepon di jaringan ketat** — Cloudflare dashboard → Realtime → TURN → buat TURN key → di Supabase Edge Functions → Secrets tambahkan
+   `CF_TURN_KEY_ID` dan `CF_TURN_API_TOKEN`. Gratis 1.000 GB/bulan (cukup untuk ratusan jam video call).
+
+Lalu di aplikasi:
+- **Chat** → ketuk **Aktifkan** pada banner 🔔 (notifikasi) dan 🔓 (enkripsi end-to-end, buat kata sandi chat bersama).
+- iPhone: tambahkan RaVi ke Home Screen dulu (Safari → Bagikan → Tambah ke Layar Utama) supaya notifikasi bisa jalan.
+- **Menu → Keamanan**: aktifkan 2FA (Google Authenticator) dan kunci PIN.
+  2FA butuh: Supabase → Authentication → Multi-Factor → **TOTP: enabled** (biasanya sudah aktif).
+
+## Keamanan yang sudah terpasang
+- Row Level Security: tiap akun hanya bisa membaca datanya sendiri; fitur berdua hanya untuk anggota `couple_members`.
+- Enkripsi end-to-end (AES-256-GCM) untuk pesan, stiker, foto, caption & komentar. Server hanya menyimpan teks acak.
+- Telepon: suara/video terenkripsi langsung antar-HP (DTLS-SRTP); sinyalnya lewat channel Realtime **privat**.
+- 2FA ditegakkan di database: akun yang sudah memasang 2FA tidak bisa diakses dengan password saja.
+- Content Security Policy ketat + library Supabase disimpan di `vendor/` dengan versi terkunci dan cek integritas (SRI).
+- Kunci PIN aplikasi, kunci otomatis, buram saat berpindah aplikasi, keluar dari semua perangkat.

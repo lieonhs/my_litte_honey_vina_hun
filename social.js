@@ -42,7 +42,7 @@ function subscribe(){if(S.sub)return;S.sub=true;
      else if(p.eventType==="DELETE"){S.msgs=S.msgs.filter(m=>m.id!==p.old.id)}
      refresh("chat")})
    .on("postgres_changes",{event:"*",schema:"public",table:"couple_posts"},p=>{
-     if(p.eventType==="INSERT"){if(!S.posts.some(x=>x.id===p.new.id))S.posts.unshift(p.new);if(p.new.author!==S.me&&window.doPeek&&route!=="feed")window.doPeek(true,{t:"📷 "+name(p.new.author)+L(" posting foto baru"," posted a new photo"),d:p.new.caption||"",r:"feed",m:"party",w:7})}
+     if(p.eventType==="INSERT"){if(!S.posts.some(x=>x.id===p.new.id))S.posts.unshift(p.new);if(p.new.author!==S.me&&window.doPeek&&route!=="feed")window.doPeek(true,{t:"📷 "+name(p.new.author)+L(" posting foto baru"," posted a new photo"),d:isEnc(p.new.caption)?"":(p.new.caption||""),r:"feed",m:"party",w:7})}
      else if(p.eventType==="UPDATE"){const i=S.posts.findIndex(x=>x.id===p.new.id);if(i>=0)S.posts[i]=p.new}
      else if(p.eventType==="DELETE")S.posts=S.posts.filter(x=>x.id!==p.old.id);
      refresh("feed")})
@@ -52,10 +52,11 @@ function subscribe(){if(S.sub)return;S.sub=true;
      refresh("feed")})
    .subscribe();
   document.addEventListener("visibilitychange",()=>{if(!document.hidden&&S.me)Promise.all([loadMsgs(),loadPosts()]).then(()=>{refresh("chat");refresh("feed")}).catch(()=>{})})}
+window.RAVI_SOCIAL_REFRESH=()=>{if(route==="chat"||route==="feed")refresh(route)};
 function refresh(r){badge();if(route===r){const v=document.getElementById("view");if(!v)return;if(r==="chat")drawChat(v,true);else drawFeed(v)}}
 const unread=()=>S.msgs.filter(m=>m.sender!==S.me&&!m.read_at).length;
 function badge(){const a=document.querySelector('aside a[data-r="chat"]');if(a){let b=a.querySelector(".qbadge");const n=unread();if(n&&!b){b=document.createElement("span");b.className="qbadge";a.appendChild(b)}if(b){if(n)b.textContent=n;else b.remove()}}}
-function notifyMsg(m){if(route==="chat"&&!document.hidden)return;const txt=/^\[call:/.test(m.body||"")?"📞 "+L("Panggilan","Call"):isStk(m.body)?"🧸 "+L("Stiker","Sticker"):(m.body||(m.img?"📷 "+L("Foto","Photo"):""));
+function notifyMsg(m){if(route==="chat"&&!document.hidden)return;const pb=pt(m.body);const txt=/^\[call:/.test(pb||"")?"📞 "+L("Panggilan","Call"):isStk(pb)?"🧸 "+L("Stiker","Sticker"):isEnc(m.body)&&(pb==="…"||/^🔒/.test(pb))?"💬 "+L("Pesan baru","New message"):(pb||(m.img?"📷 "+L("Foto","Photo"):""));
   if(window.doPeek)window.doPeek(true,{t:"💬 "+name(m.sender),d:txt.slice(0,80),r:"chat",m:"happy",w:8});
   try{if(document.hidden&&window.Notification&&Notification.permission==="granted")new Notification(name(m.sender),{body:txt.slice(0,120),icon:"icon-192.png",tag:"chat"})}catch(e){}}
 
@@ -81,6 +82,12 @@ function stkSVG(k,size){if(!window.pipi)return "";const [a,b]=k.split(":");
 function fillCaps(root){root.querySelectorAll("[data-stk]").forEach(el=>{const k=el.dataset.stk;if(k.startsWith("k:")){const c=el.querySelector(".stk-cap");if(c)c.textContent=KATA[+k.slice(2)]?.[2]||""}})}
 const rxHTML=v=>v.startsWith("stk:")?`<span class="rx-s">${stkSVG(v.slice(4),18)}</span>`:v;
 let stkTab="kata",stkOpen=false;
+/* ---------- enkripsi (e2ee.js) ---------- */
+const E2=()=>window.RAVI_E2E;
+const pt=b=>E2()?E2().show(b):b;                      // teks yang ditampilkan
+async function seal(t){if(!t||!E2())return t;await E2().load();if(E2().enabled()&&!E2().unlocked()){E2().dialog();throw new Error(L("Chat terkunci. Masukkan kata sandi chat dulu.","Chat is locked. Enter the chat password first."))}return E2().encText(t)}
+const isEnc=b=>typeof b==="string"&&b.startsWith("enc1:");
+const pushText=(plain,fallback)=>E2()&&E2().enabled()?fallback:plain;   // jangan bocorkan isi lewat notifikasi
 /* ---------- foto ---------- */
 const urls={};
 async function urlsFor(paths){paths=paths.filter(Boolean);const need=paths.filter(p=>!urls[p]||urls[p].exp<Date.now());
@@ -89,7 +96,9 @@ async function urlsFor(paths){paths=paths.filter(Boolean);const need=paths.filte
 function loadImg(f){return new Promise((y,n)=>{const u=URL.createObjectURL(f),i=new Image();i.onload=()=>{y(i);setTimeout(()=>URL.revokeObjectURL(u),1000)};i.onerror=()=>n(new Error(L("Format foto tidak didukung.","Unsupported photo format.")));i.src=u})}
 async function upPhoto(file,max){const img=await loadImg(file),s=Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight)),c=document.createElement("canvas");
   c.width=Math.round(img.naturalWidth*s);c.height=Math.round(img.naturalHeight*s);c.getContext("2d").drawImage(img,0,0,c.width,c.height);
-  const blob=await new Promise(r=>c.toBlob(r,"image/jpeg",.82)),path=S.me+"/"+Date.now().toString(36)+Math.random().toString(36).slice(2,6)+".jpg";
+  let blob=await new Promise(r=>c.toBlob(r,"image/jpeg",.82)),ext=".jpg";
+  if(E2()){await E2().load();if(E2().enabled()){if(!E2().unlocked()){E2().dialog();throw new Error(L("Chat terkunci. Masukkan kata sandi chat dulu.","Chat is locked. Enter the chat password first."))}const r=await E2().encBlob(blob);blob=r.blob;ext=r.ext}}
+  const path=S.me+"/"+Date.now().toString(36)+Math.random().toString(36).slice(2,6)+ext;
   const {error}=await sb.storage.from("couple").upload(path,blob,{contentType:"image/jpeg"});if(error)throw error;return path}
 
 const css=document.createElement("style");css.textContent=`
@@ -163,8 +172,8 @@ function drawChat(v,live){
   let html="",lastDay="";
   for(const m of S.msgs){const dl=dayLbl(m.created_at);if(dl!==lastDay){html+=`<div class="ch-day">${dl}</div>`;lastDay=dl}
     const mine=m.sender===S.me,rx=Object.values(m.reacts||{});
-    const stk=isStk(m.body);
-    html+=`<div class="ch-b ${mine?"me":"them"}${stk?" stk":""}${rx.length?" hasrx":""}" data-m="${m.id}">${m.img?`<img data-img="${esc(m.img)}" alt="${L("Foto","Photo")}">`:""}${stk?`<span class="stk-w" data-stk="${stkKey(m.body)}">${stkSVG(stkKey(m.body),124)}</span>`:`<span class="bd"></span>`}<span class="t">${hhmm(m.created_at)}${mine?" "+(m.read_at?"✓✓":"✓"):""}</span>${rx.length?`<span class="rx">${[...new Set(rx)].map(rxHTML).join("")}</span>`:""}</div>`}
+    const shown=pt(m.body),stk=isStk(shown);
+    html+=`<div class="ch-b ${mine?"me":"them"}${stk?" stk":""}${rx.length?" hasrx":""}" data-m="${m.id}">${m.img?`<img data-img="${esc(m.img)}" alt="${L("Foto","Photo")}">`:""}${stk?`<span class="stk-w" data-stk="${stkKey(shown)}">${stkSVG(stkKey(shown),124)}</span>`:`<span class="bd"></span>`}<span class="t">${hhmm(m.created_at)}${mine?" "+(m.read_at?"✓✓":"✓"):""}</span>${rx.length?`<span class="rx">${[...new Set(rx)].map(rxHTML).join("")}</span>`:""}</div>`}
   v.innerHTML=page(L("Berdua","Together"),"💬 Chat")+
    `<div class="ch-wrap"><div class="ch-head">${window.pipi?window.pipi("happy",40,other&&/^vina/i.test(S.members[other]||"")?"vcap":other&&/^(rafi|el)/i.test(S.members[other]||"")?"erusa":"vnel"):""}<div><b></b><span class="crumb">${L("Ketuk 2× untuk ❤️ · tahan pesannya untuk reaksi · tahan pesanmu untuk hapus","Double-tap to ❤️ · long-press theirs to react · long-press yours to delete")}</span></div></div>
     <div class="ch-list" role="log" aria-live="polite">${html||`<div class="ch-empty">${L("Belum ada pesan. Sapa duluan! 👋","No messages yet. Say hi first! 👋")}</div>`}</div>
@@ -174,12 +183,12 @@ function drawChat(v,live){
       <div class="stk-grid${stkTab==="emoji"?" uni":""}">${stkTab==="emoji"?UNI.map(e=>`<button data-q="${e}" aria-label="${e}">${e}</button>`).join(""):STABS().find(x=>x[0]===stkTab)[2].map(k=>`<button data-send="${k}" data-stk="${k}" aria-label="${L("Kirim stiker","Send sticker")}">${stkSVG(k,64)}</button>`).join("")}</div></div>`
      :`<div class="ch-quick">${EMOTES.map(k=>`<button data-send="${k}" aria-label="${L("Kirim emote","Send emote")}">${stkSVG(k,34)}</button>`).join("")}</div>`}</div>`;
   v.querySelector(".ch-head b").textContent=oName;
-  v.querySelectorAll(".ch-b").forEach(b=>{const m=S.msgs.find(x=>x.id==b.dataset.m),bd=b.querySelector(".bd");if(bd)bd.textContent=m.body||""});fillCaps(v);
+  v.querySelectorAll(".ch-b").forEach(b=>{const m=S.msgs.find(x=>x.id==b.dataset.m),bd=b.querySelector(".bd");if(bd)bd.textContent=pt(m.body)||""});fillCaps(v);
   const nl=v.querySelector(".ch-list");
   const grow=()=>{const t=$("chTxt");t.style.height="auto";t.style.height=Math.min(120,t.scrollHeight)+"px"};
   const t=$("chTxt");t.value=S.draft;grow();if(hadFocus||(!live&&matchMedia("(min-width:861px)").matches))t.focus();
   if(atBottom||!live||S.msgs.length!==lastCount&&S.msgs[S.msgs.length-1]?.sender===S.me)nl.scrollTop=nl.scrollHeight;else nl.scrollTop=prevTop;lastCount=S.msgs.length;
-  urlsFor(S.msgs.map(m=>m.img)).then(u=>v.querySelectorAll("[data-img]").forEach(i=>{i.src=u(i.dataset.img);i.onload=()=>{if(atBottom||!live)nl.scrollTop=nl.scrollHeight}}));
+  urlsFor(S.msgs.map(m=>m.img)).then(u=>v.querySelectorAll("[data-img]").forEach(i=>{const s=E2()?E2().imgSrc(i.dataset.img,u(i.dataset.img)):u(i.dataset.img);if(s)i.src=s;i.onload=()=>{if(atBottom||!live)nl.scrollTop=nl.scrollHeight}}));
   t.oninput=()=>{S.draft=t.value;grow()};
   t.onkeydown=e=>{if(e.key==="Enter"&&!e.shiftKey&&matchMedia("(hover:hover)").matches){e.preventDefault();send()}};
   $("chSend").onclick=send;
@@ -188,7 +197,7 @@ function drawChat(v,live){
   v.querySelectorAll("[data-st]").forEach(b=>b.onclick=()=>{stkTab=b.dataset.st;drawChat(v,true)});
   v.querySelectorAll("[data-send]").forEach(b=>b.onclick=()=>sendBody("[stk:"+b.dataset.send+"]"));
   $("chFile").onchange=async e=>{const f=e.target.files[0];e.target.value="";if(!f)return;S.sending=true;status(L("Mengirim foto…","Sending photo…"),"");
-    try{const p=await upPhoto(f,1280);const {error}=await sb.from("couple_msgs").insert({body:S.draft.trim()||null,img:p});if(error)throw error;S.draft="";status("")}catch(err){status(L("Gagal kirim foto: ","Couldn't send photo: ")+(err.message||err),"err")}
+    try{const p=await upPhoto(f,1280);const {error}=await sb.from("couple_msgs").insert({body:S.draft.trim()?await seal(S.draft.trim()):null,img:p});if(error)throw error;S.draft="";status("");if(window.RAVI_NOTIFY)window.RAVI_NOTIFY("msg",{body:"📷 "+L("Foto","Photo")})}catch(err){status(L("Gagal kirim foto: ","Couldn't send photo: ")+(err.message||err),"err")}
     S.sending=false;await loadMsgs().catch(()=>{});drawChat(v,false)};
   v.querySelectorAll(".ch-b").forEach(b=>{const id=+b.dataset.m,m=S.msgs.find(x=>x.id===id);let last=0,hold=0;
     b.addEventListener("click",async e=>{if(e.target.matches("img")){const bg=modal(L("Foto","Photo"),`<img alt="" style="width:100%;border-radius:12px">`,()=>true,"OK");bg.querySelector("img").src=e.target.src;const c=bg.querySelector(".c");if(c)c.style.display="none";return}
@@ -203,8 +212,9 @@ function drawChat(v,live){
   async function send(){const body=t.value.trim();if(!body||S.sending)return;t.value="";S.draft="";grow();return sendBody(body,true)}
   async function sendBody(body,fromText){if(S.sending)return;S.sending=true;
     const tmp={id:-Date.now(),sender:S.me,body,created_at:new Date().toISOString(),reacts:{}};S.msgs.push(tmp);drawChat(v,false);
-    const {data,error}=await sb.from("couple_msgs").insert({body}).select().single();S.sending=false;
-    S.msgs=S.msgs.filter(x=>x.id!==tmp.id);if(error){if(fromText)S.draft=body;status(L("Pesan gagal terkirim: ","Message not sent: ")+error.message,"err")}else if(data&&!S.msgs.some(x=>x.id===data.id))S.msgs.push(data);
+    let sealed;try{sealed=await seal(body)}catch(e){S.sending=false;S.msgs=S.msgs.filter(x=>x.id!==tmp.id);if(fromText)S.draft=body;status(e.message,"warn");drawChat(v,false);return}
+    const {data,error}=await sb.from("couple_msgs").insert({body:sealed}).select().single();S.sending=false;
+    S.msgs=S.msgs.filter(x=>x.id!==tmp.id);if(error){if(fromText)S.draft=body;status(L("Pesan gagal terkirim: ","Message not sent: ")+error.message,"err")}else{if(data&&!S.msgs.some(x=>x.id===data.id))S.msgs.push(data);if(window.RAVI_NOTIFY)window.RAVI_NOTIFY("msg",{body:pushText(isStk(body)?"🧸 "+L("Stiker","Sticker"):body,"💬 "+L("Pesan baru (terenkripsi)","New message (encrypted)"))})}
     drawChat(v,false)}}
 function reactPick(m,v){const opts=["❤️","stk:vnel:party","stk:vcap:happy","stk:erusa:party","stk:vorange:worried","stk:ekaget:worried","stk:pipi:party","😂"];
   const bg=modal(L("Beri reaksi","React"),`<div class="stk-grid">${opts.map((o,i)=>`<button data-rp="${i}" aria-label="${L("Reaksi","Reaction")}">${o.startsWith("stk:")?stkSVG(o.slice(4),48):`<span style="font-size:34px">${o}</span>`}</button>`).join("")}</div>${(m.reacts||{})[S.me]?`<button class="sm" id="rpX" style="margin-top:10px">${L("Hapus reaksiku","Remove my reaction")}</button>`:""}`,()=>true,"OK");
@@ -231,14 +241,14 @@ function drawFeed(v){
      return `<article class="fd-post" id="post${p.id}" data-p="${p.id}"><div class="fd-top"><span class="fd-av">${window.pipi?window.pipi("happy",34,/^vina/i.test(who)?"vcap":/^(rafi|el)$/i.test(who)?"erusa":"vnel"):""}</span><div style="flex:1;min-width:0"><b class="au"></b><span class="crumb">${ago(p.created_at)}</span></div>${p.author===S.me?`<button class="sm" data-pdel="${p.id}" aria-label="${L("Hapus postingan","Delete post")}">⋯</button>`:""}</div>
       <div style="position:relative"><img class="fd-img" data-img="${esc(p.img)}" data-dbl="${p.id}" alt=""></div>
       <div class="fd-act"><button data-like="${p.id}" aria-pressed="${liked}" aria-label="${L("Suka","Like")}">${liked?"❤️":"🤍"}</button><button data-cfocus="${p.id}" aria-label="${L("Komentar","Comment")}">💬</button></div>
-      <div class="fd-likes">${(p.likes||[]).length?((p.likes||[]).map(name).join(L(" & "," & "))+L(" menyukai ini"," liked this")):L("Belum ada yang suka","No likes yet")}</div>
+      <div class="fd-likes">${(p.likes||[]).length?(esc((p.likes||[]).map(name).join(" & "))+L(" menyukai ini"," liked this")):L("Belum ada yang suka","No likes yet")}</div>
       ${p.caption?`<div class="fd-cap"><b class="au"></b> <span class="cp"></span></div>`:""}
       ${cm.map(c=>`<div class="fd-cm" data-c="${c.id}"><b></b><span></span>${c.author===S.me?` <button class="lnk" data-cdel="${c.id}" style="font-size:11px">${L("hapus","delete")}</button>`:""}</div>`).join("")}
       <div class="fd-add"><input data-cin="${p.id}" placeholder="${L("Tambah komentar…","Add a comment…")}" maxlength="300"><button class="sm" data-csend="${p.id}">${L("Kirim","Send")}</button></div></article>`}).join("")
    :`<div class="region"><div class="rb"><div class="pipi-card" style="margin:0">${window.pipi?window.pipi("party",64,"vnel"):""}<div class="bubble"><b>${L("Feed khusus kalian berdua","A feed just for you two")}</b><div>${L("Posting foto momen sehari-hari. Yang bisa lihat, like, dan komentar cuma kamu dan Vina.","Post everyday moments. Only you and Vina can see, like and comment.")}</div></div></div></div></div>`);
-  v.querySelectorAll(".fd-post").forEach(el=>{const p=posts.find(x=>x.id==el.dataset.p);el.querySelectorAll(".au").forEach(a=>a.textContent=name(p.author));const cp=el.querySelector(".cp");if(cp)cp.textContent=p.caption;
-    (S.comments[p.id]||[]).forEach(c=>{const r=el.querySelector(`[data-c="${c.id}"]`);r.querySelector("b").textContent=name(c.author);r.querySelector("span").textContent=c.body})});
-  urlsFor(posts.map(p=>p.img)).then(u=>v.querySelectorAll("[data-img]").forEach(i=>i.src=u(i.dataset.img)));
+  v.querySelectorAll(".fd-post").forEach(el=>{const p=posts.find(x=>x.id==el.dataset.p);el.querySelectorAll(".au").forEach(a=>a.textContent=name(p.author));const cp=el.querySelector(".cp");if(cp)cp.textContent=pt(p.caption);
+    (S.comments[p.id]||[]).forEach(c=>{const r=el.querySelector(`[data-c="${c.id}"]`);r.querySelector("b").textContent=name(c.author);r.querySelector("span").textContent=pt(c.body)})});
+  urlsFor(posts.map(p=>p.img)).then(u=>v.querySelectorAll("[data-img]").forEach(i=>{const s=E2()?E2().imgSrc(i.dataset.img,u(i.dataset.img)):u(i.dataset.img);if(s)i.src=s}));
   v.querySelectorAll("[data-fm]").forEach(b=>b.onclick=()=>{fdMode=b.dataset.fm;drawFeed(v)});
   v.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{fdMode="list";drawFeed(v);document.getElementById("post"+b.dataset.go)?.scrollIntoView({block:"start"})});
   const like=async id=>{const p=S.posts.find(x=>x.id===id);const has=(p.likes||[]).includes(S.me);p.likes=has?p.likes.filter(x=>x!==S.me):[...(p.likes||[]),S.me];drawFeed(v);
@@ -247,8 +257,8 @@ function drawFeed(v){
   v.querySelectorAll("[data-dbl]").forEach(img=>{let last=0;img.addEventListener("click",()=>{const n=Date.now();if(n-last<350){const id=+img.dataset.dbl;const h=document.createElement("div");h.className="fd-heart";h.textContent="❤️";img.parentElement.appendChild(h);setTimeout(()=>h.remove(),900);if(!(S.posts.find(x=>x.id===id).likes||[]).includes(S.me))like(id)}last=n})});
   v.querySelectorAll("[data-cfocus]").forEach(b=>b.onclick=()=>v.querySelector(`[data-cin="${b.dataset.cfocus}"]`)?.focus());
   const sendC=async id=>{const inp=v.querySelector(`[data-cin="${id}"]`),body=inp.value.trim();if(!body)return;inp.value="";inp.blur();
-    const {data,error}=await sb.from("couple_comments").insert({post_id:id,body}).select().single();if(error){status(error.message,"err");return}
-    const a=S.comments[id]=S.comments[id]||[];if(!a.some(c=>c.id===data.id))a.push(data);drawFeed(v)};
+    let sealed;try{sealed=await seal(body)}catch(e){inp.value=body;status(e.message,"warn");return}const {data,error}=await sb.from("couple_comments").insert({post_id:id,body:sealed}).select().single();if(error){status(error.message,"err");return}
+    const a=S.comments[id]=S.comments[id]||[];if(!a.some(c=>c.id===data.id))a.push(data);drawFeed(v);if(window.RAVI_NOTIFY)window.RAVI_NOTIFY("post",{body:pushText("💬 "+body,"💬 "+L("Komentar baru","New comment"))})};
   v.querySelectorAll("[data-csend]").forEach(b=>b.onclick=()=>sendC(+b.dataset.csend));
   v.querySelectorAll("[data-cin]").forEach(i=>i.onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();sendC(+i.dataset.cin)}});
   v.querySelectorAll("[data-cdel]").forEach(b=>b.onclick=async()=>{const id=+b.dataset.cdel;await sb.from("couple_comments").delete().eq("id",id);for(const k in S.comments)S.comments[k]=S.comments[k].filter(c=>c.id!==id);drawFeed(v)});
@@ -258,8 +268,8 @@ function drawFeed(v){
   const fi=$("fdFile");fi.onchange=()=>{const f=fi.files[0];fi.value="";if(!f)return;const prev=URL.createObjectURL(f);
     const bg=modal(L("Postingan baru","New post"),`<img alt="" style="width:100%;max-height:50vh;object-fit:contain;border-radius:12px;background:var(--th)"><div style="height:10px"></div><label>${L("Keterangan","Caption")}</label><textarea id="fdCap" rows="3" maxlength="500" placeholder="${L("Tulis sesuatu…","Write something…")}"></textarea>`,
       async g=>{const btn=g.querySelector(".ok");btn.disabled=true;btn.textContent=L("Mengunggah…","Uploading…");
-        try{const path=await upPhoto(f,1600);const {data,error}=await sb.from("couple_posts").insert({img:path,caption:g.querySelector("#fdCap").value.trim()||null}).select().single();if(error)throw error;
-          if(!S.posts.some(x=>x.id===data.id))S.posts.unshift(data);URL.revokeObjectURL(prev);fdMode="list";drawFeed($("view"))}
+        try{const path=await upPhoto(f,1600);const capT=g.querySelector("#fdCap").value.trim();const {data,error}=await sb.from("couple_posts").insert({img:path,caption:capT?await seal(capT):null}).select().single();if(error)throw error;
+          if(!S.posts.some(x=>x.id===data.id))S.posts.unshift(data);URL.revokeObjectURL(prev);if(window.RAVI_NOTIFY)window.RAVI_NOTIFY("post",{body:pushText("📷 "+(capT||L("Postingan baru","New post")),"📷 "+L("Postingan baru","New post"))});fdMode="list";drawFeed($("view"))}
         catch(e){btn.disabled=false;btn.textContent=L("Posting","Post");alert(L("Gagal posting: ","Couldn't post: ")+(e.message||e));return false}},L("Posting","Post"));
     bg.querySelector("img").src=prev}}
 
