@@ -49,7 +49,7 @@ const css=document.createElement("style");css.textContent=`
 .nf-it .cb{all:unset;cursor:pointer;width:40px;height:40px;border-radius:99px;display:flex;align-items:center;justify-content:center;color:var(--acc);font-size:18px;flex:none}.nf-it .cb:hover{background:var(--accS)}
 .nf-call .dir{font-size:12.5px;color:var(--mute)}.nf-call.miss .dir{color:#e5484d;font-weight:700}
 .nf-empty{text-align:center;color:var(--mute);padding:36px 10px}
-.hdr-bell{position:relative}.hdr-bell .bdg{position:absolute;top:-4px;right:-4px;min-width:17px;height:17px;padding:0 4px;border-radius:99px;background:#ff4d6d;color:#fff;font-size:10.5px;font-weight:800;display:flex;align-items:center;justify-content:center}`;document.head.appendChild(css);
+.hdr-bell{position:relative}.hdr-bell .bdg[hidden],.cx-ib .bdg[hidden]{display:none!important}.hdr-bell .bdg{position:absolute;top:-4px;right:-4px;min-width:17px;height:17px;padding:0 4px;border-radius:99px;background:#ff4d6d;color:#fff;font-size:10.5px;font-weight:800;display:flex;align-items:center;justify-content:center}`;document.head.appendChild(css);
 const group=t=>{const d=(Date.now()-new Date(t))/864e5,n=new Date(),x=new Date(t);if(x.toDateString()===n.toDateString())return L("Hari ini","Today");if(d<7)return L("7 hari terakhir","Last 7 days");if(d<30)return L("30 hari terakhir","Last 30 days");return L("Sebelumnya","Earlier")};
 function draw(v){if(!v)return;
   const acts=N.list.filter(a=>a.target===N.me&&a.kind!=="call"),calls=N.list.filter(a=>a.kind==="call");
