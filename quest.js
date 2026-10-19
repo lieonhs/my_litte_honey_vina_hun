@@ -44,6 +44,8 @@ function missions(){
     {k:"d:"+td+":nt",e:"📝",t:"Tulis atau ubah 1 catatan",p:Math.min(noteToday,1),n:1,rw:"daily",go:"notes"}];
   const allDaily=daily.every(m=>m.p>=m.n);
   daily.push({k:"d:"+td+":all",e:"⭐",t:"Selesaikan semua misi harian",p:daily.filter(m=>m.p>=m.n).length,n:3,rw:"weekly",go:null});
+  const GM=(Q().games)||{best:{},days:{},plays:0};
+  daily.push({k:"d:"+td+":game",e:"🎮",t:"Main 1 game hari ini",p:(GM.days||{})[td]?1:0,n:1,rw:"daily",go:"games"});
   const weekly=[
     {k:"w:"+wk+":real",e:"🔎",t:"Cek saldo real minimal 1 rekening minggu ini",p:Math.min(realWeek,1),n:1,rw:"weekly",go:"recon"},
     {k:"w:"+wk+":dj5",e:"🗓️",t:"Tulis jurnal 5 hari minggu ini",p:Math.min(diaryWeek,5),n:5,rw:"weekly",go:"diary"},
@@ -75,6 +77,10 @@ function missions(){
     {k:"a:allL",e:"💖",t:"Album sempurna",d:"Lengkapi semua 15 stiker Vina",p:STICKERS.filter(s=>VINA.includes(s.ch)&&owned[s.id]>0).length,n:15,rw:"big",go:"album"},
     {k:"a:cp1",e:"💘",t:"Momen langka",d:"Dapatkan stiker couple (Mitos) pertama",p:STICKERS.some(s=>s.r==="M"&&owned[s.id]>0)?1:0,n:1,rw:"big",go:"album"},
     {k:"a:allM",e:"💑",t:"Couple sejati",d:"Lengkapi semua 5 stiker couple",p:STICKERS.filter(s=>s.r==="M"&&owned[s.id]>0).length,n:5,rw:"big",go:"album"},
+    {k:"a:gcoin",e:"🪙",t:"Kolektor koin",d:"Skor Rp50.000 di Tangkap Koin",p:Math.min((GM.best||{}).coin||0,50000)>=50000?1:0,n:1,rw:"ach",go:"games"},
+    {k:"a:gquiz",e:"🧾",t:"Akuntan cilik",d:"Nilai sempurna 10/10 di Kuis Debit-Kredit",p:((GM.best||{}).quiz||0)>=10?1:0,n:1,rw:"ach",go:"games"},
+    {k:"a:gmem",e:"🧠",t:"Ingatan gajah",d:"Selesaikan Memori Stiker maksimal 12 langkah",p:(GM.best||{}).mem!=null&&GM.best.mem<=12?1:0,n:1,rw:"ach",go:"games"},
+    {k:"a:gplay",e:"🎮",t:"Gamer rajin",d:"Main game 30 kali",p:Math.min(GM.plays||0,30),n:30,rw:"big",go:"games"},
     {k:"a:el1",e:"🤓",t:"Ketemu El!",d:"Dapatkan stiker El pertama",p:anyE?1:0,n:1,rw:"ach",go:"album"},
     {k:"a:allE",e:"👓",t:"Geng El lengkap",d:"Lengkapi semua 12 stiker El",p:STICKERS.filter(s=>EL.includes(s.ch)&&owned[s.id]>0).length,n:12,rw:"big",go:"album"}];
   const st=m=>({...m,done:m.p>=m.n,claimed:!!Q().claimed[m.k]});
