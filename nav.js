@@ -102,10 +102,27 @@ const sxCss=document.createElement("style");sxCss.textContent=`
 #sxRail{display:none}
 @media (min-width:861px){
  html.sx{--railW:68px}
- html.sx header,html.sx aside#nav,html.sx .ms-hbtn,html.sx #tabbar{display:none!important}
+ html.sx header,html.sx:not(.sxp) aside#nav,html.sx .ms-hbtn,html.sx #tabbar{display:none!important}
+ html.sx .layout{max-width:none!important;margin:0!important}
+ html.sxp aside#nav{display:block!important;position:fixed!important;left:var(--railW)!important;top:0!important;bottom:auto!important;width:256px!important;height:100vh!important;height:100dvh!important;min-height:0!important;max-height:none!important;
+  transform:none!important;box-shadow:none!important;z-index:44;padding:0 0 12px!important;overflow-y:auto;overscroll-behavior:contain;background:var(--card);border-right:1px solid var(--line);display:flex!important;flex-direction:column}
+ html.sxp aside#nav [data-sxh]{display:none!important}
+ html.sxp main{margin-left:calc(var(--railW) + 256px)!important}
+ html.sxp #view{max-width:1180px;margin:0 auto}
+ .sxp-head{position:sticky;top:0;z-index:2;background:var(--card);padding:18px 16px 10px;border-bottom:1px solid var(--line);margin-bottom:6px}
+ .sxp-head h2{margin:0;font-size:19px;display:flex;align-items:center;gap:8px}
+ .sxp-money{margin-top:12px;border-radius:16px;padding:12px 14px;color:#fff;background:linear-gradient(135deg,#1fa774,#12805a);position:relative;overflow:hidden;cursor:pointer;box-shadow:0 6px 18px rgba(18,128,90,.25);transition:transform .15s}
+ .sxp-money:hover{transform:translateY(-1px)}.sxp-money:active{transform:scale(.98)}
+ .sxp-money::after{content:"";position:absolute;right:-18px;top:-18px;width:86px;height:86px;border-radius:50%;border:14px solid rgba(255,255,255,.12)}
+ .sxp-money small{display:block;font-size:11.5px;opacity:.85;font-weight:700}.sxp-money b{display:block;font-size:21px;letter-spacing:-.01em;margin:2px 0 6px}
+ .sxp-money .row{display:flex;justify-content:space-between;gap:8px;font-size:11.5px;opacity:.95}.sxp-money .row span b{display:inline;font-size:12px;margin:0}
+ .sxp-money.neg{background:linear-gradient(135deg,#e2556f,#b8344f);box-shadow:0 6px 18px rgba(184,52,79,.25)}
+ .sxp-foot{margin-top:auto;padding:10px 12px 0;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+ .sxp-foot .who{flex-basis:100%;font-size:11.5px;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .sxp-foot button{font-size:12px;padding:4px 10px}
  html.sx #sxRail{display:flex;position:fixed;left:0;top:0;bottom:0;width:var(--railW);z-index:45;flex-direction:column;align-items:center;gap:6px;padding:14px 0;background:var(--card);border-right:1px solid var(--line);animation:railIn .22s ease-out}
  html.sx main{margin-left:var(--railW)!important;padding-top:18px!important;max-width:none!important}
- html.sx #view{max-width:680px;margin:0 auto}
+ html.sx:not(.sxp) #view{max-width:680px;margin:0 auto}
  html.sx #view .region{border-radius:18px}
  html.sx #status:not(.hide){position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:60;max-width:min(560px,90vw);box-shadow:0 6px 20px rgba(0,0,0,.18)}
  #sxRail .rl{all:unset;cursor:pointer;width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;color:var(--mute);position:relative;font-size:21px;transition:background .18s,color .18s,transform .18s}
@@ -113,6 +130,7 @@ const sxCss=document.createElement("style");sxCss.textContent=`
  #sxRail .rl.on{background:var(--accS);color:var(--acc)}
  #sxRail .rl.on::before{content:"";position:absolute;left:-11px;top:10px;bottom:10px;width:4px;border-radius:0 4px 4px 0;background:var(--acc)}
  #sxRail .rl .rb{position:absolute;top:3px;right:3px;min-width:16px;height:16px;border-radius:99px;background:#ff4d6d;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 3px}#sxRail .rl .rb[hidden]{display:none}
+ #sxRail .sep{width:28px;height:1px;background:var(--line);margin:4px 0}
  #sxRail .lg{width:40px;height:40px;border-radius:12px;margin-bottom:8px;display:block}
  #sxRail .rl.me .rv-av{width:36px;height:36px}
  #sxRail .tip{position:absolute;left:58px;white-space:nowrap;background:var(--ink);color:var(--bg);font-size:12px;font-weight:700;padding:4px 8px;border-radius:8px;opacity:0;pointer-events:none;transform:translateX(-4px);transition:opacity .15s,transform .15s}
@@ -128,23 +146,61 @@ body.mode-swap main{animation:viewIn .24s ease-out}
 const ic=(d)=>`<svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 const RI={chat:ic('<path d="M4 5h16v11H8l-4 4z"/>'),calls:ic('<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/>'),
   notif:ic('<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/>'),feed:ic('<rect x="7" y="3" width="14" height="14" rx="2.5"/><path d="M3 7v11.5A2.5 2.5 0 0 0 5.5 21H17"/><path d="M14 13.6s-3.2-2-3.2-3.9a1.6 1.6 0 0 1 3.2-.3 1.6 1.6 0 0 1 3.2.3c0 1.9-3.2 3.9-3.2 3.9z"/>'),
-  dash:ic('<path d="M3 11 12 3l9 8"/><path d="M5 10v10h14V10"/>'),admin:ic('<path d="M12 3 4 6v6c0 4.5 3.4 8.2 8 9 4.6-.8 8-4.5 8-9V6z"/><path d="m9 12 2 2 4-4"/>')};
+  dash:ic('<path d="M3 11 12 3l9 8"/><path d="M5 10v10h14V10"/>'),
+  fin:ic('<rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/><path d="M6 9.5v5M18 9.5v5"/>'),
+  sched:ic('<rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M8 14h3"/>'),
+  more:ic('<rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/>'),
+  out:ic('<path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M10 16l-4-4 4-4M6 12h10"/>'),admin:ic('<path d="M12 3 4 6v6c0 4.5 3.4 8.2 8 9 4.6-.8 8-4.5 8-9V6z"/><path d="m9 12 2 2 4-4"/>')};
+/* bagian rel: Keuangan / Harian / Berdua / Lainnya */
+const SCHED=new Set(["today","sched","diary","notes"]);
+const FIN_G=new Set(["Beranda","Transaksi","Buku Besar","Perencanaan","Pelaporan","Pengaturan"]);
+const FIN_HOME=new Set();
+function secOf(r){if(SX.has(r))return "bd";if(SCHED.has(r))return "sched";
+  for(const [g,list] of NAV){if(g==="⭐ Sering dipakai")continue;if(list.some(([k])=>k===r)){if(FIN_G.has(g)){FIN_HOME.add(r);return "fin"}if(g==="Harian")return "sched";if(g==="Berdua")return "bd";return "more"}}
+  return "more"}
+function money(){try{const rr=reconRows(),cash=rr.reduce((s,x)=>s+(x.gl||0),0),m=today().slice(0,7),B=balsAll(mEnd(m),m+"-01");let inc=0,exp=0;
+    for(const c in B){if(typeOf(c)==="I")inc+=nb(B,c);if(typeOf(c)==="X")exp+=nb(B,c)}return {cash,inc,exp,sur:inc-exp}}catch(e){return null}}
+const SEC_T=()=>({fin:["💰",L("Keuangan","Money")],sched:["📔",L("Jurnal Harian","Daily journal")],more:["🧰",L("Alat & lainnya","Tools & more")]});
+function panel(){const a=document.getElementById("nav"),h=document.documentElement;if(!a||!h.classList.contains("sxp"))return;const sec=h.dataset.sxs||"more";
+  /* tampilkan hanya grup milik bagian ini */
+  let curGrp=null,grpSec=null;const kids=[...a.children];
+  for(const el of kids){if(el.classList.contains("sxp-head")||el.classList.contains("sxp-foot"))continue;
+    if(el.classList.contains("grp")){curGrp=el;grpSec=null;el.setAttribute("data-sxh","");continue}
+    const r=el.dataset&&el.dataset.r;let s=r?secOf(r):sec;if(curGrp&&/Sering|Frequent/.test(curGrp.textContent))s="fav";
+    if(s===sec){el.removeAttribute("data-sxh");if(curGrp&&grpSec!==sec){curGrp.removeAttribute("data-sxh");grpSec=sec}}else el.setAttribute("data-sxh","")}
+  let hd=a.querySelector(".sxp-head");if(!hd){hd=document.createElement("div");hd.className="sxp-head"}a.prepend(hd);
+  const [ico,t]=SEC_T()[sec]||SEC_T().more,mo=sec==="fin"?money():null;
+  hd.setAttribute("data-noi18n","");
+  hd.innerHTML=`<h2>${ico} ${t}</h2>`+(mo?`<div class="sxp-money${mo.cash<0?" neg":""}" role="button" tabindex="0" title="${L("Buka rekonsiliasi kas & bank","Open cash & bank reconciliation")}"><small>💵 ${L("Total kas & bank","Total cash & bank")}</small><b>${rp(mo.cash)}</b>
+    <div class="row"><span>⬆ ${L("Masuk","In")} <b>${rp(mo.inc)}</b></span><span>⬇ ${L("Keluar","Out")} <b>${rp(mo.exp)}</b></span></div></div>`:"");
+  const mc=hd.querySelector(".sxp-money");if(mc){mc.onclick=()=>go("recon");mc.onkeydown=e=>{if(e.key==="Enter")go("recon")}}
+  let ft=a.querySelector(".sxp-foot");if(!ft){ft=document.createElement("div");ft.className="sxp-foot"}a.appendChild(ft);
+  const ids=["questBtn","lookBtn","langBtn","themeBtn"].map(i=>document.getElementById(i)).filter(Boolean),who=document.getElementById("who");
+  ft.innerHTML=`<div class="who"></div>`+ids.map((b,i)=>`<button class="sm" data-px="${i}"></button>`).join("");
+  ft.querySelector(".who").textContent=who?who.textContent:"";
+  ft.querySelectorAll("[data-px]").forEach(b=>{const o=ids[+b.dataset.px];b.textContent=o.textContent.trim()||"•";b.title=o.title||o.getAttribute("aria-label")||"";b.onclick=()=>{o.click();setTimeout(panel,60)}})}
+const _rn2=renderNav;renderNav=function(){const o=_rn2.apply(this,arguments);try{panel()}catch(e){}return o};
+addEventListener("resize",()=>{clearTimeout(window.__sxR);window.__sxR=setTimeout(()=>applyMode(typeof route!=="undefined"?route:""),150)});
 function drawRail(){let r=document.getElementById("sxRail");const on=document.documentElement.classList.contains("sx");if(!on){if(r)r.remove();return}
   const cur=typeof route!=="undefined"?route:"",tab=window.RAVI_NOTIF_TAB_CUR||"act";
   const partner=!window.RS||!RS.S.me||RS.isPartner(RS.S.me);
   const adm=window.RAVI_ADMIN&&window.RAVI_ADMIN.isAdmin();
-  const items=[["chat",L("Chat","Chat")],["calls",L("Panggilan","Calls")],["notif",L("Notifikasi","Notifications")],...(partner?[["feed","Feed"]]:[]),...(adm?[["admin",L("Panel Admin","Admin Panel")]]:[])];
+  const items=[["fin",L("Keuangan","Money")],["sched",L("Jurnal Harian","Daily journal")],["-"],["chat",L("Chat","Chat")],["calls",L("Panggilan","Calls")],["notif",L("Notifikasi","Notifications")],...(partner?[["feed","Feed"]]:[]),["-"],["more",L("Alat & lainnya","Tools & more")],...(adm?[["admin",L("Panel Admin","Admin Panel")]]:[])];
+  const sec=secOf(cur);
   const ap=window.RAVI_ADMIN_PENDING?window.RAVI_ADMIN_PENDING():0;
-  const isOn=k=>k==="calls"?cur==="notif"&&tab==="calls":k==="notif"?cur==="notif"&&tab!=="calls":k===cur;
+  const isOn=k=>(k==="fin"||k==="sched"||k==="more")?sec===k:k==="calls"?cur==="notif"&&tab==="calls":k==="notif"?cur==="notif"&&tab!=="calls":k===cur;
   if(!r){r=document.createElement("nav");r.id="sxRail";r.setAttribute("aria-label",L("Navigasi Berdua","Together navigation"));document.body.appendChild(r)}
   const un=+(document.querySelector('aside a[data-r="chat"] .qbadge')?.textContent||0)||0,nf=window.RAVI_NOTIF_COUNT?window.RAVI_NOTIF_COUNT():0;
-  r.innerHTML=`<img class="lg" src="icon-192.png" alt="RaVi">`+items.map(([k,n])=>`<button class="rl${isOn(k)?" on":""}" data-rl="${k}" aria-label="${n}"${isOn(k)?' aria-current="page"':""}>${RI[k]}<span class="tip">${n}</span>${k==="chat"?`<span class="rb" id="rlUn"${un?"":" hidden"}>${un||""}</span>`:k==="notif"?`<span class="rb" id="rlNf"${nf?"":" hidden"}>${nf||""}</span>`:k==="admin"&&ap?`<span class="rb">${ap}</span>`:""}</button>`).join("")+
-    `<span style="flex:1"></span><button class="rl" data-rl="dash" aria-label="${L("Kembali ke RaVi","Back to RaVi")}">${RI.dash}<span class="tip">${L("Kembali ke RaVi","Back to RaVi")}</span></button>
-     <button class="rl me${cur==="security"?" on":""}" data-rl="security" aria-label="${L("Akun & keamanan","Account & security")}">${window.RS&&RS.S.me?RS.avatar(RS.S.me,36):"👤"}<span class="tip">${L("Akun & keamanan","Account & security")}</span></button>`;
-  r.querySelectorAll("[data-rl]").forEach(b=>b.onclick=()=>{const k=b.dataset.rl;if(k==="calls"){window.RAVI_NOTIF_TAB="calls";go("notif");return}if(k==="notif"){window.RAVI_NOTIF_TAB="act"}go(k)})}
-function applyMode(r){const h=document.documentElement,was=h.classList.contains("sx"),on=SX.has(r);
-  h.classList.toggle("sx",on);if(was!==on&&matchMedia("(min-width:861px)").matches){document.body.classList.remove("mode-swap");void document.body.offsetWidth;document.body.classList.add("mode-swap");setTimeout(()=>document.body.classList.remove("mode-swap"),300)}
-  drawRail()}
+  r.innerHTML=`<img class="lg" src="icon-192.png" alt="RaVi">`+items.map(([k,n])=>k==="-"?`<span class="sep"></span>`:`<button class="rl${isOn(k)?" on":""}" data-rl="${k}" aria-label="${n}"${isOn(k)?' aria-current="page"':""}>${RI[k]}<span class="tip">${n}</span>${k==="chat"?`<span class="rb" id="rlUn"${un?"":" hidden"}>${un||""}</span>`:k==="notif"?`<span class="rb" id="rlNf"${nf?"":" hidden"}>${nf||""}</span>`:k==="admin"&&ap?`<span class="rb">${ap}</span>`:""}</button>`).join("")+
+    `<span style="flex:1"></span>
+     <button class="rl me${cur==="security"?" on":""}" data-rl="security" aria-label="${L("Akun & keamanan","Account & security")}">${window.RS&&RS.S.me?RS.avatar(RS.S.me,36):"👤"}<span class="tip">${L("Akun & keamanan","Account & security")}</span></button>
+     <button class="rl" data-rl="out" aria-label="${L("Keluar","Log out")}">${RI.out}<span class="tip">${L("Keluar","Log out")}</span></button>`;
+  r.querySelectorAll("[data-rl]").forEach(b=>b.onclick=()=>{const k=b.dataset.rl;if(k==="out"){document.getElementById("logout")?.click();return}
+    if(k==="fin"){go(FIN_HOME.has(cur)&&sec==="fin"?cur:"dash");return}if(k==="sched"){go("today");return}if(k==="more"){go("tools");return}if(k==="calls"){window.RAVI_NOTIF_TAB="calls";go("notif");return}if(k==="notif"){window.RAVI_NOTIF_TAB="act"}go(k)})}
+function applyMode(r){const h=document.documentElement,desk=matchMedia("(min-width:861px)").matches,in_=!document.getElementById("login")&&typeof col!=="undefined"&&!!col;
+  const was=h.classList.contains("sxp"),on=desk&&in_,pan=on&&!SX.has(r);
+  h.classList.toggle("sx",on);h.classList.toggle("sxp",pan);h.dataset.sxs=pan?secOf(r):"";if(was!==pan&&desk){document.body.classList.remove("mode-swap");void document.body.offsetWidth;document.body.classList.add("mode-swap");setTimeout(()=>document.body.classList.remove("mode-swap"),300)}
+  drawRail();if(pan)panel()}
 const _go3=go;go=function(r){const prev=typeof route!=="undefined"?route:null;applyMode(r);const o=_go3.apply(this,arguments);
   const v=document.getElementById("view");if(v&&prev!==r){v.classList.remove("vt");void v.offsetWidth;v.classList.add("vt");setTimeout(()=>v.classList.remove("vt"),260)}
   setTimeout(drawRail,0);return o};
