@@ -19,7 +19,7 @@ const fromB64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
 const secure=()=>!!(window.crypto&&crypto.subtle);
 const E={uid:null,dev:null,devices:[],devAt:0,ok:false,err:null,loading:null,
   cache:new Map(),pending:new Set(),imgs:new Map(),wrapKeys:new Map(),pubKeys:new Map(),
-  v1row:null,v1key:null,changed:false};
+  v1row:null,v1key:null,changed:false,partner:null};
 
 /* ---------- IndexedDB ---------- */
 function idb(){return new Promise((res,rej)=>{const r=indexedDB.open("ravi-e2e",2);r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains("keys"))r.result.createObjectStore("keys")};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
@@ -48,7 +48,7 @@ async function myDevice(){const slot="dev:"+E.uid;let d=await idbGet(slot);
     const pub=await crypto.subtle.exportKey("jwk",kp.publicKey);d={id:crypto.randomUUID(),priv:kp.privateKey,pub:{kty:pub.kty,crv:pub.crv,x:pub.x,y:pub.y}};await idbPut(slot,d)}
   return d}
 const ua=()=>{const u=navigator.userAgent;return (/iPhone|iPad/.test(u)?"iPhone/iPad":/Android/.test(u)?"Android":/Mac/.test(u)?"Mac":/Windows/.test(u)?"Windows":"Perangkat")+" · "+(/Edg\//.test(u)?"Edge":/Chrome\//.test(u)?"Chrome":/Safari\//.test(u)?"Safari":/Firefox\//.test(u)?"Firefox":"Browser")};
-async function loadDevices(force){if(!force&&Date.now()-E.devAt<60000)return E.devices;
+async function loadDevices(force){if(!force&&Date.now()-E.devAt<15000)return E.devices;
   const {data,error}=await sb.from("couple_devices").select("id,user_id,pub,label,created_at");if(error)throw error;
   E.devices=(data||[]).filter(d=>d.pub&&d.pub.x&&d.pub.y);E.devAt=Date.now();checkChanged();return E.devices}
 function checkChanged(){const others=E.devices.filter(d=>d.user_id!==E.uid).map(d=>d.id).sort().join(",");const k="bbp_e2e_seen_"+E.uid;
@@ -74,7 +74,12 @@ async function seal(bytes){await loadDevices();const ck=await newKey(),raw=await
 async function open(env){const mine=(env.k||[]).find(x=>x[0]===E.dev.id);if(!mine)throw new Error("nokey");
   let sender=E.devices.find(d=>d.id===env.s);if(!sender){await loadDevices(true);sender=E.devices.find(d=>d.id===env.s)}if(!sender)throw new Error("nosender");
   const raw=await aesDec(await wrapKeyFor(sender),fromB64(mine[1]));return aesDec(await importAes(raw),fromB64(env.c))}
+/* pasangan belum pernah membuka versi ini → belum ada kunci tujuan. Kirim biasa (dan tampilkan peringatan)
+   supaya pesan tetap terbaca, bukan terkunci selamanya. */
+async function partnerReady(){await loadDevices();if(!E.devices.some(d=>d.user_id!==E.uid))await loadDevices(Date.now()-E.devAt>5000);
+  const r=E.devices.some(d=>d.user_id!==E.uid);if(r!==E.partner){E.partner=r;bump()}return r}
 async function encText(t){if(!E.ok)await load();if(!E.ok){if(E.v1key)return encTextV1(t);return t}
+  if(!(await partnerReady()))return t;
   const env=await seal(te.encode(t));const out="enc2:"+toB64(te.encode(JSON.stringify(env)));E.cache.set(out,t);return out}
 function show(t){if(typeof t!=="string")return t;
   if(t.startsWith("enc1:"))return showV1(t);
@@ -90,6 +95,7 @@ let bt=0;function bump(){clearTimeout(bt);bt=setTimeout(()=>document.dispatchEve
 
 /* ---------- foto & file: kunci acak per berkas, disimpan DI DALAM pesan terenkripsi ---------- */
 async function encBlob(blob){if(!E.ok)await load();
+  if(E.ok&&!(await partnerReady()))return {blob,ext:".jpg",k:null};
   if(!E.ok){if(E.v1key){const out=await aesEnc(E.v1key,new Uint8Array(await blob.arrayBuffer()));return {blob:new Blob([out],{type:"application/octet-stream"}),ext:".enc",k:null}}return {blob,ext:".jpg",k:null}}
   const fk=await newKey(),out=await aesEnc(fk,new Uint8Array(await blob.arrayBuffer()));return {blob:new Blob([out],{type:"application/octet-stream"}),ext:".enc",k:toB64(await rawKey(fk))}}
 async function decFile(buf,k){if(k)return aesDec(await importAes(fromB64(k)),buf);if(E.v1key)return aesDec(E.v1key,buf);throw new Error(L("Kunci file tidak ada.","Missing file key."))}
@@ -135,6 +141,11 @@ async function decorate(){if(typeof route==="undefined"||(route!=="chat"&&route!
     bar.innerHTML=`<span>⚠️</span><div><b>${L("Enkripsi otomatis belum siap","Automatic encryption isn't ready")}</b><span class="em"></span></div>`;
     bar.querySelector(".em").textContent=/couple_devices|relation|schema cache/i.test(String(E.err&&E.err.message||E.err||""))?L("Jalankan supabase/setup-ravi.sql sekali di Supabase. Sampai itu, pesan baru dikirim tanpa enkripsi.","Run supabase/setup-ravi.sql once in Supabase. Until then, new messages are sent unencrypted."):String(E.err&&E.err.message||E.err||"");
     host.after(bar);return}
+  if(!E.devices.some(d=>d.user_id!==E.uid)){E.partner=false;const host=route==="chat"?v.querySelector(".ch-wrap .ch-head"):v.querySelector(".ph");
+    if(host&&!v.querySelector(".e2-bar.np")){const bar=document.createElement("div");bar.className="e2-bar np";
+      bar.innerHTML=`<span>⏳</span><div><b>${L("Enkripsi aktif setelah pasanganmu membuka RaVi","Encryption turns on once your partner opens RaVi")}</b>${L("HP pasanganmu belum terdaftar, jadi pesan sementara dikirim biasa (tetap privat untuk kalian berdua). Begitu dia membuka chat sekali, pesan berikutnya otomatis terenkripsi.","Your partner's phone isn't registered yet, so messages are sent normally for now (still private to you two). Once they open the chat, new messages are encrypted automatically.")}</div>`;host.after(bar)}
+    return}
+  v.querySelectorAll(".e2-bar.np").forEach(b=>b.remove());
   const cr=route==="chat"?v.querySelector(".ch-head .crumb"):v.querySelector(".ph h1");
   if(cr&&!cr.querySelector(".e2-pill")){const p=document.createElement("button");p.className="e2-pill"+(E.changed?" warn":"");
     p.textContent=E.changed?" · ⚠️ "+L("Kode keamanan berubah","Security code changed"):" · 🔐 E2E";p.title=L("Lihat kode keamanan","View security code");p.onclick=e=>{e.stopPropagation();safetyDialog()};cr.appendChild(p)}
