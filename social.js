@@ -107,8 +107,24 @@ const pt=b=>E2()?E2().show(b):b;
 const isEnc=b=>typeof b==="string"&&/^enc[123]:/.test(b);
 async function sealFor(t,uids){if(!t||!E2())return t;return E2().sealFor(t,uids)}
 /* format pesan: teks biasa, atau "j1:{...}" untuk balasan / file / diteruskan / kunci foto (ikut terenkripsi) */
-function parse(shown){if(typeof shown==="string"&&shown.startsWith("j1:")){try{const o=JSON.parse(shown.slice(3));return {t:o.t||"",r:o.r||null,f:o.f||null,fwd:!!o.fwd,ik:o.ik||null,vo:+o.vo||0,sg:o.sg||null,loc:o.loc||null}}catch(e){}}return {t:shown||"",r:null,f:null,fwd:false,ik:null,vo:0,sg:null,loc:null}}
-function pack(o){if(!o.r&&!o.f&&!o.fwd&&!o.ik&&!o.vo&&!o.sg&&!o.loc)return o.t||"";return "j1:"+JSON.stringify({t:o.t||undefined,r:o.r||undefined,f:o.f||undefined,fwd:o.fwd||undefined,ik:o.ik||undefined,vo:o.vo||undefined,sg:o.sg||undefined,loc:o.loc||undefined})}
+function parse(shown){if(typeof shown==="string"&&shown.startsWith("j1:")){try{const o=JSON.parse(shown.slice(3));return {t:o.t||"",r:o.r||null,f:o.f||null,fwd:!!o.fwd,ik:o.ik||null,vo:+o.vo||0,sg:o.sg||null,loc:o.loc||null,mn:Array.isArray(o.mn)?o.mn:null}}catch(e){}}return {t:shown||"",r:null,f:null,fwd:false,ik:null,vo:0,sg:null,loc:null,mn:null}}
+function pack(o){if(!o.r&&!o.f&&!o.fwd&&!o.ik&&!o.vo&&!o.sg&&!o.loc&&!(o.mn&&o.mn.length))return o.t||"";return "j1:"+JSON.stringify({t:o.t||undefined,r:o.r||undefined,f:o.f||undefined,fwd:o.fwd||undefined,ik:o.ik||undefined,vo:o.vo||undefined,sg:o.sg||undefined,loc:o.loc||undefined,mn:o.mn&&o.mn.length?o.mn:undefined})}
+/* ---------- @mention ---------- */
+/* teks aman dengan @Nama yang disorot (hanya orang yang memang disebut) */
+function mentionHTML(t,mn){let h=esc(t||"");if(!mn||!mn.length)return h;
+  const names=mn.map(u=>name(u)).filter(Boolean).sort((a,b)=>b.length-a.length);
+  for(const n of names){const en=esc(n).replace(/[.*+?^${}()|[\]\\]/g,"\\$&");h=h.replace(new RegExp("@"+en+"(?![\\p{L}\\p{N}])","gu"),'<b class="mn">@'+esc(n)+'</b>')}return h}
+const mentionedIn=(t,cands)=>cands.filter(u=>new RegExp("@"+name(u).replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"(?![\\p{L}\\p{N}])","u").test(t||""));
+/* pemilih @nama di bawah kolom ketik */
+function attachMention(inp,candsFn){if(inp.dataset.mnOn)return;inp.dataset.mnOn="1";let box=null;
+  const close=()=>{if(box){box.remove();box=null}};
+  const show=()=>{const v=inp.value,pos=inp.selectionStart??v.length,m=v.slice(0,pos).match(/(^|\s)@([\p{L}\p{N} ]{0,20})$/u);if(!m){close();return}
+    const q=m[2].toLowerCase().trim(),list=candsFn().filter(u=>u!==S.me&&(!q||name(u).toLowerCase().startsWith(q))).slice(0,6);if(!list.length){close();return}
+    if(!box){box=document.createElement("div");box.className="mn-box";inp.parentElement.style.position="relative";inp.parentElement.appendChild(box)}
+    box.innerHTML=list.map(u=>`<button type="button" data-mu="${u}">${avatar(u,26)}<span></span></button>`).join("");
+    box.querySelectorAll("[data-mu]").forEach((b,i)=>{b.querySelector("span").textContent=name(list[i]);b.onmousedown=e=>e.preventDefault();
+      b.onclick=()=>{const start=pos-m[2].length-1,nm="@"+name(list[i])+" ";inp.value=v.slice(0,start)+nm+v.slice(pos);const c=start+nm.length;inp.focus();inp.setSelectionRange(c,c);close()}})};
+  inp.addEventListener("input",show);inp.addEventListener("blur",()=>setTimeout(close,150));inp.addEventListener("keydown",e=>{if(e.key==="Escape")close();if(e.key==="Enter"&&box){const f=box.querySelector("button");if(f){e.preventDefault();e.stopImmediatePropagation();f.click()}}},true)}
 /* ---------- lagu (Spotify / YouTube) ---------- */
 function songEmbed(u){u=String(u||"");let m=u.match(/^https:\/\/open\.spotify\.com\/(?:intl-[a-z-]+\/)?(track|album|playlist|episode|artist)\/([A-Za-z0-9]{10,40})/);
   if(m)return {k:"spotify",src:"https://open.spotify.com/embed/"+m[1]+"/"+m[2],h:m[1]==="track"||m[1]==="episode"?152:352};
@@ -174,6 +190,9 @@ const css=document.createElement("style");css.textContent=`
 .fd-ic:hover,.fd-ic:focus-visible{background:var(--th)}.fd-ic:active{transform:scale(.9)}.fd-ic.on{background:var(--accS)}
 .fd-stk{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:4px;padding:6px 10px 10px;max-height:220px;overflow-y:auto;border-top:1px dashed var(--line);animation:fdS .18s ease-out}
 .fd-stk button{all:unset;cursor:pointer;display:flex;align-items:center;justify-content:center;min-height:64px;border-radius:12px}.fd-stk button:hover{background:var(--th)}.fd-stk .pipi{animation:none!important}
+.mn-box{position:absolute;left:8px;bottom:calc(100% + 4px);z-index:30;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 10px 28px rgba(0,0,0,.16);padding:4px;min-width:200px;max-width:280px;animation:fdS .15s ease-out}
+.mn-box button{all:unset;cursor:pointer;display:flex;gap:8px;align-items:center;width:100%;box-sizing:border-box;padding:6px 8px;border-radius:10px;font-weight:700;font-size:14px}.mn-box button:hover,.mn-box button:focus-visible{background:var(--th)}
+b.mn{color:var(--acc);font-weight:800}
 .fd-emo{display:flex;gap:2px;overflow-x:auto;padding:6px 10px 0;border-top:1px dashed var(--line);scrollbar-width:none}.fd-emo button{all:unset;cursor:pointer;font-size:22px;padding:4px 6px;border-radius:10px;flex:none}.fd-emo button:hover{background:var(--th)}
 .fd-emo+.fd-stk{border-top:0}
 @keyframes fdS{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
@@ -224,10 +243,10 @@ function drawFeed(v){
    :`<div class="region"><div class="rb"><div class="pipi-card" style="margin:0">${window.pipi?window.pipi("party",64,"vnel"):""}<div class="bubble"><b>${L("Belum ada postingan","No posts yet")}</b><div>${L("Posting foto momen sehari-hari. Yang bisa lihat, like, dan komentar hanya teman-temanmu di RaVi.","Post everyday moments. Only your friends on RaVi can see, like and comment.")}${friends().length?"":`<br><button class="sm pri" id="fdFr" style="margin-top:8px">👋 ${L("Cari teman","Find friends")}</button>`}</div></div></div></div></div>`);
   window.scrollTo({top:y});
   fillCaps(v);
-  v.querySelectorAll(".fd-post").forEach(el=>{const p=posts.find(x=>x.id==el.dataset.p);el.querySelectorAll(".au").forEach(a=>a.textContent=name(p.author));const cp=el.querySelector(".cp");if(cp)cp.textContent=parse(pt(p.caption)).t;
+  v.querySelectorAll(".fd-post").forEach(el=>{const p=posts.find(x=>x.id==el.dataset.p);el.querySelectorAll(".au").forEach(a=>a.textContent=name(p.author));const cp=el.querySelector(".cp");if(cp){const co=parse(pt(p.caption));cp.innerHTML=mentionHTML(co.t,co.mn)}
     (S.comments[p.id]||[]).forEach(c=>{const r=el.querySelector(`[data-c="${c.id}"]`);r.querySelector("b").textContent=name(c.author);const o=parse(pt(c.body)),x=r.querySelector(".cmx");
       if(isStk(o.t)){r.querySelector(".ct").textContent="";x.innerHTML=`<span class="stk-w" data-stk="${stkKey(o.t)}">${stkSVG(stkKey(o.t),88)}</span>`;fillCaps(x)}
-      else{r.querySelector(".ct").textContent=o.t;if(o.f&&/^image\//.test(o.f.m)){x.innerHTML=`<img alt="${L("Foto","Photo")}">`;const im=x.querySelector("img");cmImg(o.f).then(u=>{if(u)im.src=u}).catch(()=>{});
+      else{r.querySelector(".ct").innerHTML=mentionHTML(o.t,o.mn);if(o.f&&/^image\//.test(o.f.m)){x.innerHTML=`<img alt="${L("Foto","Photo")}">`;const im=x.querySelector("img");cmImg(o.f).then(u=>{if(u)im.src=u}).catch(()=>{});
         im.onclick=()=>{const bg=modal(L("Foto","Photo"),`<img alt="" style="width:100%;border-radius:12px">`,()=>true,"OK");bg.querySelector("img").src=im.src;const cc=bg.querySelector(".c");if(cc)cc.style.display="none"}}}})});
   const ik={};posts.forEach(p=>ik[p.img]=ikOf(p.img,p.caption));fillImgs(v,p=>ik[p]);
   v.querySelectorAll("[data-fm]").forEach(b=>b.onclick=()=>{fdMode=b.dataset.fm;drawFeed(v)});
@@ -239,11 +258,13 @@ function drawFeed(v){
   v.querySelectorAll("[data-dbl]").forEach(img=>{let last=0;img.addEventListener("click",()=>{const n=Date.now();if(n-last<350){const id=+img.dataset.dbl;const h=document.createElement("div");h.className="fd-heart";h.textContent="❤️";img.parentElement.appendChild(h);setTimeout(()=>h.remove(),900);if(!(S.posts.find(x=>x.id===id).likes||[]).includes(S.me))like(id)}last=n})});
   v.querySelectorAll("[data-cfocus]").forEach(b=>b.onclick=()=>v.querySelector(`[data-cin="${b.dataset.cfocus}"]`)?.focus());
   const sendC=async(id,extra)=>{const inp=v.querySelector(`[data-cin="${id}"]`),body=inp.value.trim();if(!body&&!extra)return;
-    const o=extra&&extra.stk?{t:extra.stk}:{t:extra&&extra.stk?"":body,f:extra&&extra.f};if(!(extra&&extra.stk))inp.value="";inp.blur();
+    const o=extra&&extra.stk?{t:extra.stk}:{t:extra&&extra.stk?"":body,f:extra&&extra.f};
+    const post1=S.posts.find(x=>x.id===id);if(!(extra&&extra.stk)){const mn=mentionedIn(o.t,audOf(post1).filter(u=>u!==S.me));if(mn.length)o.mn=mn}if(!(extra&&extra.stk))inp.value="";inp.blur();
     const post0=S.posts.find(x=>x.id===id);let sealed;try{sealed=await sealCap(pack(o),audOf(post0))}catch(e){inp.value=body;status(e.message,"warn");return}const {data,error}=await sb.from("couple_comments").insert({post_id:id,body:sealed}).select().single();if(error){status(error.message,"err");return}
     S.lastNewC=data.id;
     const a=S.comments[id]=S.comments[id]||[];if(!a.some(c=>c.id===data.id))a.push(data);drawFeed(v);
-    const post=S.posts.find(x=>x.id===id);if(post)activity(post.author,"comment",data.id,{p:id});
+    const post=S.posts.find(x=>x.id===id);if(post&&!(o.mn||[]).includes(post.author))activity(post.author,"comment",data.id,{p:id});
+    for(const u of o.mn||[]){activity(u,"mention",data.id,{p:id});if(window.RAVI_NOTIFY)window.RAVI_NOTIFY("act",{to:[u],title:name(S.me),body:"📣 "+L("Menyebutmu di komentar","Mentioned you in a comment"),url:"./?go=feed"})}
     if(window.RAVI_NOTIFY)window.RAVI_NOTIFY("post",{to:audOf(post).filter(u=>u!==S.me),body:"💬 "+L("Komentar baru","New comment")})};
   v.querySelectorAll("[data-csend]").forEach(b=>b.onclick=()=>sendC(+b.dataset.csend));
   if(S.lastNewC){const n=v.querySelector(`[data-c="${S.lastNewC}"]`);if(n)n.classList.add("new");S.lastNewC=null}
@@ -256,7 +277,7 @@ function drawFeed(v){
     box.querySelectorAll("[data-sk]").forEach(x=>x.onclick=()=>{box.innerHTML="";b.classList.remove("on");sendC(+id,{stk:"[stk:"+x.dataset.sk+"]"})})});
   v.querySelectorAll("[data-cimg]").forEach(fi=>fi.onchange=async()=>{const f=fi.files[0],id=+fi.dataset.cimg;fi.value="";if(!f)return;
     status(L("Mengunggah foto…","Uploading photo…"),"");try{const path=await upPhoto(f,1280);await sendC(id,{f:{p:path,n:"foto.jpg",s:f.size,m:"image/jpeg",e:/\.enc$/.test(path),k:PK[path]||undefined}});status("")}catch(e){status(L("Gagal mengunggah: ","Upload failed: ")+(e.message||e),"err")}});
-  v.querySelectorAll("[data-cin]").forEach(i=>i.onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();sendC(+i.dataset.cin)}});
+  v.querySelectorAll("[data-cin]").forEach(i=>{i.onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();sendC(+i.dataset.cin)}};const pp=S.posts.find(x=>x.id===+i.dataset.cin);attachMention(i,()=>audOf(pp))});
   v.querySelectorAll("[data-cdel]").forEach(b=>b.onclick=async()=>{const id=+b.dataset.cdel;await sb.from("couple_comments").delete().eq("id",id);unActivity("comment",id);for(const k in S.comments)S.comments[k]=S.comments[k].filter(c=>c.id!==id);drawFeed(v)});
   v.querySelectorAll("[data-pdel]").forEach(b=>b.onclick=()=>{const p=S.posts.find(x=>x.id===+b.dataset.pdel);modal(L("Hapus postingan?","Delete post?"),`<div class="crumb">${L("Foto, like, dan komentarnya ikut terhapus.","The photo, likes and comments are deleted too.")}</div>`,async()=>{
     const {error}=await sb.from("couple_posts").delete().eq("id",p.id);if(error){alert(error.message);return false}sb.storage.from("couple").remove([p.img]).catch(()=>{});unActivity("post",p.id);S.posts=S.posts.filter(x=>x.id!==p.id);drawFeed(v)},L("Hapus","Delete"))});
@@ -268,12 +289,13 @@ function drawFeed(v){
       <label style="margin-top:10px">${L("Siapa yang bisa lihat","Who can see this")}</label><div class="tl-row" id="fdAud" style="gap:6px;flex-wrap:wrap"><button class="sm pri" data-aud="fr">👥 ${L("Semua teman","All friends")} (${fl.length})</button>${canCouple?`<button class="sm" data-aud="cp">💑 ${L("Berdua saja","Just us two")}</button>`:""}</div>`,
       async g=>{const btn=g.querySelector(".ok");btn.disabled=true;btn.textContent=L("Mengunggah…","Uploading…");
         const audSel=g.querySelector("#fdAud .pri")?.dataset.aud||"fr",aud=[...new Set([S.me,...(audSel==="cp"?partners():friends())])];
-        try{const path=await upPhoto(f,1600);const capT=g.querySelector("#fdCap").value.trim();const capO={t:capT,ik:PK[path]};const {data,error}=await sb.from("couple_posts").insert({img:path,aud,caption:(capT||capO.ik)?await sealCap(pack(capO),aud):null}).select().single();if(error)throw error;
+        try{const path=await upPhoto(f,1600);const capT=g.querySelector("#fdCap").value.trim();const capO={t:capT,ik:PK[path]};const cmn=mentionedIn(capT,aud.filter(u=>u!==S.me));if(cmn.length)capO.mn=cmn;const {data,error}=await sb.from("couple_posts").insert({img:path,aud,caption:(capT||capO.ik)?await sealCap(pack(capO),aud):null}).select().single();if(error)throw error;
           if(!S.posts.some(x=>x.id===data.id))S.posts.unshift(data);URL.revokeObjectURL(prev);
-          aud.filter(u=>u!==S.me).forEach(u=>activity(u,"post",data.id));
+          aud.filter(u=>u!==S.me).forEach(u=>activity(u,(capO.mn||[]).includes(u)?"mention":"post",data.id,(capO.mn||[]).includes(u)?{p:data.id,post:1}:undefined));
+          if(capO.mn&&capO.mn.length&&window.RAVI_NOTIFY)window.RAVI_NOTIFY("act",{to:capO.mn,title:name(S.me),body:"📣 "+L("Menandaimu di postingan","Tagged you in a post"),url:"./?go=feed"});
           if(window.RAVI_NOTIFY)window.RAVI_NOTIFY("post",{to:aud.filter(u=>u!==S.me),body:"📷 "+L("Postingan baru","New post")});fdMode="list";drawFeed($("view"))}
         catch(e){btn.disabled=false;btn.textContent=L("Posting","Post");alert(L("Gagal posting: ","Couldn't post: ")+(e.message||e));return false}},L("Posting","Post"));
-    bg.querySelector("img").src=prev;bg.querySelectorAll("[data-aud]").forEach(b=>b.onclick=()=>bg.querySelectorAll("[data-aud]").forEach(x=>x.classList.toggle("pri",x===b)))}}
+    bg.querySelector("img").src=prev;attachMention(bg.querySelector("#fdCap"),()=>[...new Set([S.me,...(bg.querySelector("#fdAud .pri")?.dataset.aud==="cp"?partners():friends())])]);bg.querySelectorAll("[data-aud]").forEach(b=>b.onclick=()=>bg.querySelectorAll("[data-aud]").forEach(x=>x.classList.toggle("pri",x===b)))}}
 
 /* =====================================================================
    PASANG

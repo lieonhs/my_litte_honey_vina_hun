@@ -25,6 +25,7 @@ function subscribe(){if(N.sub)return;N.sub=true;
 function describe(a){const who=R.name(a.actor),m=a.meta||{};
   switch(a.kind){
     case "like":return [who,L(" menyukai postinganmu."," liked your post."),"❤️"];
+    case "mention":{if((a.meta||{}).post)return [who,L(" menandaimu di postingan."," tagged you in a post."),"📣"];const c=findComment(a.ref),o=c?R.parse(R.pt(c.body)):null;return [who,L(" menyebutmu di komentar"," mentioned you in a comment")+(o&&o.t?": “"+o.t.slice(0,80)+"”":"."),"📣"]}
     case "comment":{const c=findComment(a.ref),o=c?R.parse(R.pt(c.body)):null;const t=!o?"":R.isStk(o.t)?"🧸 "+L("stiker","sticker"):o.f?"📷 "+L("foto","photo")+(o.t?" · "+o.t:""):o.t;return [who,L(" mengomentari: "," commented: ")+(t?"“"+t.slice(0,80)+"”":""),"💬"]}
     case "post":return [who,L(" memposting foto baru."," posted a new photo."),"📷"];
     case "react":{const s=window.RAVI_CHAT&&findMsg(a.ref);return [who,L(" bereaksi "," reacted ")+(m.e||"❤️")+L(" ke pesanmu"," to your message")+(s?": “"+window.RAVI_CHAT.snip(s).slice(0,60)+"”":"."),m.e||"❤️"]}
@@ -37,7 +38,7 @@ function describe(a){const who=R.name(a.actor),m=a.meta||{};
 const fmt=s=>Math.floor(s/60)+":"+String(s%60).padStart(2,"0");
 function findComment(id){for(const k in R.S.comments){const c=R.S.comments[k].find(x=>String(x.id)===String(id));if(c)return c}return null}
 function findMsg(id){const st=window.RAVI_CHAT&&window.RAVI_CHAT.state;if(!st)return null;for(const [,s] of st.msgs){const m=s.list.find(x=>String(x.id)===String(id));if(m)return m}return null}
-function postOf(a){const id=a.kind==="comment"?(a.meta||{}).p:a.ref;return R.S.posts.find(p=>String(p.id)===String(id))||null}
+function postOf(a){const id=(a.kind==="comment"||a.kind==="mention")&&(a.meta||{}).p?(a.meta||{}).p:a.ref;return R.S.posts.find(p=>String(p.id)===String(id))||null}
 
 /* ---------- tampilan ---------- */
 const css=document.createElement("style");css.textContent=`
@@ -62,7 +63,7 @@ function draw(v){if(!v)return;
   let body="";
   if(tab==="act"){if(!acts.length)body=`<div class="nf-empty">${window.pipi?R.pipiM("happy",80,"vnel"):""}<p>${L("Belum ada aktivitas. Like, komentar, reaksi pesan, dan undangan grup akan muncul di sini.","No activity yet. Likes, comments, message reactions and group invites show up here.")}</p></div>`;
     else{let last="";for(const a of acts){const g=group(a.created_at);if(g!==last){body+=`<div class="nf-sec">${g}</div>`;last=g}
-      const p=(a.kind==="like"||a.kind==="comment"||a.kind==="post")?postOf(a):null;
+      const p=(a.kind==="like"||a.kind==="comment"||a.kind==="post"||a.kind==="mention")?postOf(a):null;
       body+=`<div class="nf-it${a.read_at?"":" new"}" data-a="${a.id}" role="button" tabindex="0"><span class="avw">${a.kind==="join"?`<span class="rv-av txt" style="width:46px;height:46px;font-size:19px;background:#7c5cff">${esc(((a.meta||{}).n||"?").charAt(0).toUpperCase())}</span>`:R.avatar(a.actor,46)}<span class="em"></span></span><div class="tx"><b></b><span class="d"></span><span class="tm">${R.ago(a.created_at)}</span>${a.kind==="friend"&&R.friendState&&R.friendState(a.actor)==="in"?`<span class="nf-fb"><button class="sm pri" data-fr="accept" data-u="${a.actor}">${L("Terima","Accept")}</button><button class="sm" data-fr="decline" data-u="${a.actor}">${L("Tolak","Decline")}</button></span>`:""}</div>${p?`<img data-img="${esc(p.img)}" alt="">`:""}</div>`}}}
   else{if(!calls.length)body=`<div class="nf-empty">📞<p>${L("Belum ada panggilan. Telepon atau video call dari Chat.","No calls yet. Start a voice or video call from Chat.")}</p></div>`;
     else{let last="";for(const a of calls){const g=group(a.created_at);if(g!==last){body+=`<div class="nf-sec">${g}</div>`;last=g}
@@ -85,7 +86,7 @@ async function markSeen(tab){const ids=N.list.filter(a=>a.target===N.me&&!a.read
   const ts=new Date().toISOString();setTimeout(()=>{N.list.forEach(a=>{if(ids.includes(a.id))a.read_at=ts});emit()},1200);
   try{await sb.from("couple_activity").update({read_at:ts}).in("id",ids)}catch(e){}}
 function openAct(a){if(a.kind==="join"){go("admin");return}
-  if((a.kind==="friend"||a.kind==="friend_ok")&&window.RAVI_CHAT){if(R.friendState&&R.friendState(a.actor)==="friend")window.RAVI_CHAT.dmWith(a.actor).then(c=>{go("chat");window.RAVI_CHAT.open(c)}).catch(()=>{});else window.RAVI_FRIENDS&&window.RAVI_FRIENDS();return}if(a.kind==="like"||a.kind==="post"||a.kind==="comment"){const p=postOf(a);go("feed");if(p)setTimeout(()=>document.getElementById("post"+p.id)?.scrollIntoView({block:"start",behavior:"smooth"}),350);return}
+  if((a.kind==="friend"||a.kind==="friend_ok")&&window.RAVI_CHAT){if(R.friendState&&R.friendState(a.actor)==="friend")window.RAVI_CHAT.dmWith(a.actor).then(c=>{go("chat");window.RAVI_CHAT.open(c)}).catch(()=>{});else window.RAVI_FRIENDS&&window.RAVI_FRIENDS();return}if(a.kind==="like"||a.kind==="post"||a.kind==="comment"||a.kind==="mention"){const p=postOf(a);go("feed");if(p)setTimeout(()=>document.getElementById("post"+p.id)?.scrollIntoView({block:"start",behavior:"smooth"}),350);return}
   if(a.kind==="react"&&window.RAVI_CHAT){const c=(a.meta||{}).c;if(c){go("chat");window.RAVI_CHAT.jump(c,+a.ref)}return}
   if(a.kind==="group"&&window.RAVI_CHAT){go("chat");window.RAVI_CHAT.open(a.ref)}}
 function toast(a){if(route==="notif")return;const [w,d,e]=describe(a);
