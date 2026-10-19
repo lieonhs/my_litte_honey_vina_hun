@@ -165,7 +165,7 @@ function show(t){if(typeof t!=="string"||!isEnc(t))return t;
   if(E.cache.has(t))return E.cache.get(t);
   if(t.startsWith("enc1:"))return showV1(t);
   if(t.startsWith("enc2:"))return showV2(t);
-  if(E.state!=="ok"){if(E.state==="init"&&!E.loading)load();return E.loading||E.state==="init"?"…":"🔒 "+L("Pesan lama · ketuk untuk membuka","Older message · tap to open")}
+  if(E.state!=="ok"){if(E.state==="init"&&!E.loading)load();return E.loading||E.state==="init"?"…":"🔒 "+L("Terenkripsi · ketuk sekali untuk membuka semua","Encrypted · tap once to open all")}
   if(!E.pending.has(t)){E.pending.add(t);
     open3(t).then(p=>E.cache.set(t,p)).catch(e=>E.cache.set(t,"🔒 "+({nokey:L("Pesan ini tidak dikunci untukmu","Not encrypted for you"),oldkey:L("Dikunci untuk kunci lamamu","Locked to your old key"),nosender:L("Kunci pengirim tidak dikenal","Unknown sender key")}[e&&e.message]||L("Tidak bisa dibuka","Can't be opened"))))
       .finally(()=>{E.pending.delete(t);bump()})}
@@ -206,12 +206,12 @@ function autoUnlock(o){if(E.state==="ok")return Promise.resolve(true);if(autoP)r
 function unlockDialog(){return new Promise(res=>{const create=E.state==="nokey";
   const bg=modal("🔐 "+(create?L("Aktifkan enkripsi chat","Turn on chat encryption"):L("Buka kunci enkripsi","Unlock encryption")),
     `<div class="crumb" style="line-height:1.5">${create?L("Masukkan password login RaVi-mu. Password ini mengunci kunci enkripsi akunmu, jadi chat bisa dibuka di HP atau laptop mana pun yang kamu pakai login.","Enter your RaVi sign-in password. It locks your account's encryption key, so chats open on any phone or laptop you sign in on.")
-      :L("Masukkan password login RaVi sekali di perangkat ini untuk membuka pesan terenkripsi. Setelah itu tidak perlu lagi.","Enter your RaVi sign-in password once on this device to open encrypted messages. You won't need it again here.")}</div>
+      :L("Masukkan password login RaVi <b>satu kali saja</b>. Setelah ini semua HP & laptop yang kamu pakai login terbuka otomatis — tidak akan ditanya lagi.","Enter your RaVi sign-in password <b>just once</b>. After this every phone & laptop you sign in on opens automatically — you won't be asked again.")}</div>
      <input type="email" autocomplete="username" value="${esc(E.email||"")}" readonly hidden aria-hidden="true">
      <label style="margin-top:10px">Password</label><input type="password" id="e3P" autocomplete="current-password">
      ${create?`<label style="margin-top:8px">${L("Ulangi password","Repeat password")}</label><input type="password" id="e3P2" autocomplete="current-password">`:""}
      <div class="msg err hide" id="e3M" style="margin-top:8px"></div>
-     <div class="crumb" style="margin-top:8px">⚠️ ${L("Kalau suatu hari lupa password lalu reset lewat email, pesan terenkripsi lama tidak bisa dibuka lagi.","If you ever forget your password and reset it by email, old encrypted messages can't be opened anymore.")}</div>`,
+`,
     async g=>{const p=g.querySelector("#e3P").value,m=g.querySelector("#e3M"),btn=g.querySelector(".ok");
       const fail=t=>{m.textContent=t;m.classList.remove("hide");btn.disabled=false;btn.textContent=create?L("Aktifkan","Turn on"):L("Buka","Unlock");return false};
       if(!p)return fail(L("Password wajib diisi.","Password is required."));
