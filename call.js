@@ -55,8 +55,8 @@ function loadIce(force){if(!window.RAVI_FN)return Promise.resolve(null);if(!iceP
 /* ---------- batas kuota Cloudflare Realtime ---------- */
 const gb=b=>(b/1e9).toFixed(b>=1e11?0:1);
 async function quotaBlocked(){await Promise.race([loadIce(true),new Promise(x=>setTimeout(x,3000))]);const q=C.quota;if(!q||!q.blocked)return null;
-  const u=q.usage||{};return q.blocked==="all"?L("Kuota Cloudflare bulan ini sudah ","This month's Cloudflare quota is at ")+gb(u.bytes||0)+" GB (≥ 899 GB). "+L("Semua fitur yang memakai kuota dimatikan sampai bulan depan.","Every feature that uses it is off until next month.")
-    :L("Kuota telepon bulan ini sudah ","This month's call quota is at ")+gb(u.bytes||0)+" GB (≥ 700 GB). "+L("Telepon & video call dimatikan sampai bulan depan.","Voice & video calls are off until next month.")}
+  const u=q.usage||{};return q.blocked==="all"?L("Kuota Cloudflare bulan ini sudah ","This month's Cloudflare quota is at ")+gb(u.bytes||0)+" GB (≥ 899 GB). "+L("Telepon & video call dimatikan sampai bulan depan. Chat tetap bisa.","Calls & video are off until next month. Chat still works.")
+    :L("Kuota telepon bulan ini sudah ","This month's call quota is at ")+gb(u.bytes||0)+" GB (≥ 700 GB). "+L("Telepon & video call dimatikan sampai bulan depan. Chat tetap bisa.","Voice & video calls are off until next month. Chat still works.")}
 /* video call & berbagi layar khusus pasangan */
 const vidOK=u=>!window.RS||!RS.S.me||(RS.isPartner(RS.S.me)&&RS.isPartner(u));
 const VID_NO=()=>L("Video call & berbagi layar khusus pasangan pemilik RaVi. Panggilan suara tetap bisa.","Video calls & screen sharing are only for the RaVi couple. Voice calls still work.");
