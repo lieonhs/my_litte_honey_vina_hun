@@ -1,17 +1,19 @@
 /* =====================================================================
    MISI, ACHIEVEMENT & KOLEKSI STIKER
-   Selesaikan misi → klaim → dapat stiker karakter (Biasa / Langka / Legendaris).
-   Stiker Vina = Legendaris (paling langka). Disimpan di doc "quest" per akun.
+   Selesaikan misi → klaim → dapat stiker karakter (Biasa / Langka / Legendaris / Mitos).
+   Stiker Vina & El = Legendaris. 5 stiker couple Vina & El = Mitos (paling langka, di atas Legendaris). Disimpan di doc "quest" per akun.
    ===================================================================== */
 (function(){
-const RAR={C:{n:"Biasa",c:"#8e8e8e",bg:"#f1f0ee"},R:{n:"Langka",c:"#3f85e0",bg:"#e3efff"},L:{n:"Legendaris",c:"#c99a00",bg:"#fff4cc"}};
-const GROUP={C:["pipi","moci","kodi","cimi","mumu"],R:["bubu","pandi","kiki","popo","rubi"],L:["vcap","vkantor","vorange","vsantai","vkrl"]};
+const RAR={C:{n:"Biasa",c:"#8e8e8e",bg:"#f1f0ee"},R:{n:"Langka",c:"#3f85e0",bg:"#e3efff"},L:{n:"Legendaris",c:"#c99a00",bg:"#fff4cc"},M:{n:"Mitos",c:"#c2185b",bg:"linear-gradient(90deg,#ffd6ec,#e4dcff,#d6f5ea)"}};
+const GROUP={C:["pipi","moci","kodi","cimi","mumu"],R:["bubu","pandi","kiki","popo","rubi"],L:["vcap","vkantor","vorange","vsantai","vkrl","erusa","ebuku","erenang","ekaget"]};
+const VINA=["vcap","vkantor","vorange","vsantai","vkrl"],EL=["erusa","ebuku","erenang","ekaget"];
 const POSES=[["happy","Senang"],["party","Hore"],["sleep","Bobo"]];
 const STICKERS=[];for(const r of ["C","R","L"])for(const ch of GROUP[r])for(const [m,mn] of POSES)STICKERS.push({id:ch+"_"+m,ch,mood:m,mn,r});
+const COUPLE=["cpkencan","cpselfie","cptutup","cpkrl","cpcocok"];for(const ch of COUPLE)STICKERS.push({id:ch,ch,mood:"happy",mn:"",r:"M"});
 const stById=id=>STICKERS.find(s=>s.id===id);
-const stName=s=>(window.CHARS?.[s.ch]?.name||s.ch)+" "+s.mn;
-/* peluang per jenis hadiah: [Biasa, Langka, Legendaris] */
-const ODDS={daily:[72,24,4],weekly:[45,43,12],ach:[30,55,15],big:[0,40,60],trade:[60,32,8]};
+const stName=s=>((window.CHARS?.[s.ch]||window.COUPLES?.[s.ch])?.n||window.CHARS?.[s.ch]?.name||s.ch)+(s.mn?" "+s.mn:"");
+/* peluang per jenis hadiah: [Biasa, Langka, Legendaris, Mitos] */
+const ODDS={daily:[72,24,3.8,0.2],weekly:[45,43,11.5,0.5],ach:[30,55,14,1],big:[0,40,57,3],trade:[60,32,7.5,0.5]};
 
 /* ---------- tanggal ---------- */
 const iso=x=>x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0");
@@ -51,7 +53,7 @@ function missions(){
   const checked=rr.filter(r=>r.real!=null),allMatch=checked.length>=3&&checked.every(r=>!r.bad);
   const streak=diaryStreak(),owned=Q().owned||{},ownedIds=Object.keys(owned).filter(k=>owned[k]>0);
   const hasR=r=>STICKERS.filter(s=>s.r===r).every(s=>owned[s.id]>0);
-  const anyV=STICKERS.some(s=>s.r==="L"&&owned[s.id]>0);
+  const anyV=STICKERS.some(s=>VINA.includes(s.ch)&&owned[s.id]>0),anyE=STICKERS.some(s=>EL.includes(s.ch)&&owned[s.id]>0);
   const ach=[
     {k:"a:firsttx",e:"🌱",t:"Transaksi pertama",d:"Catat transaksi pertamamu",p:Math.min(J.length,1),n:1,rw:"ach",go:"input"},
     {k:"a:open",e:"🏦",t:"Semua rekening siap",d:"Isi saldo awal 7 rekening",p:opens,n:7,rw:"ach",go:"recon"},
@@ -69,15 +71,19 @@ function missions(){
     {k:"a:col10",e:"🎒",t:"Mulai mengoleksi",d:"Kumpulkan 10 stiker berbeda",p:Math.min(ownedIds.length,10),n:10,rw:"ach",go:"album"},
     {k:"a:allC",e:"🐾",t:"Sahabat hewan",d:"Lengkapi semua stiker Biasa",p:STICKERS.filter(s=>s.r==="C"&&owned[s.id]>0).length,n:15,rw:"big",go:"album"},
     {k:"a:allR",e:"🌟",t:"Pemburu langka",d:"Lengkapi semua stiker Langka",p:STICKERS.filter(s=>s.r==="R"&&owned[s.id]>0).length,n:15,rw:"big",go:"album"},
-    {k:"a:vina1",e:"👑",t:"Ketemu Vina!",d:"Dapatkan stiker Legendaris pertama",p:anyV?1:0,n:1,rw:"ach",go:"album"},
-    {k:"a:allL",e:"💖",t:"Album sempurna",d:"Lengkapi semua 15 stiker Vina",p:STICKERS.filter(s=>s.r==="L"&&owned[s.id]>0).length,n:15,rw:"big",go:"album"}];
+    {k:"a:vina1",e:"👑",t:"Ketemu Vina!",d:"Dapatkan stiker Vina pertama",p:anyV?1:0,n:1,rw:"ach",go:"album"},
+    {k:"a:allL",e:"💖",t:"Album sempurna",d:"Lengkapi semua 15 stiker Vina",p:STICKERS.filter(s=>VINA.includes(s.ch)&&owned[s.id]>0).length,n:15,rw:"big",go:"album"},
+    {k:"a:cp1",e:"💘",t:"Momen langka",d:"Dapatkan stiker couple (Mitos) pertama",p:STICKERS.some(s=>s.r==="M"&&owned[s.id]>0)?1:0,n:1,rw:"big",go:"album"},
+    {k:"a:allM",e:"💑",t:"Couple sejati",d:"Lengkapi semua 5 stiker couple",p:STICKERS.filter(s=>s.r==="M"&&owned[s.id]>0).length,n:5,rw:"big",go:"album"},
+    {k:"a:el1",e:"🤓",t:"Ketemu El!",d:"Dapatkan stiker El pertama",p:anyE?1:0,n:1,rw:"ach",go:"album"},
+    {k:"a:allE",e:"👓",t:"Geng El lengkap",d:"Lengkapi semua 12 stiker El",p:STICKERS.filter(s=>EL.includes(s.ch)&&owned[s.id]>0).length,n:12,rw:"big",go:"album"}];
   const st=m=>({...m,done:m.p>=m.n,claimed:!!Q().claimed[m.k]});
   return {daily:daily.map(st),weekly:weekly.map(st),ach:ach.map(st)}}
 function claimable(){const M=missions();return [...M.daily,...M.weekly,...M.ach].filter(m=>m.done&&!m.claimed)}
 
 /* ---------- undian stiker ---------- */
 function rnd(){try{const a=new Uint32Array(1);crypto.getRandomValues(a);return a[0]/2**32}catch(e){return Math.random()}}
-function draw(kind){const o=ODDS[kind]||ODDS.daily,x=rnd()*100;const r=x<o[0]?"C":x<o[0]+o[1]?"R":"L";
+function draw(kind){const o=ODDS[kind]||ODDS.daily,x=rnd()*100;const r=x<o[0]?"C":x<o[0]+o[1]?"R":x<o[0]+o[1]+o[2]?"L":"M";
   const pool=STICKERS.filter(s=>s.r===r);return pool[Math.floor(rnd()*pool.length)]}
 function packFor(kind){if(kind==="ach")return [draw("ach"),draw("daily")];if(kind==="big")return [draw("big"),draw("ach"),draw("daily")];return [draw(kind)]}
 async function saveQ(q){window.QUEST=q;await col.doc("quest").set(q)}
@@ -95,7 +101,7 @@ async function trade(){
   for(const [id] of dup){while(need&&q.owned[id]>1){q.owned[id]--;need--}if(!need)break}
   const s=draw("trade");q.owned[s.id]=(q.owned[s.id]||0)+1;q.log=[{t:Date.now(),k:"trade",got:[s.id]},...(q.log||[])].slice(0,40);
   try{await saveQ(q)}catch(e){alert("Gagal tukar: "+e.message);return}reveal([s],"Tukar 5 duplikat")}
-const rarIdx=id=>({C:0,R:1,L:2})[stById(id)?.r]??0;
+const rarIdx=id=>({C:0,R:1,L:2,M:3})[stById(id)?.r]??0;
 
 /* ---------- tampilan ---------- */
 const css=document.createElement("style");css.textContent=`
@@ -110,6 +116,8 @@ const css=document.createElement("style");css.textContent=`
 .stc.lock{opacity:.45;filter:grayscale(1)}.stc.lock .pipi{filter:brightness(0) opacity(.35)}
 .stc.L:not(.lock){border-color:#e8c14a;background:linear-gradient(160deg,#fff8dc,#fff 60%);box-shadow:0 0 0 2px #fff3c4 inset,0 4px 14px rgba(201,154,0,.25)}
 .stc.R:not(.lock){border-color:#8fbaf0;background:linear-gradient(160deg,#eaf3ff,#fff 60%)}
+.stc.M{grid-column:span 2}.stc.M:not(.lock){border:3px solid transparent;background:linear-gradient(var(--card),var(--card)) padding-box,linear-gradient(120deg,#ff5fa2,#a855f7,#38bdf8,#34d399,#ffd23f,#ff5fa2) border-box;box-shadow:0 6px 20px rgba(194,24,91,.25)}
+.stc.M .nm{font-size:13px}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .stc.L:not(.lock){background:linear-gradient(160deg,#3a3014,var(--card) 60%)}:root:not([data-theme="light"]) .stc.R:not(.lock){background:linear-gradient(160deg,#1a2a40,var(--card) 60%)}}
 .shine{position:relative;overflow:hidden}.shine:after{content:"";position:absolute;inset:-40%;background:linear-gradient(115deg,transparent 40%,rgba(255,255,255,.75) 50%,transparent 60%);animation:sh 2.4s infinite}
 @keyframes sh{from{transform:translateX(-60%)}to{transform:translateX(60%)}}
@@ -120,7 +128,7 @@ const css=document.createElement("style");css.textContent=`
 .rvf,.rvb{position:absolute;inset:0;border-radius:18px;backface-visibility:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;border:3px solid var(--line)}
 .rvf{background:linear-gradient(135deg,var(--g1,#7c4dff),var(--g2,#ff6fa8));color:#fff;font-size:42px;font-weight:800}
 .rvb{transform:rotateY(180deg);background:var(--card)}
-.rvb.L{border-color:#e8c14a;background:linear-gradient(160deg,#fff4c2,#fff)}.rvb.R{border-color:#8fbaf0;background:linear-gradient(160deg,#e3efff,#fff)}
+.rvb.L{border-color:#e8c14a;background:linear-gradient(160deg,#fff4c2,#fff)}.rvb.R{border-color:#8fbaf0;background:linear-gradient(160deg,#e3efff,#fff)}.rvb.M{border:3px solid transparent;background:linear-gradient(var(--card),var(--card)) padding-box,linear-gradient(120deg,#ff5fa2,#a855f7,#38bdf8,#34d399,#ffd23f) border-box}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .rvb.L{background:linear-gradient(160deg,#4a3c12,var(--card))}:root:not([data-theme="light"]) .rvb.R{background:linear-gradient(160deg,#1a2a40,var(--card))}}
 .qbadge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:99px;background:#ff4d6d;color:#fff;font-size:11px;font-weight:800;margin-left:6px}
 #questBtn{background:none;color:var(--hdrInk);border-color:rgba(255,255,255,.35);position:relative}
@@ -141,7 +149,7 @@ function reveal(got,title){
    <div class="rv">${got.map((s,i)=>`<div class="rvc" data-i="${i}"><div class="rvi"><div class="rvf">?</div><div class="rvb ${s.r}${s.r!=="C"?" shine":""}">${pipi(s.mood,92,s.ch)}<div style="font-weight:800;font-size:13px">${esc(stName(s))}</div>${rarPill(s.r)}${(Q().owned[s.id]||0)===1?'<div class="crumb" style="font-size:11px;margin-top:2px">✨ Baru!</div>':""}</div></div></div>`).join("")}</div>`,async()=>{render()},"Simpan ke album");
   const cx=bg.querySelector(".c");if(cx)cx.style.display="none";
   const cards=[...bg.querySelectorAll(".rvc")];let opened=0;
-  cards.forEach(c=>c.onclick=()=>{if(c.classList.contains("open"))return;c.classList.add("open");opened++;if(got[+c.dataset.i].r==="L")confetti()});
+  cards.forEach(c=>c.onclick=()=>{if(c.classList.contains("open"))return;c.classList.add("open");opened++;if("LM".includes(got[+c.dataset.i].r))confetti()});
   setTimeout(()=>cards.forEach((c,i)=>setTimeout(()=>c.click(),i*450)),900)}
 
 function mRow(m){const pct=Math.round(Math.min(1,m.p/m.n)*100);
@@ -153,14 +161,14 @@ function vQuest(v){
   const dup=Object.values(owned).reduce((s,n)=>s+Math.max(0,n-1),0);
   v.innerHTML=page("Misi","Misi & Achievement",`<button class="pri" id="qAlbum">📒 Album stiker (${have}/${STICKERS.length})</button>`)+
    `<div class="tiles"><div class="tile"><div class="k">Siap diklaim</div><div class="v">${cl} 🎁</div><div class="s">${cl?"klaim untuk dapat stiker":"selesaikan misi di bawah"}</div></div>
-    <div class="tile"><div class="k">Koleksi</div><div class="v">${have}/${STICKERS.length}</div><div class="s">${STICKERS.filter(s=>s.r==="L"&&owned[s.id]>0).length}/15 Legendaris (Vina)</div></div>
+    <div class="tile"><div class="k">Koleksi</div><div class="v">${have}/${STICKERS.length}</div><div class="s">${STICKERS.filter(s=>s.r==="L"&&owned[s.id]>0).length}/${STICKERS.filter(s=>s.r==="L").length} Legendaris (Vina & El)</div></div>
     <div class="tile"><div class="k">Duplikat</div><div class="v">${dup}</div><div class="s">${dup>=5?'<button class="lnk" id="qTrade">Tukar 5 → 1 tarikan</button>':"5 duplikat = 1 tarikan"}</div></div></div>
    <div class="region"><div class="rh"><span>☀️ Misi harian</span><span class="crumb">reset setiap hari</span></div><div class="rb flush">${M.daily.map(mRow).join("")}</div></div>
    <div class="region"><div class="rh"><span>📅 Misi mingguan</span><span class="crumb">reset setiap Senin</span></div><div class="rb flush">${M.weekly.map(mRow).join("")}</div></div>
    <div class="region"><div class="rh"><span>🏅 Achievement</span><span class="crumb">${M.ach.filter(m=>m.claimed).length}/${M.ach.length}</span></div><div class="rb flush">${M.ach.sort((a,b)=>(b.done&&!b.claimed)-(a.done&&!a.claimed)||a.claimed-b.claimed).map(mRow).join("")}</div></div>
-   <div class="region"><div class="rh">🎲 Peluang stiker</div><div class="rb"><table><tr><th>Hadiah</th><th class="n">${rarPill("C")}</th><th class="n">${rarPill("R")}</th><th class="n">${rarPill("L")}</th></tr>
+   <div class="region"><div class="rh">🎲 Peluang stiker</div><div class="rb"><table><tr><th>Hadiah</th><th class="n">${rarPill("C")}</th><th class="n">${rarPill("R")}</th><th class="n">${rarPill("L")}</th><th class="n">${rarPill("M")}</th></tr>
     ${[["Misi harian","daily"],["Misi mingguan","weekly"],["Achievement","ach"],["Achievement besar","big"],["Tukar duplikat","trade"]].map(([n,k])=>`<tr><td>${n}</td>${ODDS[k].map(x=>`<td class="n">${x}%</td>`).join("")}</tr>`).join("")}</table>
-    <div class="crumb" style="margin-top:6px">Biasa: Pipi, Moci, Kodi, Cimi, Mumu · Langka: Bubu, Pandi, Kiki, Popo, Rubi · <b>Legendaris: 5 Vina</b>. Tiap karakter punya 3 pose.</div></div></div>`;
+    <div class="crumb" style="margin-top:6px">Biasa: Pipi, Moci, Kodi, Cimi, Mumu · Langka: Bubu, Pandi, Kiki, Popo, Rubi · <b>Legendaris: 5 Vina + 4 El</b> · <b>Mitos: 5 couple Vina & El</b>. Tiap karakter punya 3 pose.</div></div></div>`;
   v.querySelectorAll("[data-claim]").forEach(b=>b.onclick=()=>{const m=[...M.daily,...M.weekly,...M.ach].find(x=>x.k===b.dataset.claim);if(m){b.disabled=true;claim(m)}});
   v.querySelectorAll("[data-gom]").forEach(b=>b.onclick=()=>go(b.dataset.gom));
   $("qAlbum").onclick=()=>go("album");const t=$("qTrade");if(t)t.onclick=trade}
@@ -168,11 +176,11 @@ let albumF="all";
 function vAlbum(v){
   const owned=Q().owned||{},have=STICKERS.filter(s=>owned[s.id]>0).length;
   const sec=r=>{const xs=STICKERS.filter(s=>s.r===r),h=xs.filter(s=>owned[s.id]>0).length;
-    return `<div class="region"><div class="rh"><span>${rarPill(r)} ${({C:"Hewan sahabat",R:"Hewan langka",L:"Vina"})[r]}</span><span class="crumb">${h}/${xs.length}</span></div><div class="rb"><div class="stgrid">
-     ${xs.map(s=>{const n=owned[s.id]||0;return `<div class="stc ${s.r} ${n?"":"lock"}${n&&s.r==="L"?" shine":""}">${n>1?`<span class="ct">×${n}</span>`:""}${pipi(s.mood,72,s.ch)}<div class="nm">${n?esc(stName(s)):"???"}</div></div>`}).join("")}</div></div></div>`};
+    return `<div class="region"><div class="rh"><span>${rarPill(r)} ${({C:"Hewan sahabat",R:"Hewan langka",L:"Vina & El",M:"Couple Vina & El"})[r]}</span><span class="crumb">${h}/${xs.length}</span></div><div class="rb"><div class="stgrid">
+     ${xs.map(s=>{const n=owned[s.id]||0;return `<div class="stc ${s.r} ${n?"":"lock"}${n&&s.r==="L"?" shine":""}">${n>1?`<span class="ct">×${n}</span>`:""}${pipi(s.mood,s.r==="M"?120:72,s.ch)}<div class="nm">${n?esc(stName(s)):"???"}</div></div>`}).join("")}</div></div></div>`};
   v.innerHTML=page("Misi","Album Stiker",`<button class="pri" id="aMis">🎯 Misi</button>`)+
    `<div class="tiles"><div class="tile"><div class="k">Terkumpul</div><div class="v">${have}/${STICKERS.length}</div><div class="qbar"><i style="width:${have/STICKERS.length*100}%"></i></div></div></div>`+
-   sec("L")+sec("R")+sec("C")+
+   sec("M")+sec("L")+sec("R")+sec("C")+
    ((Q().log||[]).length?`<div class="region"><div class="rh">Riwayat terakhir</div><div class="rb flush"><table>${Q().log.slice(0,8).map(l=>`<tr><td style="white-space:nowrap">${new Date(l.t).toLocaleDateString("id-ID",{day:"numeric",month:"short"})}</td><td>${l.got.map(id=>{const s=stById(id);return s?esc(stName(s))+" "+rarPill(s.r):""}).join(" · ")}</td></tr>`).join("")}</table></div></div>`:"");
   $("aMis").onclick=()=>go("quest")}
 
