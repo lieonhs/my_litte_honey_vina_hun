@@ -182,7 +182,7 @@ const D={
 "💬 Masukkan ke rotasi \"Kata-kata hari ini\"":"💬 Include in \"Quote of the day\" rotation","Hapus catatan":"Delete note","Catatan masih kosong.":"The note is empty.","Hapus catatan ini?":"Delete this note?",
 "📝 Simpan ke catatan":"📝 Save to notes","✍️ Tulis kata-kataku":"✍️ Write my own","Disimpan ke Catatan.":"Saved to Notes.","📝 Catatan disematkan":"📝 Pinned notes","Semua catatan":"All notes",
 "Sematkan catatan penting (📌) supaya muncul di sini.":"Pin important notes (📌) to show them here.","💬 Kata-kata hari ini":"💬 Words of the day","Kalimat yang ingin kamu ingat dari hari ini (opsional)":"A line you want to remember from today (optional)",
-"Kata-katamu ikut muncul di \"Kata-kata hari ini\" pada hari-hari berikutnya.":"Your words will appear in \"Words of the day\" on later days.","Kata-katamu hari ini":"Your words today","Koleksi kata-kata":"Quote collection",
+"Kata-katamu langsung tampil di kartu \"Kata hari ini\" di Beranda hari ini, lalu ikut dirotasi di hari-hari berikutnya.":"Your words show right away in the \"Today's words\" card on Home, then rotate on later days.","Kata-katamu hari ini · dari Jurnal Harian":"Your words today · from the Daily Journal","Tulis kata-kataku sendiri":"Write my own words","Kata-katamu hari ini":"Your words today","Koleksi kata-kata":"Quote collection",
 "Catatan keuangan":"Money note","Semangat harian":"Daily motivation","Jurnal harian":"Daily journal","Peribahasa":"Indonesian proverb",
 "Uang kecil yang dicatat lebih berharga daripada uang besar yang dilupakan.":"Small money recorded is worth more than big money forgotten.",
 "Pelan-pelan asal konsisten. Sehari satu langkah, sebulan sudah jauh.":"Slow but steady. One step a day, and in a month you've come far.",

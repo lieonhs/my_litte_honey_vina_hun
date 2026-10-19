@@ -198,11 +198,15 @@ const QUOTES={
 const SIGN=w=>w==="vina"?L("dari Rafi, untuk Vina 💗","from Rafi, to Vina 💗"):L("untuk Rafi 💪","for Rafi 💪");
 function who(){const m=T().me;if(m==="rafi"||m==="vina")return m;try{const l=localStorage.getItem("bbp_me_"+((document.getElementById("who")?.textContent||"").split(" ")[0]));if(l==="rafi"||l==="vina")return l}catch(e){}return null}
 async function setWho(x){try{localStorage.setItem("bbp_me_"+((document.getElementById("who")?.textContent||"").split(" ")[0]),x)}catch(e){}await saveT({me:x})}
-function quoteOf(w,off=0){const q=QUOTES[w];return q[(dayNo(tday())+off+(w==="vina"?7:0))%q.length]}
+function dOff(off){const d=new Date(tday()+"T00:00:00Z");d.setUTCDate(d.getUTCDate()+off);return d.toISOString().slice(0,10)}
+/* kata-kata yang ditulis sendiri di Jurnal Harian untuk tanggal itu selalu diutamakan */
+function ownQuote(off=0){const j=(window.DIARY||{})[dOff(off)];const q=j&&typeof j.quote==="string"?j.quote.trim():"";return q||null}
+function quoteOf(w,off=0){const own=ownQuote(off);if(own)return own;const q=QUOTES[w||"rafi"];return q[(dayNo(tday())+off+(w==="vina"?7:0))%q.length]}
 function quoteCard(){const w=who();
-  if(!w)return `<div class="qt-card">${window.pipi?window.pipi("think",56,"vnel"):""}<div style="flex:1;min-width:0"><div class="t">${L("Ini akun siapa?","Whose account is this?")}</div><div class="s">${L("Supaya kata-kata hariannya pas untukmu.","So your daily words fit you.")}</div><div class="tl-row" style="margin-top:8px"><button class="sm pri" data-me="rafi">Rafi</button><button class="sm pri" data-me="vina">Vina</button></div></div></div>`;
-  return `<div class="qt-card">${window.pipi?window.pipi("happy",56,w==="vina"?"vcap":"erusa"):""}<div style="flex:1;min-width:0"><div class="crumb" style="font-weight:800;color:var(--acc)">💬 ${L("Kata hari ini","Today's words")}</div><div class="t qtT"></div><div class="s">${SIGN(w)}</div></div></div>`}
-function wireQuote(root){root.querySelectorAll("[data-me]").forEach(b=>b.onclick=async()=>{await setWho(b.dataset.me);render()});const t=root.querySelector(".qtT");if(t)t.textContent="“"+quoteOf(who())+"”"}
+  if(!w&&!ownQuote())return `<div class="qt-card">${window.pipi?window.pipi("think",56,"vnel"):""}<div style="flex:1;min-width:0"><div class="t">${L("Ini akun siapa?","Whose account is this?")}</div><div class="s">${L("Supaya kata-kata hariannya pas untukmu.","So your daily words fit you.")}</div><div class="tl-row" style="margin-top:8px"><button class="sm pri" data-me="rafi">Rafi</button><button class="sm pri" data-me="vina">Vina</button></div></div></div>`;
+  return `<div class="qt-card">${window.pipi?window.pipi("happy",56,w==="vina"?"vcap":w?"erusa":"vnel"):""}<div style="flex:1;min-width:0"><div class="crumb" style="font-weight:800;color:var(--acc)">💬 ${L("Kata hari ini","Today's words")}</div><div class="t qtT"></div><div class="s">${ownQuote()?"✍️ "+L("Kata-katamu hari ini · dari Jurnal Harian","Your words today · from the Daily Journal"):SIGN(w)}</div>${ownQuote()?"":`<button class="lnk qtOwn" style="font-size:12px;margin-top:4px">✍️ ${L("Tulis kata-kataku sendiri","Write my own words")}</button>`}</div></div>`}
+function wireQuote(root){root.querySelectorAll("[data-me]").forEach(b=>b.onclick=async()=>{await setWho(b.dataset.me);render()});const t=root.querySelector(".qtT");if(t)t.textContent="“"+quoteOf(who())+"”";
+  const o=root.querySelector(".qtOwn");if(o)o.onclick=()=>{try{diaryDay=tday()}catch(e){}go("diary");setTimeout(()=>{const i=document.getElementById("djQuote");i&&i.focus()},200)}}
 function vQuote(v){const w=who();
   v.innerHTML=page(L("Alat","Tools"),"💬 "+L("Kata-kata Harian","Daily Words"),back)+`<div id="qtTop">${quoteCard()}</div>`+
    (w?`<div class="region"><div class="rh">📜 ${L("7 hari terakhir","Last 7 days")}</div><div class="rb"><div class="tl-list" id="qtHist"></div></div></div>
