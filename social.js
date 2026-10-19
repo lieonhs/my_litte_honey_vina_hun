@@ -62,9 +62,9 @@ document.addEventListener("ravi-e2e",()=>{if(route==="feed")refresh()});
 const memo=new Map();
 function pipiM(mood,size,ch){if(!window.pipi)return "";const k=mood+"|"+size+"|"+ch;if(!memo.has(k)){if(memo.size>400)memo.clear();memo.set(k,window.pipi(mood,size,ch))}return memo.get(k)}
 /* karakter (Rafi/Vina/dll.) hanya untuk pasangan; anggota lain pakai foto atau inisial */
-const charOf=u=>{if(!isPartner(u))return null;const a=S.members[u]?.avatar;if(a)return a;const n=(S.members[u]?.name||"").toLowerCase();return /^vina/.test(n)?"vcap":/^(rafi|el)\b/.test(n)?"erusa":null};
+const charOf=u=>{if(!isPartner(u)||(S.me&&S.members[S.me]&&!isPartner(S.me)))return null;const a=S.members[u]?.avatar;if(a)return a;const n=(S.members[u]?.name||"").toLowerCase();return /^vina/.test(n)?"vcap":/^(rafi|el)\b/.test(n)?"erusa":null};
 const hue=s=>{let h=0;for(const c of String(s))h=(h*31+c.charCodeAt(0))%360;return h};
-/* foto profil (tersimpan biasa, tidak dienkripsi — terlihat oleh semua anggota RaVi) */
+/* foto profil (tersimpan biasa, tidak dienkripsi — terlihat oleh semua anggota Talk&Talk) */
 const AVU={},AVP={};
 function avURL(path){if(AVU[path])return AVU[path];if(!AVP[path])AVP[path]=sb.storage.from("couple").createSignedUrl(path,6*3600).then(({data})=>{if(data&&data.signedUrl){AVU[path]=data.signedUrl;
     document.querySelectorAll('img[data-avp="'+CSS.escape(path)+'"]').forEach(i=>i.src=data.signedUrl)}}).catch(()=>{}).finally(()=>{setTimeout(()=>delete AVP[path],5000)});return ""}
@@ -207,8 +207,8 @@ b.mn{color:var(--acc);font-weight:800}
 /* ---------- layar setup / bukan pasangan ---------- */
 function setupCard(v,title){
   const notMember=S.setupErr==="notmember";
-  v.innerHTML=page(L("Berdua","Together"),title)+`<div class="region"><div class="rb"><div class="pipi-card" style="margin:0 0 12px">${window.pipi?window.pipi("think",64,"vnel"):""}<div class="bubble"><b>${notMember?L("Akun ini belum terdaftar sebagai anggota RaVi","This account isn't a RaVi member yet"):L("Belum bisa tersambung","Can't connect yet")}</b>
-   <div>${notMember?L("Minta admin RaVi menambahkan akunmu (Chat → ＋ → Tambah anggota).","Ask the RaVi admin to add your account (Chat → ＋ → Add member)."):L("Periksa koneksi internet, lalu coba lagi.","Check your internet connection, then try again.")}</div></div></div>
+  v.innerHTML=page(L("Berdua","Together"),title)+`<div class="region"><div class="rb"><div class="pipi-card" style="margin:0 0 12px">${window.pipi?window.pipi("think",64,"vnel"):""}<div class="bubble"><b>${notMember?L("Akun ini belum terdaftar sebagai anggota Talk&Talk","This account isn't a Talk&Talk member yet"):L("Belum bisa tersambung","Can't connect yet")}</b>
+   <div>${notMember?L("Minta admin Talk&Talk menambahkan akunmu (Chat → ＋ → Tambah anggota).","Ask the Talk&Talk admin to add your account (Chat → ＋ → Add member)."):L("Periksa koneksi internet, lalu coba lagi.","Check your internet connection, then try again.")}</div></div></div>
    <div class="tl-row"><button class="pri" id="soRetry">↻ ${L("Coba lagi","Try again")}</button></div>
    <p class="crumb" style="margin:10px 0 0">${L("Detail teknis: ","Technical detail: ")}${esc(S.setupErr)}</p></div></div>`;
   $("soRetry").onclick=()=>{S.ready=null;S.setupErr="";render()}}
@@ -225,7 +225,7 @@ let fdMode="list";
 const audOf=p=>[...new Set([...(p&&p.aud||partners()),p?p.author:S.me])];
 const sealCap=(t,aud)=>sealFor(t,aud);
 function drawFeed(v){
-  if(!friends().length){v.innerHTML=page(L("Berdua","Together"),"📷 Feed")+`<div class="region"><div class="rb" style="text-align:center;padding:28px 16px"><div style="font-size:46px">🔒</div><b style="display:block;font-size:17px;margin:6px 0">${L("Feed terbuka setelah kamu punya teman","Feed opens once you have friends")}</b><div class="crumb" style="max-width:360px;margin:0 auto 12px;line-height:1.5">${L("Kirim permintaan pertemanan ke orang di RaVi. Setelah dia menerima, kalian bisa saling lihat postingan, like, dan komentar.","Send a friend request to someone on RaVi. Once they accept, you can see each other's posts, likes and comments.")}</div><button class="pri" id="fdFr">👋 ${L("Cari teman","Find friends")}</button></div></div>`;
+  if(!friends().length){v.innerHTML=page(L("Berdua","Together"),"📷 Feed")+`<div class="region"><div class="rb" style="text-align:center;padding:28px 16px"><div style="font-size:46px">🔒</div><b style="display:block;font-size:17px;margin:6px 0">${L("Feed terbuka setelah kamu punya teman","Feed opens once you have friends")}</b><div class="crumb" style="max-width:360px;margin:0 auto 12px;line-height:1.5">${L("Kirim permintaan pertemanan ke orang di Talk&Talk. Setelah dia menerima, kalian bisa saling lihat postingan, like, dan komentar.","Send a friend request to someone on Talk&Talk. Once they accept, you can see each other's posts, likes and comments.")}</div><button class="pri" id="fdFr">👋 ${L("Cari teman","Find friends")}</button></div></div>`;
     document.getElementById("fdFr").onclick=()=>window.RAVI_FRIENDS&&window.RAVI_FRIENDS();return}
   const posts=S.posts,y=window.scrollY;
   v.innerHTML=page(L("Berdua","Together"),"📷 Feed",`<button class="pri" id="fdNew">＋ ${L("Posting","Post")}</button><input type="file" id="fdFile" accept="image/*" hidden>`)+
@@ -240,7 +240,7 @@ function drawFeed(v){
       ${cm.map(c=>`<div class="fd-cm" data-c="${c.id}"><b></b><span class="ct"></span><div class="cmx"></div><button class="lnk rp" data-crp="${p.id}" data-who="${esc(name(c.author))}">${L("Balas","Reply")}</button>${c.author===S.me?` <button class="lnk rp" data-cdel="${c.id}">${L("hapus","delete")}</button>`:""}</div>`).join("")}
       <div class="fd-add"><button class="fd-ic" data-cstk="${p.id}" aria-label="${L("Stiker","Sticker")}" title="${L("Stiker","Sticker")}">🧸</button><label class="fd-ic" title="${L("Foto","Photo")}" aria-label="${L("Balas dengan foto","Reply with a photo")}">📷<input type="file" accept="image/*" data-cimg="${p.id}" hidden></label>
        <input data-cin="${p.id}" placeholder="${L("Tambah komentar…","Add a comment…")}" maxlength="300"><button class="sm" data-csend="${p.id}">${L("Kirim","Send")}</button></div><div data-cstkp="${p.id}"></div></article>`}).join("")
-   :`<div class="region"><div class="rb"><div class="pipi-card" style="margin:0">${window.pipi?window.pipi("party",64,"vnel"):""}<div class="bubble"><b>${L("Belum ada postingan","No posts yet")}</b><div>${L("Posting foto momen sehari-hari. Yang bisa lihat, like, dan komentar hanya teman-temanmu di RaVi.","Post everyday moments. Only your friends on RaVi can see, like and comment.")}${friends().length?"":`<br><button class="sm pri" id="fdFr" style="margin-top:8px">👋 ${L("Cari teman","Find friends")}</button>`}</div></div></div></div></div>`);
+   :`<div class="region"><div class="rb"><div class="pipi-card" style="margin:0">${window.pipi?window.pipi("party",64,"vnel"):""}<div class="bubble"><b>${L("Belum ada postingan","No posts yet")}</b><div>${L("Posting foto momen sehari-hari. Yang bisa lihat, like, dan komentar hanya teman-temanmu di Talk&Talk.","Post everyday moments. Only your friends on Talk&Talk can see, like and comment.")}${friends().length?"":`<br><button class="sm pri" id="fdFr" style="margin-top:8px">👋 ${L("Cari teman","Find friends")}</button>`}</div></div></div></div></div>`);
   window.scrollTo({top:y});
   fillCaps(v);
   v.querySelectorAll(".fd-post").forEach(el=>{const p=posts.find(x=>x.id==el.dataset.p);el.querySelectorAll(".au").forEach(a=>a.textContent=name(p.author));const cp=el.querySelector(".cp");if(cp){const co=parse(pt(p.caption));cp.innerHTML=mentionHTML(co.t,co.mn)}
@@ -352,10 +352,13 @@ const pfCss=document.createElement("style");pfCss.textContent=`.pf-top{display:f
 .rv-av.ph{background:var(--th)}.rv-av.ph img,.pf-av .rv-av img{position:absolute;inset:0;display:block;width:100%!important;height:100%!important;object-fit:cover;margin:0;max-width:none;border-radius:0}`;document.head.appendChild(pfCss);
 window.RAVI_PROFILE=profileSheet;
 /* anggota non-pasangan: tanpa tema lucu & karakter Rafi/Vina, tanpa achievement & album stiker */
-const gateCss=document.createElement("style");gateCss.textContent=`html.np #themeBtn,html.np #questBtn,html.np aside a[data-r="quest"],html.np aside a[data-r="album"],html.np #menuSheet [data-go="quest"],html.np #menuSheet [data-go="album"],html.np .pipi-card .pipi,html.np .qt-card .pipi{display:none!important}`;document.head.appendChild(gateCss);
+const gateCss=document.createElement("style");gateCss.textContent=`html.np .charpick[data-char^="v"],html.np .charpick[data-char^="e"],html.np .charpick[data-char^="cp"],html.np #themeBtn,html.np #questBtn,html.np aside a[data-r="quest"],html.np aside a[data-r="album"],html.np #menuSheet [data-go="quest"],html.np #menuSheet [data-go="album"],html.np .pipi-card .pipi,html.np .qt-card .pipi{display:none!important}`;document.head.appendChild(gateCss);
+/* karakter pasangan tidak pernah digambar untuk anggota lain (diganti maskot Pipi) */
+if(window.pipi&&!window.pipi.__gated){const _pp=window.pipi;window.pipi=function(m,sz,id){return _pp(m,sz,(id&&meNP()&&coupleChar(id))?"pipi":id)};window.pipi.__gated=1;memo.clear()}
 function applyGate(){const np=meNP(),h=document.documentElement,was=h.classList.contains("np");h.classList.toggle("np",np);
+  if(np!==was)memo.clear();
   if(np){h.classList.remove("fun");try{localStorage.setItem("bbp_theme","pro")}catch(e){}if(!was&&typeof render==="function")render()}}
-if(typeof go==="function"){const _g=go;go=function(r){if((r==="quest"||r==="album")&&meNP()){status(L("Misi, achievement & album stiker khusus pasangan pemilik RaVi.","Missions, achievements & the sticker album are for the RaVi couple only."),"warn");r="dash"}return _g.call(this,r)}}
+if(typeof go==="function"){const _g=go;go=function(r){if((r==="quest"||r==="album")&&meNP()){status(L("Misi, achievement & album stiker khusus pasangan pemilik Talk&Talk.","Missions, achievements & the sticker album are for the Talk&Talk couple only."),"warn");r="dash"}return _g.call(this,r)}}
 window.RS={songEmbed,songOK,S,init,loadMembers,loadEmails,songTxt,profileSheet,name,isPartner,partners,isFriend,friendState,friends,loadFriends,friendAct,hhmm,ago,avatar,groupAvatar,pipiM,charOf,
   KATA,STABS,get EMOTES(){return EMOTES_()},UNI,coupleChar,meNP,isStk,stkKey,stkSVG,fillCaps,rxHTML,pt,isEnc,sealFor,parse,pack,PK,ikOf,
   urlsFor,upPhoto,uploadFile,fileURL,isPhoto,fIcon,fmtSize,MAXF,fillImgs,dl,activity,unActivity,setupCard,withInit,L};

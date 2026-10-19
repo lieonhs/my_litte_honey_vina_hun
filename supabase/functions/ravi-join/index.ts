@@ -1,6 +1,6 @@
-// Edge Function "ravi-join": pendaftaran lewat LINK UNDANGAN dari admin RaVi.
+// Edge Function "ravi-join": pendaftaran lewat LINK UNDANGAN dari admin Talk&Talk.
 // Tanpa login (verify_jwt = false) — keamanan dari kode undangan acak, sekali pakai, berlaku 7 hari.
-// Akun baru BELUM bisa memakai RaVi sampai admin menyetujui (ravi_join_requests → Panel Admin).
+// Akun baru BELUM bisa memakai Talk&Talk sampai admin menyetujui (ravi_join_requests → Panel Admin).
 import { createClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
 
@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
   const { data: host } = await admin.from("couple_members").select("name").eq("user_id", inv.created_by).maybeSingle();
 
   // cek link saja (untuk menampilkan "Diundang oleh …")
-  if (b.action === "check") return json({ ok: true, host: host?.name ?? "RaVi", note: inv.note ?? null });
+  if (b.action === "check") return json({ ok: true, host: host?.name ?? "Talk&Talk", note: inv.note ?? null });
 
   const email = String(b.email ?? "").trim().toLowerCase(), password = String(b.password ?? ""), name = String(b.name ?? "").trim().slice(0, 40);
   if (!name) return json({ error: "Nama wajib diisi." }, 400);
@@ -54,7 +54,7 @@ Deno.serve(async (req) => {
     if (k && admins?.length) {
       webpush.setVapidDetails("mailto:ravi@example.com", k.vapid_pub, k.vapid_priv);
       const { data: subs } = await admin.from("push_subs").select("endpoint,sub").in("user_id", admins.map((a) => a.user_id));
-      const payload = JSON.stringify({ kind: "act", title: "RaVi · Permintaan bergabung", body: name + " ingin bergabung. Setujui di Panel Admin.", url: "./?go=admin", tag: "join" });
+      const payload = JSON.stringify({ kind: "act", title: "Talk&Talk · Permintaan bergabung", body: name + " ingin bergabung. Setujui di Panel Admin.", url: "./?go=admin", tag: "join" });
       for (const s of subs ?? []) { try { await webpush.sendNotification(s.sub, payload, { TTL: 86400 }); } catch (_) { /* abaikan */ } }
     }
   } catch (_) { /* tidak wajib */ }

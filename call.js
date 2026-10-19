@@ -59,7 +59,7 @@ async function quotaBlocked(){await Promise.race([loadIce(true),new Promise(x=>s
     :L("Kuota telepon bulan ini sudah ","This month's call quota is at ")+gb(u.bytes||0)+" GB (≥ 700 GB). "+L("Telepon & video call dimatikan sampai bulan depan. Chat tetap bisa.","Voice & video calls are off until next month. Chat still works.")}
 /* video call & berbagi layar khusus pasangan */
 const vidOK=u=>!window.RS||!RS.S.me||(RS.isPartner(RS.S.me)&&RS.isPartner(u));
-const VID_NO=()=>L("Video call & berbagi layar khusus pasangan pemilik RaVi. Panggilan suara tetap bisa.","Video calls & screen sharing are only for the RaVi couple. Voice calls still work.");
+const VID_NO=()=>L("Video call & berbagi layar khusus pasangan pemilik Talk&Talk. Panggilan suara tetap bisa.","Video calls & screen sharing are only for the Talk&Talk couple. Voice calls still work.");
 /* ---------- hitung pemakaian relay TURN (yang memakai kuota) ---------- */
 async function meter(){if(!C.pc||C.state!=="live")return;try{const st=await C.pc.getStats();let pair=null;const map=new Map();st.forEach(r=>map.set(r.id,r));
     st.forEach(r=>{if(r.type==="transport"&&r.selectedCandidatePairId)pair=map.get(r.selectedCandidatePairId)});

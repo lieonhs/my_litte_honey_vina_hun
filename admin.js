@@ -32,7 +32,7 @@ const css=document.createElement("style");css.textContent=`
 .ad-qb span.warn{background:#f59e0b}.ad-qb span.calls{background:#f97316}.ad-qb span.all{background:#ef4444}.ad-qb i{position:absolute;top:0;bottom:0;width:2px;background:var(--ink);opacity:.35}.ad-ql{margin-bottom:4px}`;document.head.appendChild(css);
 const ago=t=>R.ago(t);
 function draw(v){if(!v)return;
-  if(!isAdmin()){v.innerHTML=page(L("Akun","Account"),"🛡️ "+L("Panel Admin","Admin Panel"))+`<div class="region"><div class="rb crumb">${L("Halaman ini khusus admin RaVi.","This page is for the RaVi admin only.")}</div></div>`;return}
+  if(!isAdmin()){v.innerHTML=page(L("Akun","Account"),"🛡️ "+L("Panel Admin","Admin Panel"))+`<div class="region"><div class="rb crumb">${L("Halaman ini khusus admin Talk&Talk.","This page is for the Talk&Talk admin only.")}</div></div>`;return}
   const pend=pending(),hist=A.list.filter(x=>x.status!=="pending").slice(0,15),mem=Object.values(R.S.members);
   v.innerHTML=page(L("Akun","Account"),"🛡️ "+L("Panel Admin","Admin Panel"))+
    `<div class="ad-stats"><div class="ad-stat${pend.length?" hot":""}"><b>${pend.length}</b><span>${L("Menunggu persetujuan","Waiting for approval")}</span></div><div class="ad-stat"><b>${mem.length}</b><span>${L("Anggota","Members")}</span></div><div class="ad-stat"><b id="adInv">–</b><span>${L("Link aktif","Active links")}</span></div></div>

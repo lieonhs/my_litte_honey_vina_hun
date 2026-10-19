@@ -1,5 +1,5 @@
 /* =====================================================================
-   ✉️ UNDANG ORANG KE RaVi (link sekali pakai, berlaku 7 hari)
+   ✉️ UNDANG ORANG KE Talk&Talk (link sekali pakai, berlaku 7 hari)
    Admin: Chat → 👤+ → "Buat link undangan" → kirim lewat WhatsApp.
    Yang diundang: buka link → isi nama, email, password → langsung masuk
    (enkripsi chat otomatis aktif, chat dengan pengundang langsung tersedia).
@@ -21,7 +21,7 @@ const css=document.createElement("style");css.textContent=`
 .iv-row{display:flex;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}.iv-row .tx{flex:1;min-width:0}.iv-row .tx b{display:block}
 .jn-box{max-width:420px}.jn-hero{display:flex;gap:12px;align-items:center;margin-bottom:12px}`;document.head.appendChild(css);
 async function inviteSheet(){
-  const bg=modal("✉️ "+L("Undang ke RaVi","Invite to RaVi"),`<div class="crumb" style="line-height:1.5">${L("Buat link, kirim ke orangnya (WhatsApp/IG). Dia buka link → isi nama, email & password sendiri → <b>menunggu persetujuanmu</b> di Panel Admin. Link hanya bisa dipakai <b>1 orang</b> dan berlaku <b>7 hari</b>.","Create a link and send it (WhatsApp/IG). They open it → enter their own name, email & password → <b>wait for your approval</b> in the Admin Panel. Each link works for <b>1 person</b> for <b>7 days</b>.")}</div>
+  const bg=modal("✉️ "+L("Undang ke Talk&Talk","Invite to Talk&Talk"),`<div class="crumb" style="line-height:1.5">${L("Buat link, kirim ke orangnya (WhatsApp/IG). Dia buka link → isi nama, email & password sendiri → <b>menunggu persetujuanmu</b> di Panel Admin. Link hanya bisa dipakai <b>1 orang</b> dan berlaku <b>7 hari</b>.","Create a link and send it (WhatsApp/IG). They open it → enter their own name, email & password → <b>wait for your approval</b> in the Admin Panel. Each link works for <b>1 person</b> for <b>7 days</b>.")}</div>
     <label style="margin-top:10px">${L("Untuk siapa? (opsional)","Who is it for? (optional)")}</label><input id="ivNote" maxlength="40" placeholder="${L("mis. Dina, Mama","e.g. Dina, Mom")}">
     <button class="pri" id="ivMake" style="width:100%;margin-top:10px;min-height:44px">🔗 ${L("Buat link undangan","Create invite link")}</button>
     <div id="ivOut"></div><div id="ivList" style="margin-top:12px"></div>
@@ -31,11 +31,11 @@ async function inviteSheet(){
   bg.querySelector("#ivManual").onclick=()=>{bg.remove();window.RAVI_CHAT&&window.RAVI_CHAT.addMemberManual()};
   bg.querySelector("#ivMake").onclick=async e=>{const b=e.currentTarget;b.disabled=true;b.textContent="…";
     try{const code=newCode(),note=bg.querySelector("#ivNote").value.trim()||null;const {error}=await sb.from("ravi_invites").insert({code,note});if(error)throw error;
-      const url=linkOf(code),msg=L("Hai! Aku mengundangmu ke RaVi 💬 Buka link ini, isi nama, email & password. Setelah aku setujui, kita bisa chat:\n","Hi! I'm inviting you to RaVi 💬 Open this link and enter your name, email & password. Once I approve, we can chat:\n")+url;
+      const url=linkOf(code),msg=L("Hai! Aku mengundangmu ke Talk&Talk 💬 Buka link ini, isi nama, email & password. Setelah aku setujui, kita bisa chat:\n","Hi! I'm inviting you to Talk&Talk 💬 Open this link and enter your name, email & password. Once I approve, we can chat:\n")+url;
       out.innerHTML=`<div class="iv-link"><span style="flex:1"></span></div><div class="iv-btns"><a class="sm wa" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;padding:10px;border-radius:12px;text-decoration:none;font-weight:800">🟢 WhatsApp</a><button class="sm" data-cp>📋 ${L("Salin link","Copy link")}</button>${navigator.share?`<button class="sm" data-sh style="grid-column:span 2">📤 ${L("Bagikan ke aplikasi lain","Share to another app")}</button>`:""}</div>`;
       out.querySelector(".iv-link span").textContent=url;out.querySelector("a.wa").href="https://wa.me/?text="+encodeURIComponent(msg);
       out.querySelector("[data-cp]").onclick=async()=>{try{await navigator.clipboard.writeText(msg);status(L("Link disalin 📋","Link copied 📋"),"ok")}catch(err){status(L("Tahan link di atas untuk menyalin.","Long-press the link above to copy it."),"warn")}};
-      const sh=out.querySelector("[data-sh]");if(sh)sh.onclick=()=>navigator.share({title:"RaVi",text:msg}).catch(()=>{});
+      const sh=out.querySelector("[data-sh]");if(sh)sh.onclick=()=>navigator.share({title:"Talk&Talk",text:msg}).catch(()=>{});
       b.textContent="🔗 "+L("Buat link lain","Create another link");b.disabled=false;list()}
     catch(err){b.disabled=false;b.textContent="🔗 "+L("Buat link undangan","Create invite link");status(L("Gagal membuat link: ","Couldn't create link: ")+(err.message||err),"err")}};
   async function list(){const box=bg.querySelector("#ivList");const {data}=await sb.from("ravi_invites").select("*").order("created_at",{ascending:false}).limit(10);if(!data||!data.length){box.innerHTML="";return}
@@ -48,12 +48,12 @@ window.RAVI_INVITE=inviteSheet;
 
 /* ---------- yang diundang: layar daftar ---------- */
 async function showJoin(){let el=document.getElementById("login");if(!el){el=document.createElement("div");el.id="login";el.className="login";document.body.appendChild(el)}
-  el.innerHTML=`<div class="box jn-box"><div style="background:var(--hdr);color:var(--hdrInk);padding:14px 16px;font-weight:600">RaVi</div><div style="padding:16px" id="jnB"><div class="crumb">${L("Memeriksa undangan…","Checking invite…")}</div></div></div>`;
-  const B=document.getElementById("jnB");let host="RaVi";
+  el.innerHTML=`<div class="box jn-box"><div style="background:var(--hdr);color:var(--hdrInk);padding:14px 16px;font-weight:600">Talk&Talk</div><div style="padding:16px" id="jnB"><div class="crumb">${L("Memeriksa undangan…","Checking invite…")}</div></div></div>`;
+  const B=document.getElementById("jnB");let host="Talk&Talk";
   try{const r=await joinFn({action:"check",code:INV});host=r.host||host}
   catch(e){B.innerHTML=`<div class="msg err" style="margin:0 0 12px"></div><button class="pri" id="jnLogin" style="width:100%">${L("Sudah punya akun? Masuk","Have an account? Sign in")}</button>`;B.querySelector(".msg").textContent=e.message||String(e);
     document.getElementById("jnLogin").onclick=()=>{history.replaceState(null,"",location.pathname);_show()};return}
-  B.innerHTML=`<div class="jn-hero">${window.pipi?window.pipi("party",64,"vnel"):"🎉"}<div><b style="font-size:17px"></b><div class="crumb">${L("Buat akunmu, lalu tunggu persetujuan admin.","Create your account, then wait for the admin's approval.")}</div></div></div>
+  B.innerHTML=`<div class="jn-hero">${window.pipi?window.pipi("party",64,"pipi"):"🎉"}<div><b style="font-size:17px"></b><div class="crumb">${L("Buat akunmu, lalu tunggu persetujuan admin.","Create your account, then wait for the admin's approval.")}</div></div></div>
     <label>${L("Nama panggilan","Your name")}</label><input id="jnN" maxlength="40" autocomplete="nickname"><div style="height:8px"></div>
     <label>Email</label><input id="jnE" type="email" autocomplete="email"><div style="height:8px"></div>
     <label>${L("Password (min. 8 karakter)","Password (min. 8 characters)")}</label><input id="jnP" type="password" autocomplete="new-password"><div style="height:8px"></div>

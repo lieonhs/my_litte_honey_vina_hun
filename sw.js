@@ -1,14 +1,14 @@
-// Service worker RaVi: notifikasi pengingat + notifikasi push (pesan & telepon) saat aplikasi tertutup.
+// Service worker Talk&Talk: notifikasi pengingat + notifikasi push (pesan & telepon) saat aplikasi tertutup.
 self.addEventListener("install",()=>self.skipWaiting());
 self.addEventListener("activate",e=>e.waitUntil(self.clients.claim()));
 
 self.addEventListener("push",e=>{
-  let d={};try{d=e.data?e.data.json():{}}catch(_){d={title:"RaVi",body:e.data&&e.data.text()}}
+  let d={};try{d=e.data?e.data.json():{}}catch(_){d={title:"Talk&Talk",body:e.data&&e.data.text()}}
   const call=d.kind==="call";
   e.waitUntil(self.clients.matchAll({type:"window",includeUncontrolled:true}).then(ws=>{
-    // pesan biasa: kalau RaVi sedang terbuka & terlihat, tidak perlu notifikasi
+    // pesan biasa: kalau Talk&Talk sedang terbuka & terlihat, tidak perlu notifikasi
     if(ws.some(w=>w.visibilityState==="visible"))return; /* aplikasi terbuka: dering & layar panggilan sudah tampil di dalam aplikasi */
-    return self.registration.showNotification(d.title||"RaVi",{body:d.body||"",icon:"icon-192.png",badge:"icon-192.png",tag:d.tag||d.kind||"ravi",
+    return self.registration.showNotification(d.title||"Talk&Talk",{body:d.body||"",icon:"icon-192.png",badge:"icon-192.png",tag:d.tag||d.kind||"ravi",
       renotify:true,silent:false,requireInteraction:call,vibrate:call?[800,300,800,300,800,300,800]:[120,60,120],data:{url:d.url||"./?go=chat",call},
       actions:call?[{action:"answer",title:"📞 Angkat"},{action:"decline",title:"✖ Tolak"}]:/[?&]c=/.test(d.url||"")?[{action:"reply",title:"↩ Balas",type:"text",placeholder:"Ketik balasan…"},{action:"open",title:"Buka"}]:[]})}))});
 

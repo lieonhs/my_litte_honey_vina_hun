@@ -292,7 +292,11 @@ window.COUPLES=COUPLES;
 CHARS.vnel={name:"Vina & El",emoji:"💑",kind:"tema couple",desc:"Berdua jagain keuangan bareng. Satu jajan, satu ngingetin anggaran.",couple:true};
 
 const charKey=()=>"bbp_char_"+(document.getElementById("who")?.textContent||"").split(" ")[0];
-function charId(){const p=window.PREFS?.char;if(p&&CHARS[p])return p;try{const l=localStorage.getItem(charKey());if(l&&CHARS[l])return l}catch(e){}return "pipi"}
+/* karakter manusia (Vina, El, couple) khusus pasangan; anggota lain selalu dapat hewan */
+const HUMAN=id=>/^(v[a-z]|e[a-z]|cp)/.test(id||"");
+const npView=()=>document.documentElement.classList.contains("np");
+function charId0(){const p=window.PREFS?.char;if(p&&CHARS[p])return p;try{const l=localStorage.getItem(charKey());if(l&&CHARS[l])return l}catch(e){}return "pipi"}
+function charId(){const c=charId0();return npView()&&HUMAN(c)?"pipi":c}
 const C=()=>CHARS[charId()];
 async function setChar(id){try{localStorage.setItem(charKey(),id)}catch(e){}window.PREFS={...(window.PREFS||{}),char:id};
   document.documentElement.dataset.char=id;

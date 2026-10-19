@@ -1,5 +1,5 @@
-/* RaVi — logika utama aplikasi (dipindah dari index.html supaya Content Security Policy bisa ketat). */
-/* Cegah RaVi dibuka di dalam iframe situs lain (clickjacking). */
+/* Talk&Talk — logika utama aplikasi (dipindah dari index.html supaya Content Security Policy bisa ketat). */
+/* Cegah Talk&Talk dibuka di dalam iframe situs lain (clickjacking). */
 if(window.top!==window.self){try{window.top.location=window.self.location}catch(e){document.documentElement.innerHTML=""}}
 document.addEventListener("click",e=>{const g=e.target.closest&&e.target.closest("[data-goto]");if(g){e.preventDefault();go(g.dataset.goto);return}
   if(e.target.closest&&e.target.closest("[data-reload]"))location.reload()});
@@ -510,7 +510,7 @@ function makeCol(uid){let cb=null,errCb=null,timer=null;
 
 function showLogin(msg){
   let el=$("login");if(!el){el=document.createElement("div");el.id="login";el.className="login";document.body.appendChild(el)}
-  el.innerHTML=`<div class="box"><div style="background:var(--hdr);color:var(--hdrInk);padding:14px 16px;font-weight:600">RaVi</div>
+  el.innerHTML=`<div class="box"><div style="background:var(--hdr);color:var(--hdrInk);padding:14px 16px;font-weight:600">Talk&Talk</div>
    <div style="padding:16px"><div class="crumb" style="margin-bottom:12px">Masuk dengan akun yang kamu buat di Supabase.</div>
    <label>Email</label><input id="lg_e" type="email" autocomplete="username"><div style="height:10px"></div>
    <label>Password</label><input id="lg_p" type="password" autocomplete="current-password">
@@ -518,7 +518,7 @@ function showLogin(msg){
    <button class="pri" id="lg_b" style="width:100%;margin-top:14px;min-height:42px">Masuk</button></div></div>`;
   const go2=async()=>{$("lg_b").disabled=true;window.__ravi_pw=$("lg_p").value;window.__ravi_land="chat"; /* habis login langsung ke Chat */ /* dipakai sekali oleh e2ee.js untuk membuka kunci enkripsi akun, lalu dihapus */
     const {error}=await sb.auth.signInWithPassword({email:$("lg_e").value.trim(),password:$("lg_p").value});
-    if(error){window.__ravi_pw=undefined;$("lg_m").textContent=/banned/i.test(error.message||"")?"Akun ini sudah dikeluarkan dari RaVi oleh admin.":"Gagal masuk: "+error.message;$("lg_m").classList.remove("hide");$("lg_b").disabled=false}};
+    if(error){window.__ravi_pw=undefined;$("lg_m").textContent=/banned/i.test(error.message||"")?"Akun ini sudah dikeluarkan dari Talk&Talk oleh admin.":"Gagal masuk: "+error.message;$("lg_m").classList.remove("hide");$("lg_b").disabled=false}};
   $("lg_b").onclick=go2;$("lg_p").onkeydown=e=>{if(e.key==="Enter")go2()}}
 
 /* ---------- 2FA (TOTP): kalau akun punya 2FA, minta kode sebelum data dimuat ---------- */
@@ -531,7 +531,7 @@ async function mfaGate(){
   return await new Promise(res=>{
     let el=$("login");if(!el){el=document.createElement("div");el.id="login";el.className="login";document.body.appendChild(el)}
     el.innerHTML=`<div class="box"><div style="background:var(--hdr);color:var(--hdrInk);padding:14px 16px;font-weight:600">🔐 Verifikasi 2 langkah</div>
-     <div style="padding:16px"><div class="crumb" style="margin-bottom:12px">Buka Google Authenticator (atau aplikasi sejenis), lalu masukkan 6 angka untuk RaVi.</div>
+     <div style="padding:16px"><div class="crumb" style="margin-bottom:12px">Buka Google Authenticator (atau aplikasi sejenis), lalu masukkan 6 angka untuk Talk&Talk.</div>
      <label>Kode 6 angka</label><input id="mf_c" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]*" style="font-size:22px;letter-spacing:.3em;text-align:center">
      <div id="mf_m" class="msg err hide" style="margin:12px 0 0"></div>
      <button class="pri" id="mf_b" style="width:100%;margin-top:14px;min-height:42px">Verifikasi</button>
@@ -553,9 +553,9 @@ async function memberGate(uid){
   try{localStorage.setItem("ravi_kicked",rq&&rq.status==="rejected"?"rejected":"1")}catch(e){}
   await sb.auth.signOut();return false}
 function showWaiting(rq){let el=$("login");if(!el){el=document.createElement("div");el.id="login";el.className="login";document.body.appendChild(el)}
-  el.innerHTML=`<div class="box"><div style="background:var(--hdr);color:var(--hdrInk);padding:14px 16px;font-weight:600">RaVi</div>
+  el.innerHTML=`<div class="box"><div style="background:var(--hdr);color:var(--hdrInk);padding:14px 16px;font-weight:600">Talk&Talk</div>
    <div style="padding:18px;text-align:center"><div style="font-size:46px;line-height:1">⏳</div><b style="display:block;font-size:17px;margin:8px 0 4px">Menunggu persetujuan admin</b>
-   <div class="crumb" style="line-height:1.5">Halo <b id="wtN"></b>! Akunmu sudah dibuat. Admin RaVi perlu menyetujui dulu sebelum kamu bisa masuk. Halaman ini akan terbuka otomatis begitu disetujui.</div>
+   <div class="crumb" style="line-height:1.5">Halo <b id="wtN"></b>! Akunmu sudah dibuat. Admin Talk&Talk perlu menyetujui dulu sebelum kamu bisa masuk. Halaman ini akan terbuka otomatis begitu disetujui.</div>
    <div class="crumb" style="margin-top:10px">Waiting for the admin to approve your account.</div>
    <button class="sm" id="wtOut" style="margin-top:16px">Keluar</button></div></div>`;
   $("wtN").textContent=rq.name||"";$("wtOut").onclick=async()=>{await sb.auth.signOut();location.reload()};
@@ -595,7 +595,7 @@ try{const r=localStorage.getItem("bbp_route");if(r)route=r}catch(e){}
 render();
 (async()=>{
   if(!sb){const why=!window.supabase?"Library Supabase gagal dimuat (cek koneksi internet, lalu muat ulang).":"config.js belum diisi atau salah (SUPABASE_URL & SUPABASE_ANON_KEY).";
-    const el=document.createElement("div");el.className="login";el.id="login";el.innerHTML=`<div class="box"><div style="background:var(--hdr);color:var(--hdrInk);padding:14px 16px;font-weight:600">RaVi</div><div style="padding:16px"><div class="msg err" style="margin:0">Tidak bisa tersambung ke database.</div><p style="font-size:14px">${why}</p><button class="pri" style="width:100%" data-reload="1">Muat ulang</button></div></div>`;document.body.appendChild(el);return}
+    const el=document.createElement("div");el.className="login";el.id="login";el.innerHTML=`<div class="box"><div style="background:var(--hdr);color:var(--hdrInk);padding:14px 16px;font-weight:600">Talk&Talk</div><div style="padding:16px"><div class="msg err" style="margin:0">Tidak bisa tersambung ke database.</div><p style="font-size:14px">${why}</p><button class="pri" style="width:100%" data-reload="1">Muat ulang</button></div></div>`;document.body.appendChild(el);return}
   $("logout").onclick=async()=>{await sb.auth.signOut();location.reload()};
   const {data:{session}}=await sb.auth.getSession();
   if(session)startData(session.user.id,session.user.email);else showLogin();

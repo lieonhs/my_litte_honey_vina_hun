@@ -32,7 +32,7 @@ function describe(a){const who=R.name(a.actor),m=a.meta||{};
     case "group":{const t=window.RAVI_CHAT?window.RAVI_CHAT.title(a.ref):"";return [who,L(" menambahkanmu ke grup "," added you to the group ")+(t?"“"+t+"”":"")+".","👥"]}
     case "friend":return [who,R.friendState&&R.friendState(a.actor)==="friend"?L(" sekarang berteman denganmu."," is now your friend."):L(" ingin berteman denganmu."," wants to be your friend."),"👋"];
     case "friend_ok":return [who,L(" menerima permintaan pertemananmu. Sekarang kalian bisa chat."," accepted your friend request. You can chat now."),"🤝"];
-    case "join":return [m.n||who,L(" ingin bergabung ke RaVi — ketuk untuk menyetujui"," wants to join RaVi — tap to review"),"🛡️"];
+    case "join":return [m.n||who,L(" ingin bergabung ke Talk&Talk — ketuk untuk menyetujui"," wants to join Talk&Talk — tap to review"),"🛡️"];
     case "call":return [who,m.r==="done"?(m.v?L(" video call denganmu"," video-called you"):L(" meneleponmu"," called you"))+" · "+fmt(m.d||0):m.r==="declined"?L(" — panggilan ditolak"," — call declined"):L(" — panggilan tak terjawab"," — missed call"),m.v?"🎥":"📞"];
     default:return [who,"",  "🔔"]}}
 const fmt=s=>Math.floor(s/60)+":"+String(s%60).padStart(2,"0");

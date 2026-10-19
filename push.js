@@ -50,7 +50,7 @@ window.RAVI_NOTIFY=async function(kind,o){o=o||{};
 
 /* ---------- berlangganan push ---------- */
 async function subscribe(){
-  if(!supported())throw new Error(isIOS&&!standalone?L("Di iPhone, tambahkan RaVi ke Home Screen dulu (Safari → Bagikan → Tambah ke Layar Utama), lalu buka dari ikon itu.","On iPhone, add RaVi to the Home Screen first (Safari → Share → Add to Home Screen), then open it from that icon."):L("Browser ini tidak mendukung notifikasi push.","This browser doesn't support push notifications."));
+  if(!supported())throw new Error(isIOS&&!standalone?L("Di iPhone, tambahkan Talk&Talk ke Home Screen dulu (Safari → Bagikan → Tambah ke Layar Utama), lalu buka dari ikon itu.","On iPhone, add Talk&Talk to the Home Screen first (Safari → Share → Add to Home Screen), then open it from that icon."):L("Browser ini tidak mendukung notifikasi push.","This browser doesn't support push notifications."));
   const perm=await Notification.requestPermission();if(perm!=="granted")throw new Error(L("Izin notifikasi ditolak. Izinkan lewat ikon gembok di address bar → Notifikasi.","Notification permission denied. Allow it via the lock icon → Notifications."));
   const {publicKey}=await fn({action:"vapid"});
   const reg=await navigator.serviceWorker.ready;let sub=await reg.pushManager.getSubscription();
@@ -65,7 +65,7 @@ async function banner(host){if(!host||host.querySelector(".pn-bar"))return;try{i
   const st=await pushState();if(st==="on"||st==="unsupported")return;if(host.querySelector(".pn-bar"))return;
   const bar=document.createElement("div");bar.className="pn-bar";
   bar.innerHTML=st==="denied"?`<span>🔕</span><div style="flex:1"><b>${L("Notifikasi diblokir","Notifications blocked")}</b>${L("Izinkan lewat ikon gembok di address bar → Notifikasi.","Allow them via the lock icon → Notifications.")}</div>`
-   :`<span>🔔</span><div style="flex:1"><b>${L("Aktifkan notifikasi","Turn on notifications")}</b>${st==="ios"?L("Di iPhone: tambahkan RaVi ke Home Screen dulu, lalu buka dari ikonnya.","On iPhone: add RaVi to the Home Screen first, then open it from the icon."):L("Supaya telepon & pesan tetap masuk walau RaVi tertutup.","So calls and messages arrive even when RaVi is closed.")}</div>${st==="ios"?"":`<button class="sm pri" id="pnOn">${L("Aktifkan","Turn on")}</button>`}`;
+   :`<span>🔔</span><div style="flex:1"><b>${L("Aktifkan notifikasi","Turn on notifications")}</b>${st==="ios"?L("Di iPhone: tambahkan Talk&Talk ke Home Screen dulu, lalu buka dari ikonnya.","On iPhone: add Talk&Talk to the Home Screen first, then open it from the icon."):L("Supaya telepon & pesan tetap masuk walau Talk&Talk tertutup.","So calls and messages arrive even when Talk&Talk is closed.")}</div>${st==="ios"?"":`<button class="sm pri" id="pnOn">${L("Aktifkan","Turn on")}</button>`}`;
   const later=document.createElement("button");later.className="sm";later.textContent=L("Nanti","Later");later.onclick=()=>{try{localStorage.setItem("bbp_pn_later",String(Date.now()+3*864e5))}catch(e){}bar.remove()};bar.appendChild(later);
   host.prepend(bar);
   const b=bar.querySelector("#pnOn");if(b)b.onclick=async()=>{b.disabled=true;b.textContent="…";try{await subscribe();bar.remove();status(L("Notifikasi aktif di perangkat ini 🔔","Notifications on for this device 🔔"),"ok")}catch(e){b.disabled=false;b.textContent=L("Aktifkan","Turn on");status(e.message||String(e),"warn")}}}

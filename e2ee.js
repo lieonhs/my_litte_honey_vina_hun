@@ -102,7 +102,7 @@ async function load(force){if(E.state==="ok"&&!force)return true;if(E.loading)re
 async function unlock(pw,o={}){const server=o.server!==undefined?o.server:await serverRow();
   if(server){if(!server.wrapped){if(await fromEscrow(server)){bump();return true}throw new Error(L("Kunci belum bisa dibuka. Coba lagi sebentar.","Key can't be opened yet. Try again shortly."))}
     const k=await kek(pw,fromB64(server.salt),server.iter);let pk;
-    try{pk=await aesDec(k,fromB64(server.wrapped))}catch(e){throw new Error(L("Password salah. Pakai password yang kamu pakai untuk login RaVi.","Wrong password. Use the password you sign in to RaVi with."))}
+    try{pk=await aesDec(k,fromB64(server.wrapped))}catch(e){throw new Error(L("Password salah. Pakai password yang kamu pakai untuk login Talk&Talk.","Wrong password. Use the password you sign in to Talk&Talk with."))}
     if(!server.wrapped_sys)await saveEscrow(pk);
     const priv=await crypto.subtle.importKey("pkcs8",pk,{name:"ECDH",namedCurve:"P-256"},false,["deriveBits"]);pk.fill(0);
     E.priv=priv;E.pub=jwkPub(server.pub)}
@@ -120,7 +120,7 @@ async function unlock(pw,o={}){const server=o.server!==undefined?o.server:await 
 /* memastikan password benar sebelum membuat kunci baru (supaya di HP lain password yang sama bisa membukanya) */
 async function verifyPassword(pw){let aal=null;try{aal=(await sb.auth.mfa.getAuthenticatorAssuranceLevel()).data}catch(e){}
   if(aal&&(aal.currentLevel==="aal2"||aal.nextLevel==="aal2"))return; /* akun 2FA: login ulang akan menurunkan sesi; cukup konfirmasi ganda di dialog */
-  const {error}=await sb.auth.signInWithPassword({email:E.email,password:pw});if(error)throw new Error(L("Password salah. Pakai password login RaVi.","Wrong password. Use your RaVi sign-in password."))}
+  const {error}=await sb.auth.signInWithPassword({email:E.email,password:pw});if(error)throw new Error(L("Password salah. Pakai password login Talk&Talk.","Wrong password. Use your Talk&Talk sign-in password."))}
 /* ganti password login + bungkus ulang kunci akun (kunci & pesan lama tetap sama) */
 async function rewrap(newPw,oldPw){const server=await serverRow();
   let pk=null;if(server&&server.wrapped){try{pk=await aesDec(await kek(oldPw,fromB64(server.salt),server.iter),fromB64(server.wrapped))}catch(e){throw new Error(L("Password lama salah.","Old password is wrong."))}}
@@ -191,7 +191,7 @@ function ackKey(uid){const s=seen();if(s[uid]){s[uid].warn=false;saveSeen(s);bum
 async function safetyDialog(uid,name){const g=await safety(uid);
   const bg=modal("🔐 "+L("Kode keamanan","Security code")+(name?" · "+name:""),g?`<div class="crumb" style="line-height:1.5">${L("Pesan, foto & file kalian terenkripsi. Untuk memastikan tidak ada yang menyadap, cocokkan 60 angka ini di HP kamu dan HP dia <b>secara langsung</b> (bukan lewat chat). Kalau sama persis, sambungan kalian aman.","Your messages, photos and files are end-to-end encrypted. To be sure nobody is intercepting, compare these 60 digits on both phones <b>in person</b> (not over chat). If they match exactly, you're secure.")}</div>
     <div class="sc-code">${g.map(x=>`<span>${x}</span>`).join("")}</div>${keyChanged(uid)?`<div class="msg warn" style="margin-top:8px">⚠️ ${L("Kode berubah karena dia membuat kunci baru (misalnya lupa password). Cocokkan ulang, lalu ketuk Sudah dicek.","The code changed because they created a new key (e.g. forgot their password). Compare again, then tap Verified.")}</div>`:""}`
-    :`<div class="crumb">${E.state!=="ok"?L("Buka kunci enkripsimu dulu (masukkan password login).","Unlock your encryption first (enter your sign-in password)."):L("Dia belum membuka RaVi versi terbaru, jadi belum punya kunci enkripsi. Pesan untuknya sementara dikirim tanpa E2E (tetap privat untuk anggota chat).","They haven't opened the latest RaVi yet, so they have no encryption key. Messages to them are sent without E2E for now (still private to chat members).")}</div>`,
+    :`<div class="crumb">${E.state!=="ok"?L("Buka kunci enkripsimu dulu (masukkan password login).","Unlock your encryption first (enter your sign-in password)."):L("Dia belum membuka Talk&Talk versi terbaru, jadi belum punya kunci enkripsi. Pesan untuknya sementara dikirim tanpa E2E (tetap privat untuk anggota chat).","They haven't opened the latest Talk&Talk yet, so they have no encryption key. Messages to them are sent without E2E for now (still private to chat members).")}</div>`,
     ()=>{ackKey(uid)},keyChanged(uid)?L("Sudah dicek ✓","Verified ✓"):"OK");const c=bg.querySelector(".c");if(c)c.style.display="none"}
 
 /* ---------- buka otomatis: pakai password yang tersimpan di browser (Chrome/Android), kalau tidak ada baru tanya ---------- */
@@ -205,8 +205,8 @@ function autoUnlock(o){if(E.state==="ok")return Promise.resolve(true);if(autoP)r
 /* ---------- dialog buka kunci ---------- */
 function unlockDialog(){return new Promise(res=>{const create=E.state==="nokey";
   const bg=modal("🔐 "+(create?L("Aktifkan enkripsi chat","Turn on chat encryption"):L("Buka kunci enkripsi","Unlock encryption")),
-    `<div class="crumb" style="line-height:1.5">${create?L("Masukkan password login RaVi-mu. Password ini mengunci kunci enkripsi akunmu, jadi chat bisa dibuka di HP atau laptop mana pun yang kamu pakai login.","Enter your RaVi sign-in password. It locks your account's encryption key, so chats open on any phone or laptop you sign in on.")
-      :L("Masukkan password login RaVi <b>satu kali saja</b>. Setelah ini semua HP & laptop yang kamu pakai login terbuka otomatis — tidak akan ditanya lagi.","Enter your RaVi sign-in password <b>just once</b>. After this every phone & laptop you sign in on opens automatically — you won't be asked again.")}</div>
+    `<div class="crumb" style="line-height:1.5">${create?L("Masukkan password login Talk&Talk-mu. Password ini mengunci kunci enkripsi akunmu, jadi chat bisa dibuka di HP atau laptop mana pun yang kamu pakai login.","Enter your Talk&Talk sign-in password. It locks your account's encryption key, so chats open on any phone or laptop you sign in on.")
+      :L("Masukkan password login Talk&Talk <b>satu kali saja</b>. Setelah ini semua HP & laptop yang kamu pakai login terbuka otomatis — tidak akan ditanya lagi.","Enter your Talk&Talk sign-in password <b>just once</b>. After this every phone & laptop you sign in on opens automatically — you won't be asked again.")}</div>
      <input type="email" autocomplete="username" value="${esc(E.email||"")}" readonly hidden aria-hidden="true">
      <label style="margin-top:10px">Password</label><input type="password" id="e3P" autocomplete="current-password">
      ${create?`<label style="margin-top:8px">${L("Ulangi password","Repeat password")}</label><input type="password" id="e3P2" autocomplete="current-password">`:""}
