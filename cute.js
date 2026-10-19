@@ -177,7 +177,7 @@ function line(r){const c=(window.CHARS||{})[document.documentElement.dataset.cha
    case "sched":return s("think",L("Jadwalmu, biar nggak ada yang kelewat 📅","Your schedule, nothing missed 📅"),L("Ketuk tanggal untuk tambah acara. Aktifkan notifikasi biar aku ingetin.","Tap a date to add an event. Turn on notifications so I can remind you."));
    case "diary":return s("happy",L("Gimana harimu? Ceritain ke aku ✍️","How was your day? Tell me ✍️"),L("Mood, kegiatan, satu hal baik. 2 menit aja.","Mood, activities, one good thing. Just 2 minutes."));
    case "notes":return s("think",L("Tempat semua ide & daftar 📝","Home for ideas & lists 📝"),L("Pin yang penting, kasih warna biar gampang dicari. Jangan simpan password di sini ya.","Pin important ones, color-code them. Don't keep passwords here."));
-   case "quest":return s("party",L("Kumpulkan semua stikernya! 🏆","Collect all the stickers! 🏆"),L("Yang paling langka: stiker Vina (Legendaris) ✨","Rarest: the Vina stickers (Legendary) ✨"));
+   case "quest":return s("party",L("Kumpulkan semua stikernya! 🏆","Collect all the stickers! 🏆"),L("Yang paling langka: 5 stiker couple Vina & El (Mitos) 💑","Rarest: the 5 Vina & El couple stickers (Mythic) 💑"));
    case "album":return s("party",L("Album stikermu 🌟","Your sticker album 🌟"),L("5 duplikat bisa ditukar jadi 1 tarikan.","Trade 5 duplicates for 1 draw."));
   }}catch(e){}return null}
 
