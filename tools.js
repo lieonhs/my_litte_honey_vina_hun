@@ -57,11 +57,15 @@ const css=document.createElement("style");css.textContent=`
 function nextYearly(md,from){const y=+from.slice(0,4);let c=y+"-"+md;if(c<from)c=(y+1)+"-"+md;return c}
 function nextMonthly(start,from){const day=+start.slice(8,10);let d=D(from);
   for(let i=0;i<14;i++){const y=d.getFullYear(),m=d.getMonth();const last=new Date(y,m+1,0).getDate();const c=iso(new Date(y,m,Math.min(day,last)));if(c>=from&&c>start)return c;d=new Date(y,m+1,1)}return from}
+const ANNIV_MD="09-26"; /* anniversary Rafi & Vina: 26 September */
 function vMoment(v){
   const m=T().moment||{},td=tday();
+  const guess=(td.slice(5)>=ANNIV_MD?td.slice(0,4):String(+td.slice(0,4)-1))+"-"+ANNIV_MD;
   const head=page(L("Alat","Tools"),"💑 "+L("Momen Kita","Our Moments"),back);
   if(!m.start){v.innerHTML=head+`<div class="region"><div class="rb"><div class="pipi-card" style="margin:0 0 12px">${window.pipi?window.pipi("happy",64,"vnel"):""}<div class="bubble"><b>${L("Kapan kalian jadian?","When did you two get together?")}</b><div>${L("Isi sekali. Aplikasi akan menghitung hari bersama, hitung mundur anniversary, dan momen spesial.","Fill it in once. The app counts your days together, anniversary countdowns and milestones.")}</div></div></div>
-    <div class="tl-row"><input type="date" id="mStart" max="${td}" style="max-width:220px"><button class="pri" id="mSave">${L("Simpan","Save")}</button></div></div></div>`;
+    <div class="tl-out" style="margin-bottom:12px"><div><div class="k">💍 ${L("Anniv berikutnya","Next anniversary")}</div><div class="v">${(n=>n===0?L("Hari ini! 🎉","Today! 🎉"):n+" "+L("hari lagi","days to go"))(dDiff(td,nextYearly(ANNIV_MD,td)))}</div></div><div><div class="k">🌙 Monthsary</div><div class="v">${dDiff(td,nextMonthly(guess,td))} ${L("hari lagi","days to go")}</div></div></div>
+    <div class="crumb" style="margin-bottom:6px">${L("Tanggal jadian sudah diisi 26 September. Tinggal pastikan tahunnya benar, lalu Simpan.","The start date is pre-filled as 26 September. Just check the year, then Save.")}</div>
+    <div class="tl-row"><input type="date" id="mStart" max="${td}" value="${guess}" style="max-width:220px"><button class="pri" id="mSave">${L("Simpan","Save")}</button></div></div></div>`;
     wireBack(v);$("mSave").onclick=async()=>{const s=$("mStart").value;if(!s)return;await saveT({moment:{start:s,dates:[]}});render()};return}
   const days=dDiff(m.start,td),nm=nextMonthly(m.start,td),ny=nextYearly(m.start.slice(5),addDays(td,0)===m.start?addDays(td,1):td);
   const years=Math.floor(days/365.25),months=Math.floor((days%365.25)/30.44);
