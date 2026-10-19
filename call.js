@@ -28,12 +28,21 @@ const outs={};
 function send(p){const to=C.other;if(!to)return;const ch=outs[to]||(outs[to]=sb.channel("ravi-u-"+to,{config:{private:true}}));
   const payload={...p,from:C.me,id:p.id||C.id};
   try{(ch.httpSend?ch.httpSend("sig",payload):ch.send({type:"broadcast",event:"sig",payload})).catch(()=>{})}catch(e){}}
-/* ---------- nada dering (WebAudio, tanpa file) ---------- */
-function tone(kind){stopTone();try{const ac=new (window.AudioContext||window.webkitAudioContext)();const g=ac.createGain();g.gain.value=0;g.connect(ac.destination);
-  const o1=ac.createOscillator(),o2=ac.createOscillator();o1.frequency.value=kind==="in"?660:440;o2.frequency.value=kind==="in"?880:480;o1.connect(g);o2.connect(g);o1.start();o2.start();
-  let on=true;const step=()=>{g.gain.setTargetAtTime(on?(kind==="in"?.12:.05):0,ac.currentTime,.02);on=!on};step();const iv=setInterval(step,kind==="in"?600:1500);
-  C.tone={stop:()=>{clearInterval(iv);try{o1.stop();o2.stop();ac.close()}catch(e){}}}}catch(e){}
-  if(kind==="in")try{navigator.vibrate&&navigator.vibrate([400,200,400,200,400])}catch(e){}}
+/* ---------- nada dering (WebAudio, tanpa file) ----------
+   Browser memblokir suara sampai halaman pernah disentuh/diklik, jadi satu AudioContext
+   dibuka saat sentuhan pertama dan dipakai ulang untuk dering berikutnya. */
+let AC=null;
+function audio(){try{if(!AC)AC=new (window.AudioContext||window.webkitAudioContext)();if(AC.state==="suspended")AC.resume().catch(()=>{})}catch(e){}return AC}
+const unlockAudio=()=>{const a=audio();if(!a)return;try{const b=a.createBuffer(1,1,22050),s=a.createBufferSource();s.buffer=b;s.connect(a.destination);s.start(0)}catch(e){}};
+["pointerdown","touchstart","keydown"].forEach(ev=>addEventListener(ev,unlockAudio,{passive:true,capture:true}));
+function tone(kind){stopTone();const inc=kind==="in";let vibIv=0;
+  try{const ac=audio();if(ac){const g=ac.createGain();g.gain.value=0;g.connect(ac.destination);
+    const o1=ac.createOscillator(),o2=ac.createOscillator();o1.type=o2.type="sine";o1.frequency.value=inc?523.25:440;o2.frequency.value=inc?659.25:480;o1.connect(g);o2.connect(g);o1.start();o2.start();
+    /* masuk: "tring-tring … tring-tring" (keras); keluar: nada tunggu pelan */
+    const pat=inc?[[.32,.35],[0,.15],[.32,.35],[0,1.4]]:[[.07,1],[0,2]];let i=0,tm=0;
+    const step=()=>{const [v,d]=pat[i++%pat.length];g.gain.setTargetAtTime(v,ac.currentTime,.015);tm=setTimeout(step,d*1000)};step();
+    C.tone={stop:()=>{clearTimeout(tm);clearInterval(vibIv);try{g.gain.setTargetAtTime(0,ac.currentTime,.01);setTimeout(()=>{try{o1.stop();o2.stop();g.disconnect()}catch(e){}},80)}catch(e){}}}}}catch(e){}
+  if(inc){const vib=()=>{try{navigator.vibrate&&navigator.vibrate([500,250,500])}catch(e){}};vib();vibIv=setInterval(vib,2300);if(!C.tone)C.tone={stop:()=>clearInterval(vibIv)}}}
 function stopTone(){if(C.tone){C.tone.stop();C.tone=null}try{navigator.vibrate&&navigator.vibrate(0)}catch(e){}}
 
 /* ---------- media ---------- */
@@ -71,7 +80,9 @@ async function start(peer,video,conv){
   C.other=peer;C.conv=conv||null;C.video=video;C.role="caller";C.id=Date.now().toString(36);C.state="calling";C.note="";draw();
   try{C.local=await getMedia(video)}catch(e){C.state="idle";draw();alert(e.message);return}
   draw();tone("out");send({t:"ring",video});C.ringIv=setInterval(()=>{if(C.state==="calling")send({t:"ring",video})},3000);
-  if(window.RAVI_NOTIFY)window.RAVI_NOTIFY("call",{to:[C.other],title:nm(C.me),body:video?L("🎥 Video call masuk","🎥 Incoming video call"):L("📞 Panggilan suara masuk","📞 Incoming voice call"),url:"./?go=chat&call=1"});
+  /* notifikasi HP diulang tiap 6 detik supaya terus berdering & bergetar seperti telepon (sampai diangkat/ditolak/45 detik) */
+  const callPush=()=>{if(C.state==="calling"&&window.RAVI_NOTIFY)window.RAVI_NOTIFY("call",{to:[C.other],title:nm(C.me),body:video?L("🎥 Video call masuk","🎥 Incoming video call"):L("📞 Panggilan suara masuk","📞 Incoming voice call"),url:"./?go=chat&call=1"})};
+  callPush();clearInterval(C.pushIv);C.pushIv=setInterval(callPush,6000);
   C.ringT=setTimeout(()=>{if(C.state==="calling"){send({t:"cancel"});end(L("Tidak dijawab","No answer"),true,"missed")}},45000)}
 async function accept(){stopTone();C.state="connecting";draw();
   try{C.local=await getMedia(C.video)}catch(e){send({t:"decline"});end(e.message,true);return}
@@ -89,7 +100,7 @@ async function onSig(p){if(!p||p.from===C.me)return;
   if(p.t==="cancel"&&C.state==="ringing"){stopTone();reset();status(L("Panggilan tak terjawab dari ","Missed call from ")+oName(),"warn");return}
   if(p.t==="busy"&&C.state==="calling"){end(L("Sedang dalam panggilan lain","On another call"),true);return}
   if(p.t==="decline"&&C.state==="calling"){end(L("Panggilan ditolak","Call declined"),true,"declined");return}
-  if(p.t==="accept"&&C.state==="calling"){clearTimeout(C.ringT);clearInterval(C.ringIv);C.state="connecting";stopTone();draw();
+  if(p.t==="accept"&&C.state==="calling"){clearTimeout(C.ringT);clearInterval(C.ringIv);clearInterval(C.pushIv);C.state="connecting";stopTone();draw();
     C.pc=newPC(await iceList());const off=await C.pc.createOffer();await C.pc.setLocalDescription(off);send({t:"offer",sdp:C.pc.localDescription});return}
   if(p.t==="offer"&&C.pc){await C.pc.setRemoteDescription(p.sdp);await flushIce();const ans=await C.pc.createAnswer();await C.pc.setLocalDescription(ans);send({t:"answer",sdp:C.pc.localDescription});return}
   if(p.t==="answer"&&C.pc){await C.pc.setRemoteDescription(p.sdp);await flushIce();return}
@@ -97,12 +108,14 @@ async function onSig(p){if(!p||p.from===C.me)return;
   if(p.t==="cam"){C.peerVideo=!!p.on;draw();return}
   if(p.t==="hangup"&&C.state!=="idle"){end(L("Panggilan selesai","Call ended"),false);return}}
 function hangup(){send({t:C.state==="calling"?"cancel":"hangup"});end(L("Panggilan selesai","Call ended"),false,C.state==="calling"?"cancelled":null)}
-async function end(msg,isErr,kind){const dur=C.t0?Math.round((Date.now()-C.t0)/1000):0,wasCaller=C.role==="caller",video=C.video;C.lastOther=C.other;
+async function end(msg,isErr,kind){const dur=C.t0?Math.round((Date.now()-C.t0)/1000):0,wasCaller=C.role==="caller",video=C.video;C.lastOther=C.other;clearInterval(C.pushIv);
+  /* ganti notifikasi "panggilan masuk" di HP dia menjadi "tak terjawab" supaya berhenti berdering */
+  if(wasCaller&&(kind==="missed"||kind==="cancelled")&&window.RAVI_NOTIFY)window.RAVI_NOTIFY("missed",{to:[C.other],title:nm(C.me),body:(video?"🎥 ":"📞 ")+L("Panggilan tak terjawab","Missed call"),url:"./?go=notif",tag:"call"});
   stopTone();reset();if(msg)status(msg+(dur?" · "+fmt(dur):""),isErr?"warn":"ok");
   const other=C.lastOther,res=kind||(dur?"done":"missed");
   if(wasCaller&&other){try{if(window.RS)RS.activity(other,"call",null,{v:video?1:0,d:dur||0,r:res});
     if(window.RAVI_CHAT){const cid=await window.RAVI_CHAT.dmWith(other);await window.RAVI_CHAT.sendBody(cid,{t:"[call:"+(video?"video":"voice")+":"+(dur||0)+":"+res+"]"})}}catch(e){}}}
-function reset(){clearTimeout(C.wd1);clearTimeout(C.wd2);clearTimeout(C.ringT);clearInterval(C.ringIv);clearInterval(C.timer);try{C.pc&&C.pc.close()}catch(e){}
+function reset(){clearInterval(C.pushIv);clearTimeout(C.wd1);clearTimeout(C.wd2);clearTimeout(C.ringT);clearInterval(C.ringIv);clearInterval(C.timer);try{C.pc&&C.pc.close()}catch(e){}
   [C.local,C.share].forEach(s=>s&&s.getTracks().forEach(t=>t.stop()));
   Object.assign(C,{pc:null,local:null,remote:null,share:null,state:"idle",muted:false,camOff:false,t0:0,pendingIce:[],role:null,id:null,note:"",peerVideo:null,restarted:false});draw()}
 const fmt=s=>Math.floor(s/60)+":"+String(s%60).padStart(2,"0");

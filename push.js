@@ -46,7 +46,7 @@ window.RAVI_NOTIFY=async function(kind,o){o=o||{};
   const skip=[];if(kind==="msg"&&conv){const k=conv;if(Date.now()-(P.lastPush[k]||0)<6000)return;P.lastPush[k]=Date.now()}
   for(const u of Object.keys(P.state))if(u!==P.me&&(kind==="msg"?window.RAVI_PRESENCE.inConv(u,conv):kind==="post"?window.RAVI_PRESENCE.online(u):false))skip.push(u);
   if(to)to=to.filter(u=>!skip.includes(u));if(to&&!to.length)return;
-  try{await fn({action:"push",kind,conv,to,skip,title:o.title,body:o.body,url:o.url||"./?go="+(kind==="post"?"feed":kind==="act"?"notif":"chat")+(conv?"&c="+conv:""),tag:(kind==="msg"&&conv?"m"+conv.slice(0,8):kind)})}catch(e){}};
+  try{await fn({action:"push",kind,conv,to,skip,title:o.title,body:o.body,url:o.url||"./?go="+(kind==="post"?"feed":kind==="act"?"notif":"chat")+(conv?"&c="+conv:""),tag:o.tag||(kind==="msg"&&conv?"m"+conv.slice(0,8):kind)})}catch(e){}};
 
 /* ---------- berlangganan push ---------- */
 async function subscribe(){

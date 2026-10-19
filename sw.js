@@ -7,9 +7,9 @@ self.addEventListener("push",e=>{
   const call=d.kind==="call";
   e.waitUntil(self.clients.matchAll({type:"window",includeUncontrolled:true}).then(ws=>{
     // pesan biasa: kalau RaVi sedang terbuka & terlihat, tidak perlu notifikasi
-    if(!call&&ws.some(w=>w.visibilityState==="visible"))return;
+    if(ws.some(w=>w.visibilityState==="visible"))return; /* aplikasi terbuka: dering & layar panggilan sudah tampil di dalam aplikasi */
     return self.registration.showNotification(d.title||"RaVi",{body:d.body||"",icon:"icon-192.png",badge:"icon-192.png",tag:d.tag||d.kind||"ravi",
-      renotify:true,requireInteraction:call,vibrate:call?[500,250,500,250,500,250,500]:[120,60,120],data:{url:d.url||"./?go=chat",call},
+      renotify:true,silent:false,requireInteraction:call,vibrate:call?[800,300,800,300,800,300,800]:[120,60,120],data:{url:d.url||"./?go=chat",call},
       actions:call?[{action:"answer",title:"📞 Angkat"},{action:"decline",title:"✖ Tolak"}]:/[?&]c=/.test(d.url||"")?[{action:"reply",title:"↩ Balas",type:"text",placeholder:"Ketik balasan…"},{action:"open",title:"Buka"}]:[]})}))});
 
 self.addEventListener("notificationclick",e=>{e.notification.close();const dt=e.notification.data||{};
