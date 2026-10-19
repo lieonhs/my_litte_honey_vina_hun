@@ -55,10 +55,32 @@ function subscribe(){if(S.sub)return;S.sub=true;
 function refresh(r){badge();if(route===r){const v=document.getElementById("view");if(!v)return;if(r==="chat")drawChat(v,true);else drawFeed(v)}}
 const unread=()=>S.msgs.filter(m=>m.sender!==S.me&&!m.read_at).length;
 function badge(){const a=document.querySelector('aside a[data-r="chat"]');if(a){let b=a.querySelector(".qbadge");const n=unread();if(n&&!b){b=document.createElement("span");b.className="qbadge";a.appendChild(b)}if(b){if(n)b.textContent=n;else b.remove()}}}
-function notifyMsg(m){if(route==="chat"&&!document.hidden)return;const txt=m.body||(m.img?"📷 "+L("Foto","Photo"):"");
+function notifyMsg(m){if(route==="chat"&&!document.hidden)return;const txt=isStk(m.body)?"🧸 "+L("Stiker","Sticker"):(m.body||(m.img?"📷 "+L("Foto","Photo"):""));
   if(window.doPeek)window.doPeek(true,{t:"💬 "+name(m.sender),d:txt.slice(0,80),r:"chat",m:"happy",w:8});
   try{if(document.hidden&&window.Notification&&Notification.permission==="granted")new Notification(name(m.sender),{body:txt.slice(0,120),icon:"icon-192.png",tag:"chat"})}catch(e){}}
 
+
+/* ---------- stiker & emote buatan sendiri (karakter aplikasi) ---------- */
+const MOODS5=["happy","party","worried","think","sleep"];
+const KATA=[["vnel","party","Sayang kamu!"],["vcap","happy","Selamat pagi ☀️"],["erusa","party","Semangat!"],["vorange","worried","Kangen 🥺"],["ebuku","think","Kerja dulu ya"],["vkrl","sleep","Good night 🌙"],
+ ["erenang","happy","Otw!"],["vsantai","party","Makasih ❤️"],["ekaget","worried","Maaf yaa 🙏"],["vkantor","think","Makan apa?"],["cpkencan","happy","Date yuk!"],["cpcocok","party","Saldo aman 💸"],
+ ["pipi","party","Gajian!!"],["moci","sleep","Mager…"],["bubu","happy","Laper 🍜"],["erusa","sleep","Ngantuk"],["vcap","party","Yeay!"],["ekaget","think","Hah, serius?"],["vnel","happy","Kita hebat!"],["kiki","worried","Telat dikit…"]];
+const STABS=()=>[["kata","💬 "+L("Kata","Words"),KATA.map((_,i)=>"k:"+i)],
+ ["couple","💑 Couple",[...MOODS5.map(m=>"vnel:"+m),"cpkencan:happy","cpselfie:happy","cptutup:happy","cpkrl:happy","cpcocok:happy"]],
+ ["vina","👩 Vina",["vcap","vkantor","vorange","vsantai","vkrl"].flatMap(c=>MOODS5.map(m=>c+":"+m))],
+ ["el","👓 El",["erusa","ebuku","erenang","ekaget"].flatMap(c=>MOODS5.map(m=>c+":"+m))],
+ ["hewan","🐾 "+L("Hewan","Animals"),["pipi","moci","kodi","cimi","mumu","bubu","pandi","kiki","popo","rubi"].flatMap(c=>["happy","party","worried"].map(m=>c+":"+m))],
+ ["emoji","😀 Emoji",null]];
+const EMOTES=["vnel:party","vcap:happy","erusa:party","vorange:worried","ekaget:worried","vkrl:sleep","cpkencan:happy","pipi:party","bubu:happy","vsantai:party"];
+const UNI=["❤️","🥰","😘","😂","🥺","👍","🙏","😴","😭","😡","🤔","🎉","🍜","☕","💸","🏠","🚆","🐄","✨","🔥","😎","🤗","🙈","💯"];
+const isStk=b=>/^\[stk:[a-z]+:[a-z0-9]+\]$/.test(b||"");
+const stkKey=b=>b.slice(5,-1);
+function stkSVG(k,size){if(!window.pipi)return "";const [a,b]=k.split(":");
+  if(a==="k"){const x=KATA[+b];if(!x)return "";return `<span class="stk-k">${window.pipi(x[1],size,x[0])}<span class="stk-cap"></span></span>`}
+  return window.pipi(b,size,a)}
+function fillCaps(root){root.querySelectorAll("[data-stk]").forEach(el=>{const k=el.dataset.stk;if(k.startsWith("k:")){const c=el.querySelector(".stk-cap");if(c)c.textContent=KATA[+k.slice(2)]?.[2]||""}})}
+const rxHTML=v=>v.startsWith("stk:")?`<span class="rx-s">${stkSVG(v.slice(4),18)}</span>`:v;
+let stkTab="kata",stkOpen=false;
 /* ---------- foto ---------- */
 const urls={};
 async function urlsFor(paths){paths=paths.filter(Boolean);const need=paths.filter(p=>!urls[p]||urls[p].exp<Date.now());
@@ -88,6 +110,18 @@ const css=document.createElement("style");css.textContent=`
 .ch-ic{all:unset;cursor:pointer;flex:none;width:40px;height:40px;border-radius:99px;display:flex;align-items:center;justify-content:center;font-size:18px;background:var(--th)}
 .ch-ic.send{background:var(--acc);color:#fff}.ch-ic:focus-visible{outline:3px solid var(--acc)}.ch-ic[disabled]{opacity:.5}
 .ch-quick{display:flex;gap:4px;padding:0 8px 6px;background:var(--card);overflow-x:auto}.ch-quick button{all:unset;cursor:pointer;font-size:20px;padding:2px 4px}
+.ch-b.stk{background:none!important;border:0!important;padding:0;max-width:none}.ch-b.stk .t{color:var(--mute);opacity:1;background:var(--card);border-radius:99px;padding:0 6px;display:inline-block;float:right}
+.stk-w{display:block}.stk-w .pipi{display:block;animation:none!important}
+.stk-k{display:inline-flex;flex-direction:column;align-items:center;gap:0}.stk-cap{font-weight:900;font-size:13px;line-height:1.1;color:#fff;background:var(--acc);border:2px solid #fff;border-radius:10px;padding:3px 8px;margin-top:-12px;box-shadow:0 2px 6px rgba(0,0,0,.15);white-space:nowrap;position:relative}
+.stk-grid .stk-cap{font-size:9px;padding:1px 5px;margin-top:-8px;border-width:1.5px}
+.ch-quick button{display:flex;align-items:center}.ch-quick .pipi{animation:none!important}
+.ch-ic.on{background:var(--accS);outline:2px solid var(--acc)}
+.stk-panel{border-top:1px solid var(--line);background:var(--card)}
+.stk-tabs{display:flex;gap:4px;overflow-x:auto;padding:6px 8px 0}.stk-tabs button{all:unset;cursor:pointer;white-space:nowrap;font-size:12.5px;font-weight:800;padding:6px 10px;border-radius:99px;color:var(--mute)}.stk-tabs button.on{background:var(--accS);color:var(--acc)}
+.stk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:4px;padding:8px;max-height:210px;overflow-y:auto}
+.stk-grid button{all:unset;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:12px;padding:2px;min-height:72px}.stk-grid button:hover,.stk-grid button:focus-visible{background:var(--th)}
+.stk-grid .pipi{animation:none!important}.stk-grid.uni{grid-template-columns:repeat(auto-fill,minmax(44px,1fr))}.stk-grid.uni button{font-size:26px;min-height:44px}
+.rx-s{display:inline-flex;vertical-align:middle}.rx-s .pipi{animation:none!important}
 .ch-empty{margin:auto;text-align:center;color:var(--mute);font-size:13.5px;max-width:28ch}
 .fd-post{border:1px solid var(--line);border-radius:18px;background:var(--card);overflow:hidden;margin-bottom:14px}
 .fd-top{display:flex;gap:10px;align-items:center;padding:10px 12px}.fd-top b{display:block;font-size:14px}.fd-top .crumb{font-size:12px}
@@ -129,15 +163,18 @@ function drawChat(v,live){
   let html="",lastDay="";
   for(const m of S.msgs){const dl=dayLbl(m.created_at);if(dl!==lastDay){html+=`<div class="ch-day">${dl}</div>`;lastDay=dl}
     const mine=m.sender===S.me,rx=Object.values(m.reacts||{});
-    html+=`<div class="ch-b ${mine?"me":"them"}${rx.length?" hasrx":""}" data-m="${m.id}">${m.img?`<img data-img="${esc(m.img)}" alt="${L("Foto","Photo")}">`:""}<span class="bd"></span><span class="t">${hhmm(m.created_at)}${mine?" "+(m.read_at?"✓✓":"✓"):""}</span>${rx.length?`<span class="rx">${[...new Set(rx)].join("")}</span>`:""}</div>`}
+    const stk=isStk(m.body);
+    html+=`<div class="ch-b ${mine?"me":"them"}${stk?" stk":""}${rx.length?" hasrx":""}" data-m="${m.id}">${m.img?`<img data-img="${esc(m.img)}" alt="${L("Foto","Photo")}">`:""}${stk?`<span class="stk-w" data-stk="${stkKey(m.body)}">${stkSVG(stkKey(m.body),124)}</span>`:`<span class="bd"></span>`}<span class="t">${hhmm(m.created_at)}${mine?" "+(m.read_at?"✓✓":"✓"):""}</span>${rx.length?`<span class="rx">${[...new Set(rx)].map(rxHTML).join("")}</span>`:""}</div>`}
   v.innerHTML=page(L("Berdua","Together"),"💬 Chat")+
-   `<div class="ch-wrap"><div class="ch-head">${window.pipi?window.pipi("happy",40,other&&/^vina/i.test(S.members[other]||"")?"vcap":other&&/^(rafi|el)/i.test(S.members[other]||"")?"erusa":"vnel"):""}<div><b></b><span class="crumb">${L("Ketuk 2× pesan untuk ❤️ · tahan pesanmu untuk hapus","Double-tap a message to ❤️ · long-press yours to delete")}</span></div></div>
+   `<div class="ch-wrap"><div class="ch-head">${window.pipi?window.pipi("happy",40,other&&/^vina/i.test(S.members[other]||"")?"vcap":other&&/^(rafi|el)/i.test(S.members[other]||"")?"erusa":"vnel"):""}<div><b></b><span class="crumb">${L("Ketuk 2× untuk ❤️ · tahan pesannya untuk reaksi · tahan pesanmu untuk hapus","Double-tap to ❤️ · long-press theirs to react · long-press yours to delete")}</span></div></div>
     <div class="ch-list" role="log" aria-live="polite">${html||`<div class="ch-empty">${L("Belum ada pesan. Sapa duluan! 👋","No messages yet. Say hi first! 👋")}</div>`}</div>
-    <div class="ch-in"><label class="ch-ic" for="chFile" aria-label="${L("Kirim foto","Send photo")}" title="${L("Kirim foto","Send photo")}">📷</label><input type="file" id="chFile" accept="image/*" hidden>
+    <div class="ch-in"><label class="ch-ic" for="chFile" aria-label="${L("Kirim foto","Send photo")}" title="${L("Kirim foto","Send photo")}">📷</label><input type="file" id="chFile" accept="image/*" hidden><button class="ch-ic${stkOpen?" on":""}" id="chStk" aria-label="${L("Stiker","Stickers")}" aria-expanded="${stkOpen}" title="${L("Stiker","Stickers")}">🧸</button>
      <textarea id="chTxt" rows="1" placeholder="${L("Tulis pesan…","Type a message…")}" aria-label="${L("Pesan","Message")}"></textarea><button class="ch-ic send" id="chSend" aria-label="${L("Kirim","Send")}"${S.sending?" disabled":""}>➤</button></div>
-    <div class="ch-quick">${["❤️","🥰","😘","😂","🥺","👍","🙏","🍜","☕","💸","🏠","😴"].map(e=>`<button data-q="${e}" aria-label="${e}">${e}</button>`).join("")}</div></div>`;
+    ${stkOpen?`<div class="stk-panel"><div class="stk-tabs" role="tablist">${STABS().map(([k,n])=>`<button role="tab" aria-selected="${k===stkTab}" class="${k===stkTab?"on":""}" data-st="${k}">${n}</button>`).join("")}</div>
+      <div class="stk-grid${stkTab==="emoji"?" uni":""}">${stkTab==="emoji"?UNI.map(e=>`<button data-q="${e}" aria-label="${e}">${e}</button>`).join(""):STABS().find(x=>x[0]===stkTab)[2].map(k=>`<button data-send="${k}" data-stk="${k}" aria-label="${L("Kirim stiker","Send sticker")}">${stkSVG(k,64)}</button>`).join("")}</div></div>`
+     :`<div class="ch-quick">${EMOTES.map(k=>`<button data-send="${k}" aria-label="${L("Kirim emote","Send emote")}">${stkSVG(k,34)}</button>`).join("")}</div>`}</div>`;
   v.querySelector(".ch-head b").textContent=oName;
-  v.querySelectorAll(".ch-b").forEach(b=>{const m=S.msgs.find(x=>x.id==b.dataset.m);b.querySelector(".bd").textContent=m.body||""});
+  v.querySelectorAll(".ch-b").forEach(b=>{const m=S.msgs.find(x=>x.id==b.dataset.m),bd=b.querySelector(".bd");if(bd)bd.textContent=m.body||""});fillCaps(v);
   const nl=v.querySelector(".ch-list");
   const grow=()=>{const t=$("chTxt");t.style.height="auto";t.style.height=Math.min(120,t.scrollHeight)+"px"};
   const t=$("chTxt");t.value=S.draft;grow();if(hadFocus||(!live&&matchMedia("(min-width:861px)").matches))t.focus();
@@ -147,21 +184,33 @@ function drawChat(v,live){
   t.onkeydown=e=>{if(e.key==="Enter"&&!e.shiftKey&&matchMedia("(hover:hover)").matches){e.preventDefault();send()}};
   $("chSend").onclick=send;
   v.querySelectorAll("[data-q]").forEach(b=>b.onclick=()=>{t.value+=b.dataset.q;S.draft=t.value;t.focus()});
+  $("chStk").onclick=()=>{stkOpen=!stkOpen;drawChat(v,true)};
+  v.querySelectorAll("[data-st]").forEach(b=>b.onclick=()=>{stkTab=b.dataset.st;drawChat(v,true)});
+  v.querySelectorAll("[data-send]").forEach(b=>b.onclick=()=>sendBody("[stk:"+b.dataset.send+"]"));
   $("chFile").onchange=async e=>{const f=e.target.files[0];e.target.value="";if(!f)return;S.sending=true;status(L("Mengirim foto…","Sending photo…"),"");
     try{const p=await upPhoto(f,1280);const {error}=await sb.from("couple_msgs").insert({body:S.draft.trim()||null,img:p});if(error)throw error;S.draft="";status("")}catch(err){status(L("Gagal kirim foto: ","Couldn't send photo: ")+(err.message||err),"err")}
     S.sending=false;await loadMsgs().catch(()=>{});drawChat(v,false)};
   v.querySelectorAll(".ch-b").forEach(b=>{const id=+b.dataset.m,m=S.msgs.find(x=>x.id===id);let last=0,hold=0;
     b.addEventListener("click",async e=>{if(e.target.matches("img")){const bg=modal(L("Foto","Photo"),`<img alt="" style="width:100%;border-radius:12px">`,()=>true,"OK");bg.querySelector("img").src=e.target.src;const c=bg.querySelector(".c");if(c)c.style.display="none";return}
       const now=Date.now();if(now-last<350){const r={...(m.reacts||{})};if(r[S.me])delete r[S.me];else r[S.me]="❤️";m.reacts=r;drawChat(v,true);await sb.from("couple_msgs").update({reacts:r}).eq("id",id)}last=now});
+    if(m.sender!==S.me){const start=()=>{hold=setTimeout(()=>reactPick(m,v),500)},stop=()=>clearTimeout(hold);
+      b.addEventListener("touchstart",start,{passive:true});b.addEventListener("touchend",stop);b.addEventListener("touchmove",stop);
+      b.addEventListener("contextmenu",e=>{e.preventDefault();reactPick(m,v)})}
     if(m.sender===S.me){const start=()=>{hold=setTimeout(()=>delMsg(m,v),550)},stop=()=>clearTimeout(hold);
       b.addEventListener("touchstart",start,{passive:true});b.addEventListener("touchend",stop);b.addEventListener("touchmove",stop);
       b.addEventListener("contextmenu",e=>{e.preventDefault();delMsg(m,v)})}});
   markRead();badge();
-  async function send(){const body=t.value.trim();if(!body||S.sending)return;S.sending=true;t.value="";S.draft="";grow();
+  async function send(){const body=t.value.trim();if(!body||S.sending)return;t.value="";S.draft="";grow();return sendBody(body,true)}
+  async function sendBody(body,fromText){if(S.sending)return;S.sending=true;
     const tmp={id:-Date.now(),sender:S.me,body,created_at:new Date().toISOString(),reacts:{}};S.msgs.push(tmp);drawChat(v,false);
     const {data,error}=await sb.from("couple_msgs").insert({body}).select().single();S.sending=false;
-    S.msgs=S.msgs.filter(x=>x.id!==tmp.id);if(error){S.draft=body;status(L("Pesan gagal terkirim: ","Message not sent: ")+error.message,"err")}else if(data&&!S.msgs.some(x=>x.id===data.id))S.msgs.push(data);
+    S.msgs=S.msgs.filter(x=>x.id!==tmp.id);if(error){if(fromText)S.draft=body;status(L("Pesan gagal terkirim: ","Message not sent: ")+error.message,"err")}else if(data&&!S.msgs.some(x=>x.id===data.id))S.msgs.push(data);
     drawChat(v,false)}}
+function reactPick(m,v){const opts=["❤️","stk:vnel:party","stk:vcap:happy","stk:erusa:party","stk:vorange:worried","stk:ekaget:worried","stk:pipi:party","😂"];
+  const bg=modal(L("Beri reaksi","React"),`<div class="stk-grid">${opts.map((o,i)=>`<button data-rp="${i}" aria-label="${L("Reaksi","Reaction")}">${o.startsWith("stk:")?stkSVG(o.slice(4),48):`<span style="font-size:34px">${o}</span>`}</button>`).join("")}</div>${(m.reacts||{})[S.me]?`<button class="sm" id="rpX" style="margin-top:10px">${L("Hapus reaksiku","Remove my reaction")}</button>`:""}`,()=>true,"OK");
+  const c=bg.querySelector(".c");if(c)c.style.display="none";
+  const set=async val=>{const r={...(m.reacts||{})};if(val)r[S.me]=val;else delete r[S.me];m.reacts=r;bg.remove();drawChat(v,true);await sb.from("couple_msgs").update({reacts:r}).eq("id",m.id)};
+  bg.querySelectorAll("[data-rp]").forEach(b=>b.onclick=()=>set(opts[+b.dataset.rp]));const x=bg.querySelector("#rpX");if(x)x.onclick=()=>set(null)}
 function delMsg(m,v){const bg=modal(L("Hapus pesan?","Delete message?"),`<div class="crumb">${L("Pesan akan hilang untuk kalian berdua.","The message disappears for both of you.")}</div>`,async()=>{
   const {error}=await sb.from("couple_msgs").delete().eq("id",m.id);if(error){alert(error.message);return false}S.msgs=S.msgs.filter(x=>x.id!==m.id);if(m.img)sb.storage.from("couple").remove([m.img]).catch(()=>{});drawChat(v,true)},L("Hapus","Delete"))}
 let readBusy=false;
@@ -228,4 +277,7 @@ const _go=go;go=function(r){render._nav=true;try{return _go(r)}finally{render._n
 /* sambungkan di latar belakang setelah login supaya notifikasi pesan baru tetap masuk */
 addEventListener("load",()=>{const t=setInterval(()=>{if(typeof col!=="undefined"&&col){clearInterval(t);init().then(()=>badge()).catch(()=>{})}},2000);setTimeout(()=>clearInterval(t),60000)});
 document.addEventListener("visibilitychange",()=>{if(!document.hidden&&route==="chat")markRead()});
+/* jangan ada popup pengingat yang menutupi kolom ketik saat chat/feed dibuka */
+if(window.doPeek){const _pk=window.doPeek;window.doPeek=function(){if(route==="chat"||route==="feed")return;return _pk.apply(this,arguments)}}
+const _go2=go;go=function(r){if(r==="chat"||r==="feed")document.querySelectorAll(".peek").forEach(e=>e.remove());return _go2.apply(this,arguments)};
 })();
