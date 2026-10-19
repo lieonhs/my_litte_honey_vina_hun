@@ -1,4 +1,4 @@
-# Buku Besar Pribadi
+# RaVi
 
 Pembukuan pribadi dengan konsep perusahaan: COA, jurnal double-entry, buku besar, neraca saldo, rekonsiliasi bank, anggaran, Laba Rugi / Neraca / Arus Kas, reverse & reklas, serta tutup periode. Struk dan screenshot bank dibaca dengan Gemini.
 

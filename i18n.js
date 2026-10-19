@@ -15,7 +15,7 @@ function M(s){return s.replace(new RegExp("\\b("+MRE+")\\b","g"),m=>MON[m]).repl
 /* ---------- kamus kalimat utuh ---------- */
 const D={
 // header, navigasi, umum
-"Buku Besar Pribadi":"Personal Ledger","Keluar":"Log out","Pro":"Pro","Lucu":"Fun","Beranda":"Home","Dashboard":"Dashboard","Jadwal":"Schedule","Jadwal (Google Calendar)":"Schedule (Google Calendar)",
+"RaVi":"RaVi","Keluar":"Log out","Pro":"Pro","Lucu":"Fun","Beranda":"Home","Dashboard":"Dashboard","Jadwal":"Schedule","Jadwal (Google Calendar)":"Schedule (Google Calendar)",
 "Transaksi":"Transactions","Input Transaksi":"Add Transaction","Jurnal Umum":"General Journal","Buku Besar":"General Ledger","Inquiry Buku Besar":"Ledger Inquiry","Neraca Saldo":"Trial Balance",
 "Rekonsiliasi Kas & Bank":"Cash & Bank Reconciliation","Perencanaan":"Planning","Anggaran":"Budget","Pelaporan":"Reporting","Laporan Keuangan":"Financial Statements","Pengaturan":"Settings",
 "Bagan Akun (COA)":"Chart of Accounts (COA)","Periode Akuntansi":"Accounting Periods","Bantuan":"Help","Panduan & Tutorial":"Guide & Tutorial","Panduan":"Guide","Opsi Tampilan":"Display Options",
@@ -297,7 +297,7 @@ const P=[
 [/^Gagal membaca gambar \((.*)\)\. Isi manual\.$/,(m,r)=>"Couldn't read the image ("+r+"). Enter manually."],
 [/^Izin Google sudah tidak berlaku \((.*)\)\. Hubungkan lagi\.$/,(m,r)=>"Google permission is no longer valid ("+r+"). Connect again."],[/^Izin Google ditolak\/gagal: (.*)$/,(m,r)=>"Google permission denied/failed: "+r],
 [/^💸 Bayar (.+?)( – Rp[\d.]+)?$/,(m,n,a)=>"💸 Pay "+t(n)+(a||"")],[/^💰 Gajian$/,()=>"💰 Payday"],[/^📒 Tutup buku bulanan$/,()=>"📒 Monthly close"],[/^🔎 Cek saldo real$/,()=>"🔎 Check real balances"],
-[/^Pengingat dari Buku Besar Pribadi\. Setelah bayar, foto buktinya dan posting jurnal\.$/,()=>"Reminder from Personal Ledger. After paying, photograph the receipt and post the entry."],
+[/^Pengingat dari RaVi\. Setelah bayar, foto buktinya dan posting jurnal\.$/,()=>"Reminder from RaVi. After paying, photograph the receipt and post the entry."],
 [/^Cek gaji masuk ke rekening gaji, lalu catat jurnal 4101 Gaji Pokok\. Sisihkan target tabungan dulu\.$/,()=>"Check your salary arrived, then record entry 4101 Base Salary. Set aside your savings target first."],
 [/^1\) Cocokkan saldo real semua rekening  2\) Cek Laporan Keuangan  3\) Tutup periode  4\) Ekspor backup JSON\.$/,()=>"1) Match real balances for all accounts  2) Check the financial statements  3) Close the period  4) Export a JSON backup."],
 [/^Buka Rekonsiliasi Kas & Bank, isi saldo real tiap rekening\. Merah = ada transaksi yang kelewat\.$/,()=>"Open Cash & Bank Reconciliation and enter each account's real balance. Red = a transaction was missed."],

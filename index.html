@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Buku Besar Pribadi</title>
+<title>RaVi</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon-180.png">
@@ -96,7 +96,7 @@ td.ind1{padding-left:22px}
 <header>
   <button class="ham" id="ham" aria-label="Menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
   <img src="icon.svg" alt="" width="30" height="30" style="border-radius:9px;flex:none;box-shadow:0 1px 3px rgba(0,0,0,.2)">
-  <span class="app">Buku Besar Pribadi</span>
+  <span class="app">RaVi</span>
   <span class="ent" id="who">Entitas: Pribadi · IDR</span><button class="sm" id="logout" style="background:none;color:var(--hdrInk);border-color:rgba(255,255,255,.3)">Keluar</button>
 </header>
 <div class="layout">
@@ -615,7 +615,7 @@ function makeCol(uid){let cb=null,errCb=null,timer=null;
 
 function showLogin(msg){
   let el=$("login");if(!el){el=document.createElement("div");el.id="login";el.className="login";document.body.appendChild(el)}
-  el.innerHTML=`<div class="box"><div style="background:var(--hdr);color:var(--hdrInk);padding:14px 16px;font-weight:600">Buku Besar Pribadi</div>
+  el.innerHTML=`<div class="box"><div style="background:var(--hdr);color:var(--hdrInk);padding:14px 16px;font-weight:600">RaVi</div>
    <div style="padding:16px"><div class="crumb" style="margin-bottom:12px">Masuk dengan akun yang kamu buat di Supabase.</div>
    <label>Email</label><input id="lg_e" type="email" autocomplete="username"><div style="height:10px"></div>
    <label>Password</label><input id="lg_p" type="password" autocomplete="current-password">
@@ -653,7 +653,7 @@ try{const r=localStorage.getItem("bbp_route");if(r)route=r}catch(e){}
 render();
 (async()=>{
   if(!sb){const why=!window.supabase?"Library Supabase gagal dimuat (cek koneksi internet, lalu muat ulang).":"config.js belum diisi atau salah (SUPABASE_URL & SUPABASE_ANON_KEY).";
-    const el=document.createElement("div");el.className="login";el.id="login";el.innerHTML=`<div class="box"><div style="background:var(--hdr);color:var(--hdrInk);padding:14px 16px;font-weight:600">Buku Besar Pribadi</div><div style="padding:16px"><div class="msg err" style="margin:0">Tidak bisa tersambung ke database.</div><p style="font-size:14px">${why}</p><button class="pri" style="width:100%" onclick="location.reload()">Muat ulang</button></div></div>`;document.body.appendChild(el);return}
+    const el=document.createElement("div");el.className="login";el.id="login";el.innerHTML=`<div class="box"><div style="background:var(--hdr);color:var(--hdrInk);padding:14px 16px;font-weight:600">RaVi</div><div style="padding:16px"><div class="msg err" style="margin:0">Tidak bisa tersambung ke database.</div><p style="font-size:14px">${why}</p><button class="pri" style="width:100%" onclick="location.reload()">Muat ulang</button></div></div>`;document.body.appendChild(el);return}
   $("logout").onclick=async()=>{await sb.auth.signOut();location.reload()};
   const {data:{session}}=await sb.auth.getSession();
   if(session)startData(session.user.id,session.user.email);else showLogin();
