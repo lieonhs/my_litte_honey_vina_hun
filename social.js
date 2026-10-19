@@ -1,65 +1,62 @@
 /* =====================================================================
-   BERDUA: 💬 Chat (ala WhatsApp) + 📷 Feed (ala Instagram) untuk Rafi & Vina
-   Tabel bersama: couple_members, couple_msgs, couple_posts, couple_comments
-   Foto: bucket privat "couple". Setup sekali: supabase/couple-social.sql
+   BERSAMA: anggota, stiker, foto terenkripsi + 📷 Feed (ala Instagram) khusus pasangan.
+   Chat ada di chat.js, telepon di call.js, pusat notifikasi di notif.js.
+   Helper dibagikan lewat window.RS.
    ===================================================================== */
 (function(){
 const EN=()=>{try{return localStorage.getItem("bbp_lang")==="en"}catch(e){return false}};
 const L=(id,en)=>EN()?en:id;
 const ok=()=>typeof sb!=="undefined"&&sb;
-const S={me:null,members:{},ready:null,setupErr:"",msgs:[],posts:[],comments:{},sub:false,draft:"",sending:false,lastSeen:0};
+const S={me:null,members:{},ready:null,setupErr:"",posts:[],comments:{},sub:false};
 const cap1=s=>s?s.charAt(0).toUpperCase()+s.slice(1):s;
-const name=u=>cap1(S.members[u])||(u===S.me?L("Kamu","You"):L("Dia","Them"));
+const name=u=>cap1(S.members[u]?.name)||(u===S.me?L("Kamu","You"):L("Anggota","Member"));
+const isPartner=u=>!!S.members[u]?.partner;
+const partners=()=>Object.keys(S.members).filter(isPartner);
 const hhmm=t=>new Date(t).toLocaleTimeString(EN()?"en-GB":"id-ID",{hour:"2-digit",minute:"2-digit"});
-const dayLbl=t=>{const d=new Date(t),n=new Date(),y=new Date();y.setDate(n.getDate()-1);
-  if(d.toDateString()===n.toDateString())return L("Hari ini","Today");if(d.toDateString()===y.toDateString())return L("Kemarin","Yesterday");
-  return d.toLocaleDateString(EN()?"en-GB":"id-ID",{weekday:"long",day:"numeric",month:"long"})};
-const ago=t=>{const s=(Date.now()-new Date(t))/1000;if(s<60)return L("baru saja","just now");if(s<3600)return Math.floor(s/60)+L(" mnt"," min");if(s<86400)return Math.floor(s/3600)+L(" jam"," h");return Math.floor(s/86400)+L(" hr"," d")};
+const ago=t=>{const s=(Date.now()-new Date(t))/1000;if(s<60)return L("baru saja","just now");if(s<3600)return Math.floor(s/60)+L(" mnt"," min");if(s<86400)return Math.floor(s/3600)+L(" jam"," h");if(s<7*86400)return Math.floor(s/86400)+L(" hr"," d");return new Date(t).toLocaleDateString(EN()?"en-GB":"id-ID",{day:"numeric",month:"short"})};
 
-/* ---------- koneksi & setup ---------- */
+/* ---------- koneksi ---------- */
+async function loadMembers(){const {data:mem,error}=await sb.from("couple_members").select("user_id,name,partner,role,last_seen,avatar");if(error)throw error;
+  if(!mem||!mem.some(m=>m.user_id===S.me))throw new Error("notmember");S.members={};mem.forEach(m=>S.members[m.user_id]=m)}
 async function init(){
   if(S.ready)return S.ready;
   S.ready=(async()=>{
     if(!ok())throw new Error("offline");
     const {data:ses}=await sb.auth.getSession();S.me=ses?.session?.user?.id||null;if(!S.me)throw new Error("login");
-    const {data:mem,error}=await sb.from("couple_members").select("user_id,name");
-    if(error)throw error;
-    if(!mem||!mem.some(m=>m.user_id===S.me))throw new Error("notmember");
-    mem.forEach(m=>S.members[m.user_id]=m.name||"");
+    await loadMembers();
     const who=(window.TOOLS||{}).me,want=who==="vina"?"Vina":who==="rafi"?"Rafi":null;
-    if(want&&S.members[S.me]!==want){S.members[S.me]=want;sb.from("couple_members").update({name:want}).eq("user_id",S.me).then(()=>{},()=>{})}
-    await Promise.all([loadMsgs(),loadPosts()]);subscribe();return true})();
+    if(want&&isPartner(S.me)&&S.members[S.me].name!==want){S.members[S.me].name=want;sb.from("couple_members").update({name:want}).eq("user_id",S.me).then(()=>{},()=>{})}
+    if(isPartner(S.me)){await loadPosts().catch(()=>{});subscribe()}
+    return true})();
   S.ready.catch(e=>{S.setupErr=String(e&&(e.message||e.code)||e);S.ready=null});
   return S.ready}
-async function loadMsgs(){const {data,error}=await sb.from("couple_msgs").select("*").order("id",{ascending:false}).limit(300);if(error)throw error;S.msgs=(data||[]).reverse()}
 async function loadPosts(){const {data,error}=await sb.from("couple_posts").select("*").order("id",{ascending:false}).limit(60);if(error)throw error;S.posts=data||[];
   if(S.posts.length){const {data:c}=await sb.from("couple_comments").select("*").in("post_id",S.posts.map(p=>p.id)).order("id",{ascending:true});S.comments={};(c||[]).forEach(x=>(S.comments[x.post_id]=S.comments[x.post_id]||[]).push(x))}}
 function subscribe(){if(S.sub)return;S.sub=true;
-  sb.channel("couple-live")
-   .on("postgres_changes",{event:"*",schema:"public",table:"couple_msgs"},p=>{
-     if(p.eventType==="INSERT"){if(!S.msgs.some(m=>m.id===p.new.id))S.msgs.push(p.new);if(p.new.sender!==S.me)notifyMsg(p.new)}
-     else if(p.eventType==="UPDATE"){const i=S.msgs.findIndex(m=>m.id===p.new.id);if(i>=0)S.msgs[i]=p.new}
-     else if(p.eventType==="DELETE"){S.msgs=S.msgs.filter(m=>m.id!==p.old.id)}
-     refresh("chat")})
+  sb.channel("couple-feed")
    .on("postgres_changes",{event:"*",schema:"public",table:"couple_posts"},p=>{
-     if(p.eventType==="INSERT"){if(!S.posts.some(x=>x.id===p.new.id))S.posts.unshift(p.new);if(p.new.author!==S.me&&window.doPeek&&route!=="feed")window.doPeek(true,{t:"📷 "+name(p.new.author)+L(" posting foto baru"," posted a new photo"),d:isEnc(p.new.caption)?"":(p.new.caption||""),r:"feed",m:"party",w:7})}
+     if(p.eventType==="INSERT"){if(!S.posts.some(x=>x.id===p.new.id))S.posts.unshift(p.new)}
      else if(p.eventType==="UPDATE"){const i=S.posts.findIndex(x=>x.id===p.new.id);if(i>=0)S.posts[i]=p.new}
      else if(p.eventType==="DELETE")S.posts=S.posts.filter(x=>x.id!==p.old.id);
-     refresh("feed")})
+     refresh()})
    .on("postgres_changes",{event:"*",schema:"public",table:"couple_comments"},p=>{
      if(p.eventType==="INSERT"){const a=S.comments[p.new.post_id]=S.comments[p.new.post_id]||[];if(!a.some(c=>c.id===p.new.id))a.push(p.new)}
      else if(p.eventType==="DELETE")for(const k in S.comments)S.comments[k]=S.comments[k].filter(c=>c.id!==p.old.id);
-     refresh("feed")})
+     refresh()})
    .subscribe();
-  document.addEventListener("visibilitychange",()=>{if(!document.hidden&&S.me)Promise.all([loadMsgs(),loadPosts()]).then(()=>{refresh("chat");refresh("feed")}).catch(()=>{})})}
-window.RAVI_SOCIAL_REFRESH=()=>{if(route==="chat"||route==="feed")refresh(route)};
-function refresh(r){badge();if(route===r){const v=document.getElementById("view");if(!v)return;if(r==="chat")drawChat(v,true);else drawFeed(v)}}
-const unread=()=>S.msgs.filter(m=>m.sender!==S.me&&!m.read_at).length;
-function badge(){const a=document.querySelector('aside a[data-r="chat"]');if(a){let b=a.querySelector(".qbadge");const n=unread();if(n&&!b){b=document.createElement("span");b.className="qbadge";a.appendChild(b)}if(b){if(n)b.textContent=n;else b.remove()}}}
-function notifyMsg(m){if(route==="chat"&&!document.hidden)return;const pb0=pt(m.body),po=parse(pb0),pb=po.f?fIcon(po.f.m)+" "+po.f.n:po.t;const txt=/^\[call:/.test(pb||"")?"📞 "+L("Panggilan","Call"):isStk(pb)?"🧸 "+L("Stiker","Sticker"):isEnc(m.body)&&(pb==="…"||/^🔒/.test(pb))?"💬 "+L("Pesan baru","New message"):(pb||(m.img?"📷 "+L("Foto","Photo"):""));
-  if(window.doPeek)window.doPeek(true,{t:"💬 "+name(m.sender),d:txt.slice(0,80),r:"chat",m:"happy",w:8});
-  try{if(document.hidden&&window.Notification&&Notification.permission==="granted")new Notification(name(m.sender),{body:txt.slice(0,120),icon:"icon-192.png",tag:"chat"})}catch(e){}}
+  document.addEventListener("visibilitychange",()=>{if(!document.hidden&&S.me&&route==="feed")loadPosts().then(refresh).catch(()=>{})})}
+function refresh(){if(route==="feed"){const v=document.getElementById("view");if(v)drawFeed(v)}}
+document.addEventListener("ravi-e2e",()=>{if(route==="feed")refresh()});
 
+/* ---------- avatar ---------- */
+const memo=new Map();
+function pipiM(mood,size,ch){if(!window.pipi)return "";const k=mood+"|"+size+"|"+ch;if(!memo.has(k)){if(memo.size>400)memo.clear();memo.set(k,window.pipi(mood,size,ch))}return memo.get(k)}
+const charOf=u=>{const a=S.members[u]?.avatar;if(a)return a;const n=(S.members[u]?.name||"").toLowerCase();return /^vina/.test(n)?"vcap":/^(rafi|el)\b/.test(n)?"erusa":null};
+const hue=s=>{let h=0;for(const c of String(s))h=(h*31+c.charCodeAt(0))%360;return h};
+function avatar(u,size,mood){const c=charOf(u),s=size||40;
+  if(c&&window.pipi)return `<span class="rv-av" style="width:${s}px;height:${s}px">${pipiM(mood||"happy",Math.round(s*1.05),c)}</span>`;
+  const n=name(u);return `<span class="rv-av txt" style="width:${s}px;height:${s}px;font-size:${Math.round(s*.42)}px;background:hsl(${hue(u)} 60% 55%)">${esc((n||"?").charAt(0).toUpperCase())}</span>`}
+function groupAvatar(emoji,size,seed){const s=size||40;return `<span class="rv-av txt grp" style="width:${s}px;height:${s}px;font-size:${Math.round(s*.5)}px;background:linear-gradient(135deg,hsl(${hue(seed||"g")} 65% 60%),hsl(${(hue(seed||"g")+50)%360} 65% 52%))">${esc(emoji||"👥")}</span>`}
 
 /* ---------- stiker & emote buatan sendiri (karakter aplikasi) ---------- */
 const MOODS5=["happy","party","worried","think","sleep"];
@@ -77,322 +74,141 @@ const UNI=["❤️","🥰","😘","😂","🥺","👍","🙏","😴","😭","�
 const isStk=b=>/^\[stk:[a-z]+:[a-z0-9]+\]$/.test(b||"");
 const stkKey=b=>b.slice(5,-1);
 function stkSVG(k,size){if(!window.pipi)return "";const [a,b]=k.split(":");
-  if(a==="k"){const x=KATA[+b];if(!x)return "";return `<span class="stk-k">${window.pipi(x[1],size,x[0])}<span class="stk-cap"></span></span>`}
-  return window.pipi(b,size,a)}
+  if(a==="k"){const x=KATA[+b];if(!x)return "";return `<span class="stk-k">${pipiM(x[1],size,x[0])}<span class="stk-cap"></span></span>`}
+  return pipiM(b,size,a)}
 function fillCaps(root){root.querySelectorAll("[data-stk]").forEach(el=>{const k=el.dataset.stk;if(k.startsWith("k:")){const c=el.querySelector(".stk-cap");if(c)c.textContent=KATA[+k.slice(2)]?.[2]||""}})}
-const rxHTML=v=>v.startsWith("stk:")?`<span class="rx-s">${stkSVG(v.slice(4),18)}</span>`:v;
-let stkTab="kata",stkOpen=false;
+const rxHTML=v=>String(v).startsWith("stk:")?`<span class="rx-s">${stkSVG(v.slice(4),18)}</span>`:esc(v);
+
 /* ---------- enkripsi (e2ee.js) ---------- */
 const E2=()=>window.RAVI_E2E;
-const pt=b=>E2()?E2().show(b):b;                      // teks yang ditampilkan
-async function seal(t){if(!t||!E2())return t;await E2().load();if(E2().enabled()&&!E2().unlocked()){E2().dialog();throw new Error(L("Chat terkunci. Masukkan kata sandi chat dulu.","Chat is locked. Enter the chat password first."))}return E2().encText(t)}
-const isEnc=b=>typeof b==="string"&&/^enc[12]:/.test(b);
-const pushText=(plain,fallback)=>E2()&&E2().enabled()?fallback:plain;   // jangan bocorkan isi lewat notifikasi
-/* ---------- foto ---------- */
+const pt=b=>E2()?E2().show(b):b;
+const isEnc=b=>typeof b==="string"&&/^enc[123]:/.test(b);
+async function sealFor(t,uids){if(!t||!E2())return t;return E2().sealFor(t,uids)}
+/* format pesan: teks biasa, atau "j1:{...}" untuk balasan / file / diteruskan / kunci foto (ikut terenkripsi) */
+function parse(shown){if(typeof shown==="string"&&shown.startsWith("j1:")){try{const o=JSON.parse(shown.slice(3));return {t:o.t||"",r:o.r||null,f:o.f||null,fwd:!!o.fwd,ik:o.ik||null}}catch(e){}}return {t:shown||"",r:null,f:null,fwd:false,ik:null}}
+function pack(o){if(!o.r&&!o.f&&!o.fwd&&!o.ik)return o.t||"";return "j1:"+JSON.stringify({t:o.t||undefined,r:o.r||undefined,f:o.f||undefined,fwd:o.fwd||undefined,ik:o.ik||undefined})}
+const PK={};   /* kunci acak foto yang baru diunggah: path → kunci */
+const ikOf=(path,body)=>PK[path]||parse(pt(body)).ik;
+
+/* ---------- foto & file ---------- */
 const urls={};
-async function urlsFor(paths){paths=paths.filter(Boolean);const need=paths.filter(p=>!urls[p]||urls[p].exp<Date.now());
+async function urlsFor(paths){paths=[...new Set(paths.filter(Boolean))];const need=paths.filter(p=>!urls[p]||urls[p].exp<Date.now());
   if(need.length){const {data}=await sb.storage.from("couple").createSignedUrls(need,3600);(data||[]).forEach(d=>{if(d.signedUrl)urls[d.path]={u:d.signedUrl,exp:Date.now()+50*60e3}})}
   return p=>urls[p]?.u||""}
 function loadImg(f){return new Promise((y,n)=>{const u=URL.createObjectURL(f),i=new Image();i.onload=()=>{y(i);setTimeout(()=>URL.revokeObjectURL(u),1000)};i.onerror=()=>n(new Error(L("Format foto tidak didukung.","Unsupported photo format.")));i.src=u})}
 async function upPhoto(file,max){const img=await loadImg(file),s=Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight)),c=document.createElement("canvas");
   c.width=Math.round(img.naturalWidth*s);c.height=Math.round(img.naturalHeight*s);c.getContext("2d").drawImage(img,0,0,c.width,c.height);
-  let blob=await new Promise(r=>c.toBlob(r,"image/jpeg",.82)),ext=".jpg";
-  let fk=null;if(E2()){const r=await E2().encBlob(blob);blob=r.blob;ext=r.ext;fk=r.k}
+  let blob=await new Promise(r=>c.toBlob(r,"image/jpeg",.82)),ext=".jpg",fk=null;
+  if(E2()){const r=await E2().encBlob(blob);blob=r.blob;ext=r.ext;fk=r.k}
   const path=S.me+"/"+Date.now().toString(36)+Math.random().toString(36).slice(2,6)+ext;if(fk)PK[path]=fk;
-  const {error}=await sb.storage.from("couple").upload(path,blob,{contentType:"image/jpeg"});if(error)throw error;return path}
-
-const css=document.createElement("style");css.textContent=`
-.ch-wrap{display:flex;flex-direction:column;height:calc(100dvh - var(--hdrH,96px) - 120px);min-height:360px;border:1px solid var(--line);border-radius:18px;overflow:hidden;background:var(--card)}
-.ch-head{display:flex;gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line);background:linear-gradient(90deg,var(--accS),var(--card))}
-.ch-head b{display:block}.ch-head .crumb{font-size:12px}
-.ch-list{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:4px;background:var(--bg);overscroll-behavior:contain}
-.ch-day{align-self:center;font-size:11.5px;font-weight:700;color:var(--mute);background:var(--card);border-radius:99px;padding:3px 10px;margin:8px 0;border:1px solid var(--line)}
-.ch-b{max-width:78%;padding:7px 10px 5px;border-radius:16px;position:relative;line-height:1.45;font-size:14.5px;overflow-wrap:anywhere;white-space:pre-wrap;user-select:text}
-.ch-b.me{align-self:flex-end;background:var(--acc);color:#fff;border-bottom-right-radius:5px}
-.ch-b.them{align-self:flex-start;background:var(--card);border:1px solid var(--line);border-bottom-left-radius:5px}
-.ch-b .t{display:block;text-align:right;font-size:10.5px;opacity:.75;margin-top:2px;white-space:nowrap}
-.ch-b img{display:block;max-width:100%;width:240px;border-radius:12px;margin:-2px -4px 4px;cursor:zoom-in;background:var(--th);min-height:80px}
-.ch-b .rx{position:absolute;bottom:-10px;font-size:13px;background:var(--card);border:1px solid var(--line);border-radius:99px;padding:0 5px;line-height:18px}
-.ch-b.me .rx{left:-6px}.ch-b.them .rx{right:-6px}.ch-b.hasrx{margin-bottom:10px}
-.ch-in{display:flex;gap:6px;align-items:flex-end;padding:8px;border-top:1px solid var(--line);background:var(--card)}
-.ch-in textarea{flex:1;min-width:0;resize:none;min-height:40px!important;height:40px;max-height:120px;border-radius:20px;padding:9px 14px;line-height:1.35;font:inherit}
-.ch-ic{all:unset;cursor:pointer;flex:none;width:40px;height:40px;border-radius:99px;display:flex;align-items:center;justify-content:center;font-size:18px;background:var(--th)}
-.ch-ic.send{background:var(--acc);color:#fff}.ch-ic:focus-visible{outline:3px solid var(--acc)}.ch-ic[disabled]{opacity:.5}
-.ch-quick{display:flex;gap:4px;padding:0 8px 6px;background:var(--card);overflow-x:auto}.ch-quick button{all:unset;cursor:pointer;font-size:20px;padding:2px 4px}
-.ch-b.stk{background:none!important;border:0!important;padding:0;max-width:none}.ch-b.stk .t{color:var(--mute);opacity:1;background:var(--card);border-radius:99px;padding:0 6px;display:inline-block;float:right}
-.stk-w{display:block}.stk-w .pipi{display:block;animation:none!important}
-.stk-k{display:inline-flex;flex-direction:column;align-items:center;gap:0}.stk-cap{font-weight:900;font-size:13px;line-height:1.1;color:#fff;background:var(--acc);border:2px solid #fff;border-radius:10px;padding:3px 8px;margin-top:-12px;box-shadow:0 2px 6px rgba(0,0,0,.15);white-space:nowrap;position:relative}
-.stk-grid .stk-cap{font-size:9px;padding:1px 5px;margin-top:-8px;border-width:1.5px}
-.ch-quick button{display:flex;align-items:center}.ch-quick .pipi{animation:none!important}
-.ch-ic.on{background:var(--accS);outline:2px solid var(--acc)}
-.stk-panel{border-top:1px solid var(--line);background:var(--card)}
-.stk-tabs{display:flex;gap:4px;overflow-x:auto;padding:6px 8px 0}.stk-tabs button{all:unset;cursor:pointer;white-space:nowrap;font-size:12.5px;font-weight:800;padding:6px 10px;border-radius:99px;color:var(--mute)}.stk-tabs button.on{background:var(--accS);color:var(--acc)}
-.stk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:4px;padding:8px;max-height:210px;overflow-y:auto}
-.stk-grid button{all:unset;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:12px;padding:2px;min-height:72px}.stk-grid button:hover,.stk-grid button:focus-visible{background:var(--th)}
-.stk-grid .pipi{animation:none!important}.stk-grid.uni{grid-template-columns:repeat(auto-fill,minmax(44px,1fr))}.stk-grid.uni button{font-size:26px;min-height:44px}
-.rx-s{display:inline-flex;vertical-align:middle}.rx-s .pipi{animation:none!important}
-.ch-quote{all:unset;box-sizing:border-box;cursor:pointer;display:block;width:100%;border-left:3px solid currentColor;background:rgba(0,0,0,.08);border-radius:8px;padding:4px 8px;margin:0 0 5px;font-size:12.5px;line-height:1.35;overflow:hidden}
-.ch-b.them .ch-quote{border-left-color:var(--acc);background:var(--th)}.ch-quote b{display:block;font-size:11.5px}.ch-quote span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;opacity:.85;white-space:normal}
-.ch-fwd{display:block;font-size:11px;font-style:italic;opacity:.8;margin-bottom:3px}
-.ch-file{display:flex;gap:8px;align-items:center;min-width:200px;background:rgba(0,0,0,.08);border-radius:12px;padding:8px}.ch-b.them .ch-file{background:var(--th)}
-.ch-file .fi{font-size:26px}.ch-file .fm{flex:1;min-width:0}.ch-file .fm b{display:block;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ch-file .fm span{font-size:11px;opacity:.8}
-.ch-b.me .ch-file .sm{background:#fff;color:var(--acc);border-color:#fff}
-.ch-media video,.ch-media img{display:block;width:260px;max-width:100%;border-radius:12px;margin-top:6px;background:#000}.ch-media audio{width:240px;max-width:100%;margin-top:6px}
-.ch-b{transition:transform .15s}.ch-b.flash{animation:chf 1.4s}@keyframes chf{0%,60%{box-shadow:0 0 0 4px var(--acc)}100%{box-shadow:none}}
-.ch-replybar{display:flex;gap:8px;align-items:center;padding:6px 8px 6px 12px;border-top:1px solid var(--line);background:var(--card);border-left:4px solid var(--acc)}
-.ch-replybar>div{flex:1;min-width:0;font-size:12.5px}.ch-replybar b{display:block;color:var(--acc)}.ch-replybar .rs{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--mute)}
-.ch-tray{display:flex;gap:6px;overflow-x:auto;padding:8px;border-top:1px solid var(--line);background:var(--card)}
-.ch-ti{position:relative;flex:none;width:76px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10.5px}
-.ch-ti img,.ch-ti .fi{width:76px;height:76px;object-fit:cover;border-radius:12px;background:var(--th);display:flex;align-items:center;justify-content:center;font-size:30px}
-.ch-ti .tn{width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;color:var(--mute)}
-.ch-ti button{all:unset;cursor:pointer;position:absolute;top:-4px;right:-4px;width:22px;height:22px;border-radius:99px;background:#e5484d;color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center}
-.ch-wrap{position:relative}.ch-drop{display:none;position:absolute;inset:0;z-index:5;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:var(--acc);background:color-mix(in srgb,var(--accS) 88%,transparent);border:3px dashed var(--acc);border-radius:18px;pointer-events:none}
-.ch-wrap.dragging .ch-drop{display:flex}
-.act-rx{max-height:none;padding:0 0 8px;grid-template-columns:repeat(auto-fill,minmax(52px,1fr))}.act-rx button{min-height:52px}
-.act-list{display:flex;flex-direction:column;gap:4px}.act-list button{all:unset;cursor:pointer;padding:11px 12px;border-radius:12px;font-size:14.5px;font-weight:700}.act-list button:hover,.act-list button:focus-visible{background:var(--th)}.act-list .danger{color:var(--red)}
-@media (prefers-reduced-motion:reduce){.ch-b{transition:none}.ch-b.flash{animation:none;outline:3px solid var(--acc)}}
-.ch-empty{margin:auto;text-align:center;color:var(--mute);font-size:13.5px;max-width:28ch}
-.fd-post{border:1px solid var(--line);border-radius:18px;background:var(--card);overflow:hidden;margin-bottom:14px}
-.fd-top{display:flex;gap:10px;align-items:center;padding:10px 12px}.fd-top b{display:block;font-size:14px}.fd-top .crumb{font-size:12px}
-.fd-av{width:36px;height:36px;border-radius:99px;flex:none;display:flex;align-items:center;justify-content:center;background:var(--accS);overflow:hidden}
-.fd-img{width:100%;aspect-ratio:4/5;object-fit:cover;display:block;background:var(--th);cursor:pointer}
-.fd-act{display:flex;gap:4px;align-items:center;padding:6px 8px 0}.fd-act button{all:unset;cursor:pointer;font-size:24px;padding:4px 6px;line-height:1}
-.fd-act button:focus-visible{outline:3px solid var(--acc);border-radius:8px}
-.fd-likes{font-weight:800;font-size:13.5px;padding:2px 14px}.fd-cap{padding:2px 14px 6px;font-size:14px;line-height:1.45;overflow-wrap:anywhere}
-.fd-cm{padding:0 14px;font-size:13.5px;line-height:1.5;overflow-wrap:anywhere}.fd-cm b{margin-right:4px}
-.fd-add{display:flex;gap:6px;padding:8px 10px 12px}.fd-add input{flex:1;min-width:0;border-radius:99px}
-.fd-heart{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:90px;pointer-events:none;animation:fdh .8s ease-out forwards}
-@keyframes fdh{0%{transform:scale(.3);opacity:0}30%{transform:scale(1.1);opacity:1}100%{transform:scale(1);opacity:0}}
-.fd-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;margin-bottom:12px}.fd-grid button{all:unset;cursor:pointer;aspect-ratio:1;background:var(--th);overflow:hidden}.fd-grid img{width:100%;height:100%;object-fit:cover;display:block}
-@media (prefers-reduced-motion:reduce){.fd-heart{animation:none;opacity:0}}
-`;document.head.appendChild(css);
-
-/* ---------- layar setup ---------- */
-function setupCard(v,title){
-  const notMember=S.setupErr==="notmember";
-  v.innerHTML=page(L("Berdua","Together"),title)+`<div class="region"><div class="rb"><div class="pipi-card" style="margin:0 0 12px">${window.pipi?window.pipi("think",64,"vnel"):""}<div class="bubble"><b>${notMember?L("Akun ini belum terdaftar sebagai pasangan","This account isn't registered as a couple member"):L("Satu langkah lagi: aktifkan Chat & Feed berdua","One more step: turn on Chat & Feed")}</b>
-   <div>${notMember?L("Jalankan ulang skrip couple-social.sql di Supabase setelah akun ini dibuat.","Re-run couple-social.sql in Supabase after this account was created."):L("Data akunmu dan akun Vina terkunci terpisah. Chat butuh tabel bersama yang hanya bisa dibuka kalian berdua.","Your data and Vina's are locked separately. Chat needs a shared table only you two can open.")}</div></div></div>
-   <ol style="margin:0;padding-left:1.2em;line-height:1.7"><li>${L("Buka","Open")} <b>supabase.com</b> → project → <b>SQL Editor</b> → <b>New query</b>.</li><li>${L("Salin isi file","Copy the file")} <code>supabase/couple-social.sql</code> ${L("dari repo GitHub, tempel, lalu","from the GitHub repo, paste, then")} <b>Run</b>.</li><li>${L("Kembali ke sini dan ketuk Coba lagi.","Come back here and tap Try again.")}</li></ol>
-   <div class="tl-row" style="margin-top:12px"><button class="pri" id="soRetry">↻ ${L("Coba lagi","Try again")}</button><a class="sm" href="https://github.com/lieonhs/my_litte_honey_vina_hun/blob/main/supabase/couple-social.sql" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;padding:6px 12px;border:1px solid var(--line);border-radius:10px;color:var(--ink);text-decoration:none">📄 ${L("Buka file SQL","Open SQL file")}</a></div>
-   <p class="crumb" style="margin:10px 0 0">${L("Detail teknis: ","Technical detail: ")}${esc(S.setupErr)}</p></div></div>`;
-  $("soRetry").onclick=()=>{S.ready=null;S.setupErr="";render()}}
-function withInit(v,title,draw){
-  if(S.me&&!S.setupErr&&S.ready){draw(v);return}
-  v.innerHTML=page(L("Berdua","Together"),title)+`<div class="region"><div class="rb crumb">${L("Menyambungkan…","Connecting…")}</div></div>`;
-  init().then(()=>{if(document.getElementById("view")===v||v.isConnected)draw(v)}).catch(()=>{if(v.isConnected)setupCard(v,title)})}
-
-/* =====================================================================
-   CHAT
-   ===================================================================== */
-let lastCount=-1;
-/* ---------- format pesan: teks biasa, atau "j1:{...}" untuk balasan / file / diteruskan (ikut terenkripsi) ---------- */
-function parse(shown){if(typeof shown==="string"&&shown.startsWith("j1:")){try{const o=JSON.parse(shown.slice(3));return {t:o.t||"",r:o.r||null,f:o.f||null,fwd:!!o.fwd,ik:o.ik||null}}catch(e){}}return {t:shown||"",r:null,f:null,fwd:false,ik:null}}
-function pack(o){if(!o.r&&!o.f&&!o.fwd&&!o.ik)return o.t||"";return "j1:"+JSON.stringify({t:o.t||undefined,r:o.r||undefined,f:o.f||undefined,fwd:o.fwd||undefined,ik:o.ik||undefined})}
-const PK={};   /* kunci acak foto yang baru diunggah: path → kunci */
-const ikMap=list=>{const m={};for(const x of list){const o=parse(pt(x.b));if(o.ik&&x.p)m[x.p]=o.ik}return m};
+  const {error}=await sb.storage.from("couple").upload(path,blob,{contentType:ext===".enc"?"application/octet-stream":"image/jpeg"});if(error)throw error;return path}
 const MAXF=50*1024*1024;
 const fmtSize=n=>n<1024?n+" B":n<1048576?(n/1024).toFixed(0)+" KB":(n/1048576).toFixed(1).replace(".",",")+" MB";
 const fIcon=m=>/^video\//.test(m)?"🎬":/^audio\//.test(m)?"🎵":/pdf/.test(m)?"📕":/sheet|excel|csv/.test(m)?"📊":/word|document/.test(m)?"📄":/presentation|powerpoint/.test(m)?"📽️":/zip|rar|7z|compressed/.test(m)?"🗜️":/^image\//.test(m)?"🖼️":"📎";
-function snip(m){const o=parse(pt(m.body));if(isStk(o.t))return "🧸 "+L("Stiker","Sticker");if(/^\[call:/.test(o.t))return "📞 "+L("Panggilan","Call");
-  if(o.f)return fIcon(o.f.m)+" "+o.f.n;if(m.img&&!o.t)return "📷 "+L("Foto","Photo");return (o.t||"").slice(0,90)}
 async function uploadFile(file){if(file.size>MAXF)throw new Error(L("Ukuran maksimal 50 MB: ","Max size is 50 MB: ")+file.name);
-  let blob=file,ext=(/\.([a-z0-9]{1,6})$/i.exec(file.name||"")||[,"bin"])[1].toLowerCase(),ct=file.type||"application/octet-stream",enc=false;
-  let fk=null;if(E2()){const r=await E2().encBlob(file);if(r.ext===".enc"){blob=new Blob([await r.blob.arrayBuffer()],{type:"application/octet-stream"});ext="enc";ct="application/octet-stream";enc=true;fk=r.k}}
+  let blob=file,ext=(/\.([a-z0-9]{1,6})$/i.exec(file.name||"")||[,"bin"])[1].toLowerCase(),ct=file.type||"application/octet-stream",enc=false,fk=null;
+  if(E2()){const r=await E2().encBlob(file);if(r.ext===".enc"){blob=r.blob;ext="enc";ct="application/octet-stream";enc=true;fk=r.k}}
   const path=S.me+"/f_"+Date.now().toString(36)+Math.random().toString(36).slice(2,6)+"."+ext;
   const {error}=await sb.storage.from("couple").upload(path,blob,{contentType:ct});if(error)throw error;
   return {p:path,n:(file.name||"file").slice(0,120),s:file.size,m:file.type||"application/octet-stream",e:enc,k:fk||undefined}}
 async function fileURL(f){const u=(await urlsFor([f.p]))(f.p);if(!f.e)return u;
   const r=await fetch(u);if(!r.ok)throw new Error("HTTP "+r.status);const buf=await r.arrayBuffer();
   const plain=await window.RAVI_E2E_DEC(buf,f.k);return URL.createObjectURL(new Blob([plain],{type:f.m}))}
-const isPhoto=f=>/^image\/(jpeg|png|webp|heic|heif)$/i.test(f.type||"");
+const isPhoto=f=>/^image\/(jpeg|png|webp|heic|heif|gif)$/i.test(f.type||"");
+/* isi <img data-img> dengan foto (didekripsi bila perlu) */
+async function fillImgs(root,ikFn){const imgs=[...root.querySelectorAll("img[data-img]")].filter(i=>!i.dataset.done);if(!imgs.length)return;
+  const u=await urlsFor(imgs.map(i=>i.dataset.img));
+  imgs.forEach(i=>{const p=i.dataset.img,s=E2()?E2().imgSrc(p,u(p),ikFn?ikFn(p):PK[p]):u(p);if(s){i.src=s;i.dataset.done="1"}})}
+function dl(url,nm){const a=document.createElement("a");a.href=url;a.download=nm||"file";a.rel="noopener";document.body.appendChild(a);a.click();a.remove()}
 
-function drawChat(v,live){
-  const other=Object.keys(S.members).find(u=>u!==S.me),oName=other?name(other):L("Pasangan","Partner");
-  const list=v.querySelector(".ch-list"),atBottom=list?list.scrollHeight-list.scrollTop-list.clientHeight<80:true,prevTop=list?list.scrollTop:0;
-  const ta=v.querySelector("#chTxt");if(ta)S.draft=ta.value;const hadFocus=ta&&document.activeElement===ta;
-  S.tray=S.tray||[];
-  let html="",lastDay="";
-  for(const m of S.msgs){const dl=dayLbl(m.created_at);if(dl!==lastDay){html+=`<div class="ch-day">${dl}</div>`;lastDay=dl}
-    const mine=m.sender===S.me,rx=Object.values(m.reacts||{});
-    const o=parse(pt(m.body)),stk=isStk(o.t)&&!o.r&&!o.f;
-    html+=`<div class="ch-b ${mine?"me":"them"}${stk?" stk":""}${rx.length?" hasrx":""}" data-m="${m.id}" id="msg${m.id}">`+
-      (o.fwd?`<span class="ch-fwd">↪️ ${L("Diteruskan","Forwarded")}</span>`:"")+
-      (o.r?`<button class="ch-quote" data-jump="${+o.r.id||0}"><b></b><span></span></button>`:"")+
-      (m.img?`<img data-img="${esc(m.img)}" alt="${L("Foto","Photo")}">`:"")+
-      (o.f?`<div class="ch-file"><span class="fi">${fIcon(o.f.m)}</span><div class="fm"><b></b><span>${fmtSize(o.f.s||0)}${o.f.e?" · 🔐":""}</span></div><button class="sm" data-open="${m.id}">${/^video\//.test(o.f.m)?"▶ "+L("Putar","Play"):/^image\//.test(o.f.m)?L("Lihat","View"):"⬇ "+L("Unduh","Download")}</button></div><div class="ch-media" data-media="${m.id}"></div>`:"")+
-      (stk?`<span class="stk-w" data-stk="${stkKey(o.t)}">${stkSVG(stkKey(o.t),124)}</span>`:(o.t||!m.img&&!o.f?`<span class="bd"></span>`:""))+
-      `<span class="t">${hhmm(m.created_at)}${mine?" "+(m.read_at?"✓✓":"✓"):""}</span>${rx.length?`<span class="rx">${[...new Set(rx)].map(rxHTML).join("")}</span>`:""}</div>`}
-  v.innerHTML=page(L("Berdua","Together"),"💬 Chat")+
-   `<div class="ch-wrap" id="chWrap"><div class="ch-head">${window.pipi?window.pipi("happy",40,other&&/^vina/i.test(S.members[other]||"")?"vcap":other&&/^(rafi|el)/i.test(S.members[other]||"")?"erusa":"vnel"):""}<div><b></b><span class="crumb">${L("Tahan / klik kanan pesan untuk balas, teruskan, salin · geser ke kanan untuk balas","Long-press / right-click a message to reply, forward, copy · swipe right to reply")}</span></div></div>
-    <div class="ch-list" role="log" aria-live="polite">${html||`<div class="ch-empty">${L("Belum ada pesan. Sapa duluan! 👋","No messages yet. Say hi first! 👋")}</div>`}</div>
-    <div class="ch-drop" aria-hidden="true">📥 ${L("Lepas untuk mengirim","Drop to send")}</div>
-    ${S.reply?`<div class="ch-replybar"><div><b>↩️ ${L("Membalas","Replying to")} <span class="rw"></span></b><span class="rs"></span></div><button class="ch-ic" id="chRx" aria-label="${L("Batal balas","Cancel reply")}">✕</button></div>`:""}
-    ${S.tray.length?`<div class="ch-tray">${S.tray.map((x,i)=>`<div class="ch-ti">${x.prev?`<img src="${x.prev}" alt="">`:`<span class="fi">${fIcon(x.file.type||"")}</span>`}<span class="tn"></span><button data-trx="${i}" aria-label="${L("Hapus lampiran","Remove attachment")}">✕</button></div>`).join("")}</div>`:""}
-    <div class="ch-in"><label class="ch-ic" for="chFile" aria-label="${L("Kirim foto","Send photo")}" title="${L("Foto","Photo")}">📷</label><input type="file" id="chFile" accept="image/*" multiple hidden>
-     <label class="ch-ic" for="chAny" aria-label="${L("Kirim file","Send file")}" title="${L("File (maks. 50 MB)","File (max 50 MB)")}">📎</label><input type="file" id="chAny" multiple hidden>
-     <button class="ch-ic${stkOpen?" on":""}" id="chStk" aria-label="${L("Stiker","Stickers")}" aria-expanded="${stkOpen}" title="${L("Stiker","Stickers")}">🧸</button>
-     <textarea id="chTxt" rows="1" placeholder="${S.tray.length?L("Tambah keterangan…","Add a caption…"):L("Tulis pesan… (bisa tempel gambar)","Type a message… (paste images too)")}" aria-label="${L("Pesan","Message")}"></textarea><button class="ch-ic send" id="chSend" aria-label="${L("Kirim","Send")}"${S.sending?" disabled":""}>➤</button></div>
-    ${stkOpen?`<div class="stk-panel"><div class="stk-tabs" role="tablist">${STABS().map(([k,n])=>`<button role="tab" aria-selected="${k===stkTab}" class="${k===stkTab?"on":""}" data-st="${k}">${n}</button>`).join("")}</div>
-      <div class="stk-grid${stkTab==="emoji"?" uni":""}">${stkTab==="emoji"?UNI.map(e=>`<button data-q="${e}" aria-label="${e}">${e}</button>`).join(""):STABS().find(x=>x[0]===stkTab)[2].map(k=>`<button data-send="${k}" data-stk="${k}" aria-label="${L("Kirim stiker","Send sticker")}">${stkSVG(k,64)}</button>`).join("")}</div></div>`
-     :`<div class="ch-quick">${EMOTES.map(k=>`<button data-send="${k}" aria-label="${L("Kirim emote","Send emote")}">${stkSVG(k,34)}</button>`).join("")}</div>`}</div>`;
-  v.querySelector(".ch-head b").textContent=oName;
-  v.querySelectorAll(".ch-b").forEach(b=>{const m=S.msgs.find(x=>x.id==b.dataset.m),o=parse(pt(m.body)),bd=b.querySelector(".bd");if(bd)bd.textContent=o.t||"";
-    const q=b.querySelector(".ch-quote");if(q&&o.r){q.querySelector("b").textContent=o.r.w||"";q.querySelector("span").textContent=o.r.s||""}
-    const fn=b.querySelector(".ch-file .fm b");if(fn&&o.f)fn.textContent=o.f.n});
-  if(S.reply){v.querySelector(".ch-replybar .rw").textContent=S.reply.w;v.querySelector(".ch-replybar .rs").textContent=S.reply.s}
-  v.querySelectorAll(".ch-tray .tn").forEach((n,i)=>n.textContent=S.tray[i].file.name||L("Tempelan","Pasted"));
-  fillCaps(v);
-  const nl=v.querySelector(".ch-list"),wrap=v.querySelector("#chWrap");
-  const grow=()=>{const t=$("chTxt");t.style.height="auto";t.style.height=Math.min(120,t.scrollHeight)+"px"};
-  const t=$("chTxt");t.value=S.draft;grow();if(hadFocus||(!live&&matchMedia("(min-width:861px)").matches))t.focus();
-  if(atBottom||!live||S.msgs.length!==lastCount&&S.msgs[S.msgs.length-1]?.sender===S.me)nl.scrollTop=nl.scrollHeight;else nl.scrollTop=prevTop;lastCount=S.msgs.length;
-  const ikc=ikMap(S.msgs.map(m=>({p:m.img,b:m.body})));
-  urlsFor(S.msgs.map(m=>m.img)).then(u=>v.querySelectorAll("[data-img]").forEach(i=>{const s=E2()?E2().imgSrc(i.dataset.img,u(i.dataset.img),ikc[i.dataset.img]):u(i.dataset.img);if(s)i.src=s;i.onload=()=>{if(atBottom||!live)nl.scrollTop=nl.scrollHeight}}));
-  t.oninput=()=>{S.draft=t.value;grow()};
-  t.onkeydown=e=>{if(e.key==="Enter"&&!e.shiftKey&&matchMedia("(hover:hover)").matches){e.preventDefault();send()}if(e.key==="Escape"&&S.reply){S.reply=null;drawChat(v,true)}};
-  /* tempel gambar / file dari clipboard */
-  t.addEventListener("paste",e=>{const fs=[...(e.clipboardData?.files||[])];if(!fs.length){const it=[...(e.clipboardData?.items||[])].filter(x=>x.kind==="file").map(x=>x.getAsFile()).filter(Boolean);fs.push(...it)}
-    if(fs.length){e.preventDefault();addTray(fs)}});
-  /* seret & lepas */
-  let dz=0;wrap.addEventListener("dragenter",e=>{if([...(e.dataTransfer?.types||[])].includes("Files")){e.preventDefault();dz++;wrap.classList.add("dragging")}});
-  wrap.addEventListener("dragover",e=>{if([...(e.dataTransfer?.types||[])].includes("Files"))e.preventDefault()});
-  wrap.addEventListener("dragleave",()=>{dz=Math.max(0,dz-1);if(!dz)wrap.classList.remove("dragging")});
-  wrap.addEventListener("drop",e=>{e.preventDefault();dz=0;wrap.classList.remove("dragging");const fs=[...(e.dataTransfer?.files||[])];if(fs.length)addTray(fs)});
-  function addTray(files){for(const f of files.slice(0,10)){if(f.size>MAXF){status(L("Terlalu besar (maks. 50 MB): ","Too large (max 50 MB): ")+f.name,"warn");continue}
-      S.tray.push({file:f,prev:/^image\//.test(f.type)?URL.createObjectURL(f):null})}drawChat(v,true);$("chTxt").focus()}
-  v.querySelectorAll("[data-trx]").forEach(b=>b.onclick=()=>{const x=S.tray.splice(+b.dataset.trx,1)[0];if(x&&x.prev)URL.revokeObjectURL(x.prev);drawChat(v,true)});
-  const rx=$("chRx");if(rx)rx.onclick=()=>{S.reply=null;drawChat(v,true)};
-  $("chSend").onclick=send;
-  v.querySelectorAll("[data-q]").forEach(b=>b.onclick=()=>{t.value+=b.dataset.q;S.draft=t.value;t.focus()});
-  $("chStk").onclick=()=>{stkOpen=!stkOpen;drawChat(v,true)};
-  v.querySelectorAll("[data-st]").forEach(b=>b.onclick=()=>{stkTab=b.dataset.st;drawChat(v,true)});
-  v.querySelectorAll("[data-send]").forEach(b=>b.onclick=()=>sendBody({t:"[stk:"+b.dataset.send+"]"}));
-  $("chFile").onchange=e=>{const fs=[...e.target.files];e.target.value="";if(fs.length)addTray(fs)};
-  $("chAny").onchange=e=>{const fs=[...e.target.files];e.target.value="";if(fs.length)addTray(fs)};
-  /* lompat ke pesan yang dikutip */
-  v.querySelectorAll("[data-jump]").forEach(q=>q.onclick=e=>{e.stopPropagation();const el=document.getElementById("msg"+q.dataset.jump);
-    if(el){el.scrollIntoView({block:"center",behavior:"smooth"});el.classList.add("flash");setTimeout(()=>el.classList.remove("flash"),1400)}else status(L("Pesan aslinya sudah tidak ada.","The original message is gone."),"warn")});
-  /* buka / putar / unduh file */
-  v.querySelectorAll("[data-open]").forEach(b=>b.onclick=async e=>{e.stopPropagation();const m=S.msgs.find(x=>x.id==b.dataset.open),o=parse(pt(m.body));if(!o.f)return;
-    b.disabled=true;const old=b.textContent;b.textContent="…";
-    try{const url=await fileURL(o.f);const box=v.querySelector(`[data-media="${m.id}"]`);
-      if(/^video\//.test(o.f.m)){box.innerHTML=`<video controls playsinline preload="metadata"></video>`;const vd=box.querySelector("video");vd.src=url;vd.play().catch(()=>{});b.textContent="⬇";b.disabled=false;b.onclick=ev=>{ev.stopPropagation();dl(url,o.f.n)}}
-      else if(/^audio\//.test(o.f.m)){box.innerHTML=`<audio controls></audio>`;box.querySelector("audio").src=url;b.textContent="⬇";b.disabled=false;b.onclick=ev=>{ev.stopPropagation();dl(url,o.f.n)}}
-      else if(/^image\//.test(o.f.m)){box.innerHTML=`<img alt="">`;box.querySelector("img").src=url;b.textContent="⬇";b.disabled=false;b.onclick=ev=>{ev.stopPropagation();dl(url,o.f.n)}}
-      else{dl(url,o.f.n);b.textContent=old;b.disabled=false}}
-    catch(err){b.textContent=old;b.disabled=false;status(L("Gagal membuka file: ","Couldn't open file: ")+(err.message||err),"err")}});
-  v.querySelectorAll(".ch-b").forEach(b=>{const id=+b.dataset.m,m=S.msgs.find(x=>x.id===id);let last=0,hold=0,sx=0,sy=0,swiped=false;
-    b.addEventListener("click",async e=>{if(e.target.closest("button,video,audio"))return;
-      if(e.target.matches("img")){const bg=modal(L("Foto","Photo"),`<img alt="" style="width:100%;border-radius:12px">`,()=>true,"OK");bg.querySelector("img").src=e.target.src;const c=bg.querySelector(".c");if(c)c.style.display="none";return}
-      const now=Date.now();if(now-last<350){const r={...(m.reacts||{})};if(r[S.me])delete r[S.me];else r[S.me]="❤️";m.reacts=r;drawChat(v,true);await sb.from("couple_msgs").update({reacts:r}).eq("id",id)}last=now});
-    const start=e=>{const p=e.touches[0];sx=p.clientX;sy=p.clientY;swiped=false;hold=setTimeout(()=>{if(!swiped)actions(m,v)},500)};
-    const move=e=>{const p=e.touches[0],dx=p.clientX-sx,dy=Math.abs(p.clientY-sy);if(dy>12||Math.abs(dx)>12)clearTimeout(hold);
-      if(dx>0&&dy<30){b.style.transform=`translateX(${Math.min(dx,80)}px)`;if(dx>60)swiped=true}};
-    const end=()=>{clearTimeout(hold);b.style.transform="";if(swiped&&m.id>0){setReply(m,v)}};
-    b.addEventListener("touchstart",start,{passive:true});b.addEventListener("touchmove",move,{passive:true});b.addEventListener("touchend",end);
-    b.addEventListener("contextmenu",e=>{e.preventDefault();actions(m,v)})});
-  markRead();badge();
-  async function send(){const body=t.value.trim();if((!body&&!S.tray.length)||S.sending)return;t.value="";S.draft="";grow();
-    if(S.tray.length){const items=S.tray.splice(0);S.sending=true;drawChat(v,true);let cap=body,n=0;
-      for(const it of items){status(L("Mengirim ","Sending ")+(++n)+"/"+items.length+"…","");
-        try{const r=S.reply?{id:S.reply.id,w:S.reply.w,s:S.reply.s}:null;
-          if(isPhoto(it.file)){const p=await upPhoto(it.file,1600);const o={t:cap,r,ik:PK[p]};const {error}=await sb.from("couple_msgs").insert({body:(cap||r||o.ik)?await seal(pack(o)):null,img:p});if(error)throw error}
-          else{const fm=await uploadFile(it.file);const {error}=await sb.from("couple_msgs").insert({body:await seal(pack({t:cap,r,f:fm}))});if(error)throw error}
-          cap="";S.reply=null}catch(err){status(L("Gagal mengirim ","Couldn't send ")+(it.file.name||"")+": "+(err.message||err),"err")}
-        if(it.prev)URL.revokeObjectURL(it.prev)}
-      S.sending=false;if(!document.querySelector("#status.err"))status("");
-      if(window.RAVI_NOTIFY)window.RAVI_NOTIFY("msg",{body:pushText("📎 "+items.length+" "+L("lampiran","attachment(s)"),"💬 "+L("Pesan baru (terenkripsi)","New message (encrypted)"))});
-      await loadMsgs().catch(()=>{});drawChat(v,false);return}
-    const r=S.reply?{id:S.reply.id,w:S.reply.w,s:S.reply.s}:null;S.reply=null;return sendBody({t:body,r},true)}
-  async function sendBody(o,fromText){if(S.sending)return;S.sending=true;const body=pack(o);
-    const tmp={id:-Date.now(),sender:S.me,body,created_at:new Date().toISOString(),reacts:{}};S.msgs.push(tmp);drawChat(v,false);
-    let sealed;try{sealed=await seal(body)}catch(e){S.sending=false;S.msgs=S.msgs.filter(x=>x.id!==tmp.id);if(fromText)S.draft=o.t||"";status(e.message,"warn");drawChat(v,false);return}
-    const {data,error}=await sb.from("couple_msgs").insert({body:sealed}).select().single();S.sending=false;
-    S.msgs=S.msgs.filter(x=>x.id!==tmp.id);if(error){if(fromText)S.draft=o.t||"";status(L("Pesan gagal terkirim: ","Message not sent: ")+error.message,"err")}else{if(data&&!S.msgs.some(x=>x.id===data.id))S.msgs.push(data);if(window.RAVI_NOTIFY)window.RAVI_NOTIFY("msg",{body:pushText(isStk(o.t)?"🧸 "+L("Stiker","Sticker"):(o.t||""),"💬 "+L("Pesan baru (terenkripsi)","New message (encrypted)"))})}
-    drawChat(v,false)}
-  S.sendBody=sendBody}
-function dl(url,name){const a=document.createElement("a");a.href=url;a.download=name||"file";a.rel="noopener";document.body.appendChild(a);a.click();a.remove()}
-function setReply(m,v){S.reply={id:m.id,w:name(m.sender),s:snip(m)};drawChat(v,true);$("chTxt")?.focus()}
-/* menu aksi pesan: reaksi, balas, teruskan, salin, hapus */
-function actions(m,v){if(m.id<0)return;const o=parse(pt(m.body)),mine=m.sender===S.me,opts=["❤️","stk:vnel:party","stk:vcap:happy","stk:erusa:party","stk:vorange:worried","stk:ekaget:worried","stk:pipi:party","😂"];
-  const bg=modal(L("Pesan","Message"),`<div class="stk-grid act-rx">${opts.map((x,i)=>`<button data-rp="${i}" aria-label="${L("Reaksi","Reaction")}">${x.startsWith("stk:")?stkSVG(x.slice(4),40):`<span style="font-size:28px">${x}</span>`}</button>`).join("")}</div>
-    <div class="act-list"><button data-a="reply">↩️ ${L("Balas","Reply")}</button><button data-a="fwd">↪️ ${L("Teruskan","Forward")}</button>${o.t&&!isStk(o.t)?`<button data-a="copy">📋 ${L("Salin teks","Copy text")}</button>`:""}${(m.reacts||{})[S.me]?`<button data-a="unreact">✖️ ${L("Hapus reaksiku","Remove my reaction")}</button>`:""}${mine?`<button data-a="del" class="danger">🗑️ ${L("Hapus untuk berdua","Delete for both")}</button>`:""}</div>`,()=>true,"OK");
-  const c=bg.querySelector(".c");if(c)c.style.display="none";const ok=bg.querySelector(".ok");if(ok)ok.textContent=L("Tutup","Close");
-  const setRx=async val=>{const r={...(m.reacts||{})};if(val)r[S.me]=val;else delete r[S.me];m.reacts=r;bg.remove();drawChat(v,true);await sb.from("couple_msgs").update({reacts:r}).eq("id",m.id)};
-  bg.querySelectorAll("[data-rp]").forEach(b=>b.onclick=()=>setRx(opts[+b.dataset.rp]));
-  bg.querySelectorAll("[data-a]").forEach(b=>b.onclick=async()=>{const a=b.dataset.a;bg.remove();
-    if(a==="reply")setReply(m,v);
-    else if(a==="copy"){try{await navigator.clipboard.writeText(o.t);status(L("Teks disalin 📋","Text copied 📋"),"ok")}catch(e){status(L("Browser menolak menyalin. Tahan teksnya untuk menyalin manual.","The browser blocked copying. Long-press the text to copy manually."),"warn")}}
-    else if(a==="unreact")setRx(null);
-    else if(a==="del")delMsg(m,v);
-    else if(a==="fwd")forward(m,o,v)})}
-function forward(m,o,v){const canShare=!!navigator.share;
-  const bg=modal(L("Teruskan pesan","Forward message"),`<div class="crumb" style="margin-bottom:8px"></div><div class="act-list">
-    <button data-f="chat">💬 ${L("Kirim ulang di chat ini","Send again in this chat")}</button><button data-f="note">📝 ${L("Simpan ke Catatan","Save to Notes")}</button>${canShare?`<button data-f="share">📤 ${L("Bagikan ke aplikasi lain (WhatsApp, dll.)","Share to another app (WhatsApp, etc.)")}</button>`:""}</div>`,()=>true,"OK");
-  bg.querySelector(".crumb").textContent="“"+snip(m)+"”";const c=bg.querySelector(".c");if(c)c.style.display="none";const ok=bg.querySelector(".ok");if(ok)ok.textContent=L("Tutup","Close");
-  bg.querySelectorAll("[data-f]").forEach(b=>b.onclick=async()=>{const k=b.dataset.f;bg.remove();
-    try{if(k==="chat"){if(m.img){const {error}=await sb.from("couple_msgs").insert({body:await seal(pack({t:o.t,fwd:true,ik:o.ik})),img:m.img});if(error)throw error;await loadMsgs();drawChat(v,false)}
-        else if(S.sendBody)S.sendBody({t:o.t,f:o.f,fwd:true})}
-      else if(k==="note"){if(!col)throw new Error("offline");const body=(o.t||"")+(o.f?"\n📎 "+o.f.n:"")+(m.img&&!o.t?"📷 "+L("Foto dari chat","Photo from chat"):"");
-        await col.doc("nt_"+Date.now()).set({kind:"note",title:L("Dari chat · ","From chat · ")+name(m.sender),body,color:"blue",pinned:false,tags:["chat"],items:[],created:Date.now(),updated:Date.now()});status(L("Disimpan ke Catatan 📝","Saved to Notes 📝"),"ok")}
-      else if(k==="share"){let files=[];
-        if(o.f||m.img){try{const url=o.f?await fileURL(o.f):(document.querySelector(`#msg${m.id} img`)?.src||"");if(url){const blob=await (await fetch(url)).blob();files=[new File([blob],o.f?o.f.n:"foto.jpg",{type:o.f?o.f.m:"image/jpeg"})]}}catch(e){}}
-        const data=files.length&&navigator.canShare&&navigator.canShare({files})?{files,text:o.t||undefined}:{text:o.t||snip(m)};await navigator.share(data)}}
-    catch(e){if(e&&e.name!=="AbortError")status(L("Gagal meneruskan: ","Couldn't forward: ")+(e.message||e),"err")}})}
-function reactPick(m,v){const opts=["❤️","stk:vnel:party","stk:vcap:happy","stk:erusa:party","stk:vorange:worried","stk:ekaget:worried","stk:pipi:party","😂"];
-  const bg=modal(L("Beri reaksi","React"),`<div class="stk-grid">${opts.map((o,i)=>`<button data-rp="${i}" aria-label="${L("Reaksi","Reaction")}">${o.startsWith("stk:")?stkSVG(o.slice(4),48):`<span style="font-size:34px">${o}</span>`}</button>`).join("")}</div>${(m.reacts||{})[S.me]?`<button class="sm" id="rpX" style="margin-top:10px">${L("Hapus reaksiku","Remove my reaction")}</button>`:""}`,()=>true,"OK");
-  const c=bg.querySelector(".c");if(c)c.style.display="none";
-  const set=async val=>{const r={...(m.reacts||{})};if(val)r[S.me]=val;else delete r[S.me];m.reacts=r;bg.remove();drawChat(v,true);await sb.from("couple_msgs").update({reacts:r}).eq("id",m.id)};
-  bg.querySelectorAll("[data-rp]").forEach(b=>b.onclick=()=>set(opts[+b.dataset.rp]));const x=bg.querySelector("#rpX");if(x)x.onclick=()=>set(null)}
-function delMsg(m,v){const bg=modal(L("Hapus pesan?","Delete message?"),`<div class="crumb">${L("Pesan akan hilang untuk kalian berdua.","The message disappears for both of you.")}</div>`,async()=>{
-  const {error}=await sb.from("couple_msgs").delete().eq("id",m.id);if(error){alert(error.message);return false}S.msgs=S.msgs.filter(x=>x.id!==m.id);if(m.img)sb.storage.from("couple").remove([m.img]).catch(()=>{});drawChat(v,true)},L("Hapus","Delete"))}
-let readBusy=false;
-async function markRead(){if(readBusy||document.hidden||route!=="chat")return;const ids=S.msgs.filter(m=>m.sender!==S.me&&!m.read_at&&m.id>0).map(m=>m.id);if(!ids.length)return;readBusy=true;
-  const ts=new Date().toISOString();S.msgs.forEach(m=>{if(ids.includes(m.id))m.read_at=ts});
-  try{await sb.from("couple_msgs").update({read_at:ts}).in("id",ids)}catch(e){}readBusy=false;badge()}
+/* aktivitas untuk pusat notifikasi (tanpa isi pesan) */
+async function activity(target,kind,ref,meta){if(!target||target===S.me)return;try{await sb.from("couple_activity").insert({target,kind,ref:ref!=null?String(ref):null,meta:meta||{}})}catch(e){}}
+async function unActivity(kind,ref){try{await sb.from("couple_activity").delete().eq("actor",S.me).eq("kind",kind).eq("ref",String(ref))}catch(e){}}
+
+const css=document.createElement("style");css.textContent=`
+.rv-av{flex:none;display:inline-flex;align-items:center;justify-content:center;border-radius:99px;overflow:hidden;background:var(--accS);position:relative}
+.rv-av .pipi{animation:none!important;margin-top:8%}.rv-av.txt{color:#fff;font-weight:900;line-height:1}
+.stk-w{display:block}.stk-w .pipi{display:block;animation:none!important}
+.stk-k{display:inline-flex;flex-direction:column;align-items:center;gap:0}.stk-cap{font-weight:900;font-size:13px;line-height:1.1;color:#fff;background:var(--acc);border:2px solid #fff;border-radius:10px;padding:3px 8px;margin-top:-12px;box-shadow:0 2px 6px rgba(0,0,0,.15);white-space:nowrap;position:relative}
+.stk-grid .stk-cap{font-size:9px;padding:1px 5px;margin-top:-8px;border-width:1.5px}
+.rx-s{display:inline-flex;vertical-align:middle}.rx-s .pipi{animation:none!important}
+.fd-post{border:1px solid var(--line);border-radius:18px;background:var(--card);overflow:hidden;margin-bottom:14px;content-visibility:auto;contain-intrinsic-size:auto 640px}
+.fd-top{display:flex;gap:10px;align-items:center;padding:10px 12px}.fd-top b{display:block;font-size:14px}.fd-top .crumb{font-size:12px}
+.fd-img{width:100%;aspect-ratio:4/5;object-fit:cover;display:block;background:var(--th);cursor:pointer}
+.fd-act{display:flex;gap:4px;align-items:center;padding:6px 8px 0}.fd-act button{all:unset;cursor:pointer;font-size:24px;padding:4px 6px;line-height:1;transition:transform .15s}
+.fd-act button:active{transform:scale(.85)}.fd-act button:focus-visible{outline:3px solid var(--acc);border-radius:8px}
+.fd-likes{font-weight:800;font-size:13.5px;padding:2px 14px}.fd-cap{padding:2px 14px 6px;font-size:14px;line-height:1.45;overflow-wrap:anywhere}
+.fd-cm{padding:0 14px;font-size:13.5px;line-height:1.5;overflow-wrap:anywhere}.fd-cm b{margin-right:4px}
+.fd-add{display:flex;gap:6px;padding:8px 10px 12px}.fd-add input{flex:1;min-width:0;border-radius:99px}
+.fd-heart{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:90px;pointer-events:none;animation:fdh .8s ease-out forwards}
+@keyframes fdh{0%{transform:scale(.3);opacity:0}30%{transform:scale(1.1);opacity:1}100%{transform:scale(1);opacity:0}}
+.fd-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;margin-bottom:12px}.fd-grid button{all:unset;cursor:pointer;aspect-ratio:1;background:var(--th);overflow:hidden}.fd-grid img{width:100%;height:100%;object-fit:cover;display:block}
+@media (prefers-reduced-motion:reduce){.fd-heart{animation:none;opacity:0}}`;document.head.appendChild(css);
+
+/* ---------- layar setup / bukan pasangan ---------- */
+function setupCard(v,title){
+  const notMember=S.setupErr==="notmember";
+  v.innerHTML=page(L("Berdua","Together"),title)+`<div class="region"><div class="rb"><div class="pipi-card" style="margin:0 0 12px">${window.pipi?window.pipi("think",64,"vnel"):""}<div class="bubble"><b>${notMember?L("Akun ini belum terdaftar sebagai anggota RaVi","This account isn't a RaVi member yet"):L("Belum bisa tersambung","Can't connect yet")}</b>
+   <div>${notMember?L("Minta admin RaVi menambahkan akunmu (Chat → ＋ → Tambah anggota).","Ask the RaVi admin to add your account (Chat → ＋ → Add member)."):L("Periksa koneksi internet, lalu coba lagi.","Check your internet connection, then try again.")}</div></div></div>
+   <div class="tl-row"><button class="pri" id="soRetry">↻ ${L("Coba lagi","Try again")}</button></div>
+   <p class="crumb" style="margin:10px 0 0">${L("Detail teknis: ","Technical detail: ")}${esc(S.setupErr)}</p></div></div>`;
+  $("soRetry").onclick=()=>{S.ready=null;S.setupErr="";render()}}
+function withInit(v,title,draw){
+  if(S.me&&!S.setupErr&&S.ready){draw(v);return}
+  v.innerHTML=page(L("Berdua","Together"),title)+`<div class="region"><div class="rb crumb">${L("Menyambungkan…","Connecting…")}</div></div>`;
+  init().then(()=>{if(v.isConnected)draw(v)}).catch(()=>{if(v.isConnected)setupCard(v,title)})}
 
 /* =====================================================================
-   FEED
+   FEED (khusus pasangan)
    ===================================================================== */
 let fdMode="list";
+const sealCap=t=>sealFor(t,partners());
 function drawFeed(v){
-  const posts=S.posts;
+  if(!isPartner(S.me)){v.innerHTML=page(L("Berdua","Together"),"📷 Feed")+`<div class="region"><div class="rb crumb">${L("Feed ini khusus pasangan pemilik RaVi.","This feed is only for the RaVi couple.")}</div></div>`;return}
+  const posts=S.posts,y=window.scrollY;
   v.innerHTML=page(L("Berdua","Together"),"📷 Feed",`<button class="pri" id="fdNew">＋ ${L("Posting","Post")}</button><input type="file" id="fdFile" accept="image/*" hidden>`)+
    (posts.length?`<div class="tl-tabs"><button class="sm${fdMode==="list"?" pri":""}" data-fm="list">▤ ${L("Linimasa","Timeline")}</button><button class="sm${fdMode==="grid"?" pri":""}" data-fm="grid">▦ Grid</button><span class="crumb" style="align-self:center">${posts.length} ${L("postingan","posts")} · ❤️ ${posts.reduce((s,p)=>s+(p.likes||[]).length,0)}</span></div>`:"")+
    (fdMode==="grid"&&posts.length?`<div class="fd-grid">${posts.map(p=>`<button data-go="${p.id}" aria-label="${L("Buka postingan","Open post")}"><img data-img="${esc(p.img)}" alt=""></button>`).join("")}</div>`
-   :posts.length?posts.map(p=>{const liked=(p.likes||[]).includes(S.me),cm=S.comments[p.id]||[],who=name(p.author);
-     return `<article class="fd-post" id="post${p.id}" data-p="${p.id}"><div class="fd-top"><span class="fd-av">${window.pipi?window.pipi("happy",34,/^vina/i.test(who)?"vcap":/^(rafi|el)$/i.test(who)?"erusa":"vnel"):""}</span><div style="flex:1;min-width:0"><b class="au"></b><span class="crumb">${ago(p.created_at)}</span></div>${p.author===S.me?`<button class="sm" data-pdel="${p.id}" aria-label="${L("Hapus postingan","Delete post")}">⋯</button>`:""}</div>
-      <div style="position:relative"><img class="fd-img" data-img="${esc(p.img)}" data-dbl="${p.id}" alt=""></div>
+   :posts.length?posts.map(p=>{const liked=(p.likes||[]).includes(S.me),cm=S.comments[p.id]||[];
+     return `<article class="fd-post" id="post${p.id}" data-p="${p.id}"><div class="fd-top">${avatar(p.author,36)}<div style="flex:1;min-width:0"><b class="au"></b><span class="crumb">${ago(p.created_at)}</span></div>${p.author===S.me?`<button class="sm" data-pdel="${p.id}" aria-label="${L("Hapus postingan","Delete post")}">⋯</button>`:""}</div>
+      <div style="position:relative"><img class="fd-img" data-img="${esc(p.img)}" data-dbl="${p.id}" alt="" loading="lazy"></div>
       <div class="fd-act"><button data-like="${p.id}" aria-pressed="${liked}" aria-label="${L("Suka","Like")}">${liked?"❤️":"🤍"}</button><button data-cfocus="${p.id}" aria-label="${L("Komentar","Comment")}">💬</button></div>
       <div class="fd-likes">${(p.likes||[]).length?(esc((p.likes||[]).map(name).join(" & "))+L(" menyukai ini"," liked this")):L("Belum ada yang suka","No likes yet")}</div>
       ${p.caption&&parse(pt(p.caption)).t?`<div class="fd-cap"><b class="au"></b> <span class="cp"></span></div>`:""}
       ${cm.map(c=>`<div class="fd-cm" data-c="${c.id}"><b></b><span></span>${c.author===S.me?` <button class="lnk" data-cdel="${c.id}" style="font-size:11px">${L("hapus","delete")}</button>`:""}</div>`).join("")}
       <div class="fd-add"><input data-cin="${p.id}" placeholder="${L("Tambah komentar…","Add a comment…")}" maxlength="300"><button class="sm" data-csend="${p.id}">${L("Kirim","Send")}</button></div></article>`}).join("")
-   :`<div class="region"><div class="rb"><div class="pipi-card" style="margin:0">${window.pipi?window.pipi("party",64,"vnel"):""}<div class="bubble"><b>${L("Feed khusus kalian berdua","A feed just for you two")}</b><div>${L("Posting foto momen sehari-hari. Yang bisa lihat, like, dan komentar cuma kamu dan Vina.","Post everyday moments. Only you and Vina can see, like and comment.")}</div></div></div></div></div>`);
+   :`<div class="region"><div class="rb"><div class="pipi-card" style="margin:0">${window.pipi?window.pipi("party",64,"vnel"):""}<div class="bubble"><b>${L("Feed khusus kalian berdua","A feed just for you two")}</b><div>${L("Posting foto momen sehari-hari. Yang bisa lihat, like, dan komentar cuma kalian berdua.","Post everyday moments. Only the two of you can see, like and comment.")}</div></div></div></div></div>`);
+  window.scrollTo({top:y});
+  fillCaps(v);
   v.querySelectorAll(".fd-post").forEach(el=>{const p=posts.find(x=>x.id==el.dataset.p);el.querySelectorAll(".au").forEach(a=>a.textContent=name(p.author));const cp=el.querySelector(".cp");if(cp)cp.textContent=parse(pt(p.caption)).t;
     (S.comments[p.id]||[]).forEach(c=>{const r=el.querySelector(`[data-c="${c.id}"]`);r.querySelector("b").textContent=name(c.author);r.querySelector("span").textContent=pt(c.body)})});
-  const pik=ikMap(posts.map(p=>({p:p.img,b:p.caption})));urlsFor(posts.map(p=>p.img)).then(u=>v.querySelectorAll("[data-img]").forEach(i=>{const s=E2()?E2().imgSrc(i.dataset.img,u(i.dataset.img),pik[i.dataset.img]):u(i.dataset.img);if(s)i.src=s}));
+  const ik={};posts.forEach(p=>ik[p.img]=ikOf(p.img,p.caption));fillImgs(v,p=>ik[p]);
   v.querySelectorAll("[data-fm]").forEach(b=>b.onclick=()=>{fdMode=b.dataset.fm;drawFeed(v)});
   v.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{fdMode="list";drawFeed(v);document.getElementById("post"+b.dataset.go)?.scrollIntoView({block:"start"})});
   const like=async id=>{const p=S.posts.find(x=>x.id===id);const has=(p.likes||[]).includes(S.me);p.likes=has?p.likes.filter(x=>x!==S.me):[...(p.likes||[]),S.me];drawFeed(v);
-    const {data}=await sb.from("couple_posts").select("likes").eq("id",id).single();const cur=new Set(data?.likes||[]);has?cur.delete(S.me):cur.add(S.me);await sb.from("couple_posts").update({likes:[...cur]}).eq("id",id)};
+    const {data}=await sb.from("couple_posts").select("likes").eq("id",id).single();const cur=new Set(data?.likes||[]);has?cur.delete(S.me):cur.add(S.me);await sb.from("couple_posts").update({likes:[...cur]}).eq("id",id);
+    if(has)unActivity("like",id);else activity(p.author,"like",id)};
   v.querySelectorAll("[data-like]").forEach(b=>b.onclick=()=>like(+b.dataset.like));
   v.querySelectorAll("[data-dbl]").forEach(img=>{let last=0;img.addEventListener("click",()=>{const n=Date.now();if(n-last<350){const id=+img.dataset.dbl;const h=document.createElement("div");h.className="fd-heart";h.textContent="❤️";img.parentElement.appendChild(h);setTimeout(()=>h.remove(),900);if(!(S.posts.find(x=>x.id===id).likes||[]).includes(S.me))like(id)}last=n})});
   v.querySelectorAll("[data-cfocus]").forEach(b=>b.onclick=()=>v.querySelector(`[data-cin="${b.dataset.cfocus}"]`)?.focus());
   const sendC=async id=>{const inp=v.querySelector(`[data-cin="${id}"]`),body=inp.value.trim();if(!body)return;inp.value="";inp.blur();
-    let sealed;try{sealed=await seal(body)}catch(e){inp.value=body;status(e.message,"warn");return}const {data,error}=await sb.from("couple_comments").insert({post_id:id,body:sealed}).select().single();if(error){status(error.message,"err");return}
-    const a=S.comments[id]=S.comments[id]||[];if(!a.some(c=>c.id===data.id))a.push(data);drawFeed(v);if(window.RAVI_NOTIFY)window.RAVI_NOTIFY("post",{body:pushText("💬 "+body,"💬 "+L("Komentar baru","New comment"))})};
+    let sealed;try{sealed=await sealCap(body)}catch(e){inp.value=body;status(e.message,"warn");return}const {data,error}=await sb.from("couple_comments").insert({post_id:id,body:sealed}).select().single();if(error){status(error.message,"err");return}
+    const a=S.comments[id]=S.comments[id]||[];if(!a.some(c=>c.id===data.id))a.push(data);drawFeed(v);
+    const post=S.posts.find(x=>x.id===id);if(post)activity(post.author,"comment",data.id,{p:id});
+    if(window.RAVI_NOTIFY)window.RAVI_NOTIFY("post",{to:partners().filter(u=>u!==S.me),body:"💬 "+L("Komentar baru","New comment")})};
   v.querySelectorAll("[data-csend]").forEach(b=>b.onclick=()=>sendC(+b.dataset.csend));
   v.querySelectorAll("[data-cin]").forEach(i=>i.onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();sendC(+i.dataset.cin)}});
-  v.querySelectorAll("[data-cdel]").forEach(b=>b.onclick=async()=>{const id=+b.dataset.cdel;await sb.from("couple_comments").delete().eq("id",id);for(const k in S.comments)S.comments[k]=S.comments[k].filter(c=>c.id!==id);drawFeed(v)});
+  v.querySelectorAll("[data-cdel]").forEach(b=>b.onclick=async()=>{const id=+b.dataset.cdel;await sb.from("couple_comments").delete().eq("id",id);unActivity("comment",id);for(const k in S.comments)S.comments[k]=S.comments[k].filter(c=>c.id!==id);drawFeed(v)});
   v.querySelectorAll("[data-pdel]").forEach(b=>b.onclick=()=>{const p=S.posts.find(x=>x.id===+b.dataset.pdel);modal(L("Hapus postingan?","Delete post?"),`<div class="crumb">${L("Foto, like, dan komentarnya ikut terhapus.","The photo, likes and comments are deleted too.")}</div>`,async()=>{
-    const {error}=await sb.from("couple_posts").delete().eq("id",p.id);if(error){alert(error.message);return false}sb.storage.from("couple").remove([p.img]).catch(()=>{});S.posts=S.posts.filter(x=>x.id!==p.id);drawFeed(v)},L("Hapus","Delete"))});
+    const {error}=await sb.from("couple_posts").delete().eq("id",p.id);if(error){alert(error.message);return false}sb.storage.from("couple").remove([p.img]).catch(()=>{});unActivity("post",p.id);S.posts=S.posts.filter(x=>x.id!==p.id);drawFeed(v)},L("Hapus","Delete"))});
   $("fdNew").onclick=()=>$("fdFile").click();
   const fi=$("fdFile");fi.onchange=()=>{const f=fi.files[0];fi.value="";if(!f)return;const prev=URL.createObjectURL(f);
     const bg=modal(L("Postingan baru","New post"),`<img alt="" style="width:100%;max-height:50vh;object-fit:contain;border-radius:12px;background:var(--th)"><div style="height:10px"></div><label>${L("Keterangan","Caption")}</label><textarea id="fdCap" rows="3" maxlength="500" placeholder="${L("Tulis sesuatu…","Write something…")}"></textarea>`,
       async g=>{const btn=g.querySelector(".ok");btn.disabled=true;btn.textContent=L("Mengunggah…","Uploading…");
-        try{const path=await upPhoto(f,1600);const capT=g.querySelector("#fdCap").value.trim();const capO={t:capT,ik:PK[path]};const {data,error}=await sb.from("couple_posts").insert({img:path,caption:(capT||capO.ik)?await seal(pack(capO)):null}).select().single();if(error)throw error;
-          if(!S.posts.some(x=>x.id===data.id))S.posts.unshift(data);URL.revokeObjectURL(prev);if(window.RAVI_NOTIFY)window.RAVI_NOTIFY("post",{body:pushText("📷 "+(capT||L("Postingan baru","New post")),"📷 "+L("Postingan baru","New post"))});fdMode="list";drawFeed($("view"))}
+        try{const path=await upPhoto(f,1600);const capT=g.querySelector("#fdCap").value.trim();const capO={t:capT,ik:PK[path]};const {data,error}=await sb.from("couple_posts").insert({img:path,caption:(capT||capO.ik)?await sealCap(pack(capO)):null}).select().single();if(error)throw error;
+          if(!S.posts.some(x=>x.id===data.id))S.posts.unshift(data);URL.revokeObjectURL(prev);
+          partners().forEach(u=>activity(u,"post",data.id));
+          if(window.RAVI_NOTIFY)window.RAVI_NOTIFY("post",{to:partners().filter(u=>u!==S.me),body:"📷 "+L("Postingan baru","New post")});fdMode="list";drawFeed($("view"))}
         catch(e){btn.disabled=false;btn.textContent=L("Posting","Post");alert(L("Gagal posting: ","Couldn't post: ")+(e.message||e));return false}},L("Posting","Post"));
     bg.querySelector("img").src=prev}}
 
@@ -400,20 +216,18 @@ function drawFeed(v){
    PASANG
    ===================================================================== */
 window.EXTRA_VIEWS=Object.assign(window.EXTRA_VIEWS||{},{
-  chat:v=>{try{withInit(v,"💬 Chat",x=>drawChat(x,false))}catch(e){v.innerHTML='<div class="msg err">'+esc(e.message)+'</div>'}},
   feed:v=>{try{withInit(v,"📷 Feed",drawFeed)}catch(e){v.innerHTML='<div class="msg err">'+esc(e.message)+'</div>'}}});
-if(window.TOOL_ROUTES){window.TOOL_ROUTES.add("chat");window.TOOL_ROUTES.add("feed")}
+if(window.TOOL_ROUTES)window.TOOL_ROUTES.add("feed");
 NAV.splice(1,0,["Berdua",[["chat","💬 Chat"],["feed","📷 Feed"]]]);
-/* jangan render ulang halaman chat/feed karena data keuangan berubah; datanya punya realtime sendiri */
-if(typeof render==="function"){const _r=render;render=function(){if((route==="chat"||route==="feed")&&S.ready&&document.getElementById("view")?.querySelector(route==="chat"?".ch-wrap":".fd-post,.pipi-card")&&!render._nav){renderNav();badge();return}return _r.apply(this,arguments)}}
+if(typeof render==="function"){const _r=render;render=function(){if(route==="feed"&&S.ready&&document.getElementById("view")?.querySelector(".fd-post,.pipi-card")&&!render._nav){renderNav();return}return _r.apply(this,arguments)}}
 const _go=go;go=function(r){render._nav=true;try{return _go(r)}finally{render._nav=false}};
-/* sambungkan di latar belakang setelah login supaya notifikasi pesan baru tetap masuk */
-addEventListener("load",()=>{const t=setInterval(()=>{if(typeof col!=="undefined"&&col){clearInterval(t);init().then(()=>badge()).catch(()=>{})}},2000);setTimeout(()=>clearInterval(t),60000)});
-document.addEventListener("visibilitychange",()=>{if(!document.hidden&&route==="chat")markRead()});
-/* jangan ada popup pengingat yang menutupi kolom ketik saat chat/feed dibuka */
 if(window.doPeek){const _pk=window.doPeek;window.doPeek=function(){if(route==="chat"||route==="feed")return;return _pk.apply(this,arguments)}}
 const pkCss=document.createElement("style");pkCss.textContent="html.on-chat .peek{display:none!important}";document.head.appendChild(pkCss);
 const markRoute=r=>document.documentElement.classList.toggle("on-chat",r==="chat"||r==="feed");
 const _go2=go;go=function(r){markRoute(r);return _go2.apply(this,arguments)};
 addEventListener("load",()=>markRoute(route));
+
+window.RS={S,init,loadMembers,name,isPartner,partners,hhmm,ago,avatar,groupAvatar,pipiM,charOf,
+  KATA,STABS,EMOTES,UNI,isStk,stkKey,stkSVG,fillCaps,rxHTML,pt,isEnc,sealFor,parse,pack,PK,ikOf,
+  urlsFor,upPhoto,uploadFile,fileURL,isPhoto,fIcon,fmtSize,MAXF,fillImgs,dl,activity,unActivity,setupCard,withInit,L};
 })();

@@ -46,7 +46,12 @@ const css=document.createElement("style");css.textContent=`
 #menuSheet .ms-it:focus-visible{outline:3px solid var(--acc)}
 #menuSheet .ms-empty{color:var(--mute);text-align:center;margin-top:30px}
 .ms-hbtn{background:none;color:var(--hdrInk);border-color:rgba(255,255,255,.35)}
-@media (prefers-reduced-motion:reduce){#menuSheet{animation:none}#tabbar button .i{transition:none}}`;document.head.appendChild(css);
+@media (prefers-reduced-motion:reduce){#menuSheet{animation:none}#tabbar button .i{transition:none}}
+/* HP: lebih ringan — tanpa blur mahal, karakter hanya bergerak di kartu utama */
+@media (max-width:860px),(pointer:coarse){
+ html.has-tabbar #tabbar{backdrop-filter:none;-webkit-backdrop-filter:none;background:var(--card)}
+ .pipi{animation:none!important}.pipi-card .pipi,.qt-card .pipi,#callUI .pipi{animation:pipiBob 2.6s ease-in-out infinite!important}
+}`;document.head.appendChild(css);
 document.documentElement.classList.add("has-tabbar");
 
 /* ---------- tab bar ---------- */

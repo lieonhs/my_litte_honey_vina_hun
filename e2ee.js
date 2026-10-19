@@ -1,14 +1,13 @@
 /* =====================================================================
-   🔐 ENKRIPSI END-TO-END OTOMATIS (ala WhatsApp) untuk Chat & Feed
-   v2 (default, tanpa kata sandi):
-   - Tiap perangkat membuat pasangan kunci ECDH P-256 sendiri. Kunci privat disimpan
-     di perangkat (IndexedDB, tidak bisa diekspor); kunci publik didaftarkan di tabel
-     couple_devices.
-   - Tiap pesan/foto/file dikunci dengan kunci acak AES-256-GCM baru. Kunci itu
-     dibungkus untuk SETIAP perangkat penerima (pasangan + perangkatmu yang lain)
-     memakai ECDH → HKDF-SHA256 → AES-GCM.
-   - Kode keamanan 60 digit (SHA-512 dari semua kunci publik) untuk dicocokkan langsung.
-   v1 (lama, kata sandi bersama): tetap bisa DIBACA bila pernah dipakai.
+   🔐 ENKRIPSI END-TO-END PER AKUN (v3) untuk Chat, Grup & Feed
+   - Tiap AKUN punya pasangan kunci ECDH P-256. Kunci privat dibungkus AES-GCM dengan
+     kunci turunan PBKDF2-SHA256 (600.000×) dari password login, lalu disimpan di
+     couple_ukeys. Server hanya melihat bungkusannya — tanpa password tidak bisa dibuka.
+   - Login di HP/laptop mana pun → password membuka kunci yang sama → pesan lama tetap terbaca.
+   - Tiap pesan dikunci dengan kunci acak AES-256-GCM; kunci itu dibungkus untuk setiap
+     anggota chat (ECDH → HKDF-SHA256 → AES-GCM). Foto & file: kunci acak per berkas.
+   - Kode keamanan 60 digit per kontak (SHA-512 dari kedua kunci publik).
+   - v1 (kata sandi bersama) & v2 (per perangkat) tetap bisa DIBACA bila pernah dipakai.
    ===================================================================== */
 (function(){
 const EN=()=>{try{return localStorage.getItem("bbp_lang")==="en"}catch(e){return false}};
@@ -16,16 +15,16 @@ const L=(id,en)=>EN()?en:id;
 const te=new TextEncoder(),td=new TextDecoder();
 const toB64=u=>{let s="";const b=u instanceof Uint8Array?u:new Uint8Array(u);for(let i=0;i<b.length;i+=0x8000)s+=String.fromCharCode.apply(null,b.subarray(i,i+0x8000));return btoa(s)};
 const fromB64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
-const secure=()=>!!(window.crypto&&crypto.subtle);
-const E={uid:null,dev:null,devices:[],devAt:0,ok:false,err:null,loading:null,
-  cache:new Map(),pending:new Set(),imgs:new Map(),wrapKeys:new Map(),pubKeys:new Map(),
-  v1row:null,v1key:null,changed:false,partner:null};
+const secure=()=>!!(window.crypto&&crypto.subtle&&window.indexedDB);
+const ITER=600000;
+const E={uid:null,email:"",state:"init",err:null,priv:null,pub:null,keys:new Map(),loading:null,
+  cache:new Map(),pending:new Set(),imgs:new Map(),wrap:new Map(),pubKeys:new Map(),
+  v1row:null,v1key:null,dev:null,devices:null,listeners:new Set()};
 
 /* ---------- IndexedDB ---------- */
 function idb(){return new Promise((res,rej)=>{const r=indexedDB.open("ravi-e2e",2);r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains("keys"))r.result.createObjectStore("keys")};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
-async function idbGet(k){const db=await idb();return new Promise(res=>{const t=db.transaction("keys").objectStore("keys").get(k);t.onsuccess=()=>res(t.result||null);t.onerror=()=>res(null)})}
-async function idbPut(k,v){const db=await idb();return new Promise(res=>{const t=db.transaction("keys","readwrite");t.objectStore("keys").put(v,k);t.oncomplete=()=>res(true);t.onerror=()=>res(false)})}
-async function idbDel(k){const db=await idb();return new Promise(res=>{const t=db.transaction("keys","readwrite");t.objectStore("keys").delete(k);t.oncomplete=()=>res(true);t.onerror=()=>res(false)})}
+async function idbGet(k){try{const db=await idb();return await new Promise(res=>{const t=db.transaction("keys").objectStore("keys").get(k);t.onsuccess=()=>res(t.result||null);t.onerror=()=>res(null)})}catch(e){return null}}
+async function idbPut(k,v){try{const db=await idb();return await new Promise(res=>{const t=db.transaction("keys","readwrite");t.objectStore("keys").put(v,k);t.oncomplete=()=>res(true);t.onerror=()=>res(false)})}catch(e){return false}}
 
 /* ---------- primitif ---------- */
 async function aesEnc(key,bytes){const iv=crypto.getRandomValues(new Uint8Array(12));const ct=new Uint8Array(await crypto.subtle.encrypt({name:"AES-GCM",iv},key,bytes));const o=new Uint8Array(12+ct.length);o.set(iv);o.set(ct,12);return o}
@@ -33,134 +32,186 @@ async function aesDec(key,buf){const u=new Uint8Array(buf);return new Uint8Array
 const newKey=()=>crypto.subtle.generateKey({name:"AES-GCM",length:256},true,["encrypt","decrypt"]);
 const rawKey=async k=>new Uint8Array(await crypto.subtle.exportKey("raw",k));
 const importAes=raw=>crypto.subtle.importKey("raw",raw,{name:"AES-GCM"},false,["encrypt","decrypt"]);
-async function pubKeyOf(d){if(E.pubKeys.has(d.id))return E.pubKeys.get(d.id);const k=await crypto.subtle.importKey("jwk",d.pub,{name:"ECDH",namedCurve:"P-256"},false,[]);E.pubKeys.set(d.id,k);return k}
-/* kunci pembungkus antara perangkat ini dan perangkat lain (ECDH → HKDF) */
-async function wrapKeyFor(d){if(E.wrapKeys.has(d.id))return E.wrapKeys.get(d.id);
-  const bits=await crypto.subtle.deriveBits({name:"ECDH",public:await pubKeyOf(d)},E.dev.priv,256);
+const jwkPub=j=>({kty:"EC",crv:"P-256",x:j.x,y:j.y});
+async function importPub(j){const id=j.x+"."+j.y;if(E.pubKeys.has(id))return E.pubKeys.get(id);const k=await crypto.subtle.importKey("jwk",jwkPub(j),{name:"ECDH",namedCurve:"P-256"},false,[]);E.pubKeys.set(id,k);return k}
+async function kek(pw,salt,iter){const base=await crypto.subtle.importKey("raw",te.encode(String(pw).normalize("NFKC")),"PBKDF2",false,["deriveKey"]);
+  return crypto.subtle.deriveKey({name:"PBKDF2",salt,iterations:iter||ITER,hash:"SHA-256"},base,{name:"AES-GCM",length:256},false,["encrypt","decrypt"])}
+const pfx=j=>j.x.slice(0,16);
+/* kunci pembungkus antara akun ini dan akun lain */
+async function wrapKey(otherUid,otherPub){const id=otherUid+":"+otherPub.x;if(E.wrap.has(id))return E.wrap.get(id);
+  const bits=await crypto.subtle.deriveBits({name:"ECDH",public:await importPub(otherPub)},E.priv,256);
   const hk=await crypto.subtle.importKey("raw",bits,"HKDF",false,["deriveKey"]);
-  const ids=[E.dev.id,d.id].sort().join("|");
-  const k=await crypto.subtle.deriveKey({name:"HKDF",hash:"SHA-256",salt:te.encode("ravi-e2e-v2"),info:te.encode(ids)},hk,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
-  E.wrapKeys.set(d.id,k);return k}
+  const info=[E.uid+":"+E.pub.x,otherUid+":"+otherPub.x].sort().join("|");
+  const k=await crypto.subtle.deriveKey({name:"HKDF",hash:"SHA-256",salt:te.encode("ravi-e2e-v3"),info:te.encode(info)},hk,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
+  E.wrap.set(id,k);return k}
 
-/* ---------- perangkat ---------- */
-async function myDevice(){const slot="dev:"+E.uid;let d=await idbGet(slot);
-  if(!d){const kp=await crypto.subtle.generateKey({name:"ECDH",namedCurve:"P-256"},false,["deriveBits"]);
-    const pub=await crypto.subtle.exportKey("jwk",kp.publicKey);d={id:crypto.randomUUID(),priv:kp.privateKey,pub:{kty:pub.kty,crv:pub.crv,x:pub.x,y:pub.y}};await idbPut(slot,d)}
-  return d}
-const ua=()=>{const u=navigator.userAgent;return (/iPhone|iPad/.test(u)?"iPhone/iPad":/Android/.test(u)?"Android":/Mac/.test(u)?"Mac":/Windows/.test(u)?"Windows":"Perangkat")+" · "+(/Edg\//.test(u)?"Edge":/Chrome\//.test(u)?"Chrome":/Safari\//.test(u)?"Safari":/Firefox\//.test(u)?"Firefox":"Browser")};
-async function loadDevices(force){if(!force&&Date.now()-E.devAt<15000)return E.devices;
-  const {data,error}=await sb.from("couple_devices").select("id,user_id,pub,label,created_at");if(error)throw error;
-  E.devices=(data||[]).filter(d=>d.pub&&d.pub.x&&d.pub.y);E.devAt=Date.now();checkChanged();return E.devices}
-function checkChanged(){const others=E.devices.filter(d=>d.user_id!==E.uid).map(d=>d.id).sort().join(",");const k="bbp_e2e_seen_"+E.uid;
-  try{const prev=localStorage.getItem(k);if(prev===null){localStorage.setItem(k,others);return}if(prev!==others){E.changed=true;localStorage.setItem(k+"_pending",others)}}catch(e){}}
-function ackChanged(){try{const k="bbp_e2e_seen_"+E.uid,p=localStorage.getItem(k+"_pending");if(p!==null)localStorage.setItem(k,p);localStorage.removeItem(k+"_pending")}catch(e){}E.changed=false;bump()}
+/* ---------- kunci publik semua anggota (+ riwayat kunci lama supaya pesan lama tetap terbaca) ---------- */
+const seenKey=()=>"ravi_e2e_seen3_"+E.uid;
+function seen(){try{return JSON.parse(localStorage.getItem(seenKey())||"{}")}catch(e){return {}}}
+function saveSeen(s){try{localStorage.setItem(seenKey(),JSON.stringify(s))}catch(e){}}
+let keysAt=0,keysP=null;
+async function loadKeys(force){if(!force&&Date.now()-keysAt<20000)return E.keys;if(keysP)return keysP;
+  keysP=(async()=>{const {data,error}=await sb.from("couple_ukeys").select("user_id,pub,updated_at");if(error)throw error;keysAt=Date.now();
+    const s=seen();let changed=false;const m=new Map();
+    for(const r of data||[]){if(!r.pub||!r.pub.x)continue;m.set(r.user_id,r.pub);
+      const h=s[r.user_id]||(s[r.user_id]={cur:null,old:[],warn:false});
+      if(h.cur&&h.cur.x!==r.pub.x){h.old=[h.cur,...(h.old||[])].slice(0,5);if(r.user_id!==E.uid)h.warn=true;changed=true}
+      if(!h.cur||h.cur.x!==r.pub.x){h.cur={x:r.pub.x,y:r.pub.y};changed=true}}
+    E.keys=m;if(changed){saveSeen(s);bump()}return m})();
+  try{return await keysP}finally{keysP=null}}
+function pubFor(uid,prefix){const k=E.keys.get(uid);if(k&&(!prefix||pfx(k)===prefix))return k;const h=seen()[uid];if(!h)return k||null;
+  for(const o of [h.cur,...(h.old||[])])if(o&&(!prefix||o.x.slice(0,16)===prefix))return o;return null}
 
-async function load(force){if(E.ok&&!force)return true;if(E.loading&&!force)return E.loading;
-  E.loading=(async()=>{try{if(!secure())throw new Error(L("Enkripsi butuh koneksi aman (https).","Encryption needs a secure (https) connection."));
-      const {data:s}=await sb.auth.getSession();E.uid=s?.session?.user?.id||null;if(!E.uid)throw new Error("login");
-      E.dev=await myDevice();
-      const {error:upErr}=await sb.from("couple_devices").upsert({id:E.dev.id,pub:E.dev.pub,label:ua(),last_seen:new Date().toISOString()});
-      if(upErr)throw upErr;
-      await loadDevices(true);if(!E.devices.some(d=>d.id===E.dev.id))throw new Error("device not registered");
-      E.ok=true;E.err=null;
-      loadV1().catch(()=>{});
-      return true}catch(e){E.ok=false;E.err=e;return false}finally{E.loading=null}})();return E.loading}
-const enabled=()=>E.ok,unlocked=()=>E.ok;
+/* ---------- membuka / membuat kunci akun ---------- */
+const serverRow=async()=>(await sb.from("couple_ukeys").select("pub,wrapped,salt,iter").eq("user_id",E.uid).maybeSingle()).data||null;
+async function load(force){if(E.state==="ok"&&!force)return true;if(E.loading)return E.loading;
+  E.loading=(async()=>{try{
+      if(!secure()){E.state="insecure";throw new Error(L("Enkripsi butuh koneksi aman (https).","Encryption needs a secure (https) connection."))}
+      const {data:s}=await sb.auth.getSession();E.uid=s?.session?.user?.id||null;E.email=s?.session?.user?.email||"";if(!E.uid)throw new Error("login");
+      await loadKeys(true);
+      const server=E.keys.get(E.uid)?await serverRow():null;
+      const local=await idbGet("acct:"+E.uid);
+      if(server&&local&&local.priv&&local.pub&&local.pub.x===server.pub.x){E.priv=local.priv;E.pub=local.pub;E.state="ok"}
+      else{const pw=window.__ravi_pw;               /* password yang baru diketik di layar login (hanya di memori) */
+        if(pw){try{await unlock(pw,{server,verified:true})}catch(e){}}
+        if(E.state!=="ok")E.state=server?"needpw":"nokey"}
+      window.__ravi_pw=undefined;
+      loadV1().catch(()=>{});loadDev().catch(()=>{});
+      E.err=null;bump();return E.state==="ok"}
+    catch(e){if(E.state==="init")E.state="err";E.err=e;bump();return false}finally{E.loading=null}})();
+  return E.loading}
+async function unlock(pw,o={}){const server=o.server!==undefined?o.server:await serverRow();
+  if(server){const k=await kek(pw,fromB64(server.salt),server.iter);let pk;
+    try{pk=await aesDec(k,fromB64(server.wrapped))}catch(e){throw new Error(L("Password salah. Pakai password yang kamu pakai untuk login RaVi.","Wrong password. Use the password you sign in to RaVi with."))}
+    const priv=await crypto.subtle.importKey("pkcs8",pk,{name:"ECDH",namedCurve:"P-256"},false,["deriveBits"]);pk.fill(0);
+    E.priv=priv;E.pub=jwkPub(server.pub)}
+  else{ /* akun belum punya kunci: buat baru */
+    if(!o.verified)await verifyPassword(pw);
+    const kp=await crypto.subtle.generateKey({name:"ECDH",namedCurve:"P-256"},true,["deriveBits"]);
+    const pj=await crypto.subtle.exportKey("jwk",kp.publicKey),pk=new Uint8Array(await crypto.subtle.exportKey("pkcs8",kp.privateKey));
+    const salt=crypto.getRandomValues(new Uint8Array(16)),wrapped=await aesEnc(await kek(pw,salt,ITER),pk);
+    const pub=jwkPub(pj);
+    const {error}=await sb.from("couple_ukeys").insert({pub,wrapped:toB64(wrapped),salt:toB64(salt),iter:ITER});
+    if(error){pk.fill(0);if(/duplicate|unique|23505/i.test((error.message||"")+(error.code||"")))return unlock(pw,{});throw error}
+    E.priv=await crypto.subtle.importKey("pkcs8",pk,{name:"ECDH",namedCurve:"P-256"},false,["deriveBits"]);pk.fill(0);E.pub=pub;await loadKeys(true)}
+  await idbPut("acct:"+E.uid,{priv:E.priv,pub:E.pub});E.wrap.clear();E.state="ok";
+  for(const [k,v] of E.cache)if(typeof v==="string"&&v.startsWith("🔒"))E.cache.delete(k);bump();return true}
+/* memastikan password benar sebelum membuat kunci baru (supaya di HP lain password yang sama bisa membukanya) */
+async function verifyPassword(pw){let aal=null;try{aal=(await sb.auth.mfa.getAuthenticatorAssuranceLevel()).data}catch(e){}
+  if(aal&&(aal.currentLevel==="aal2"||aal.nextLevel==="aal2"))return; /* akun 2FA: login ulang akan menurunkan sesi; cukup konfirmasi ganda di dialog */
+  const {error}=await sb.auth.signInWithPassword({email:E.email,password:pw});if(error)throw new Error(L("Password salah. Pakai password login RaVi.","Wrong password. Use your RaVi sign-in password."))}
+/* ganti password login + bungkus ulang kunci akun (kunci & pesan lama tetap sama) */
+async function rewrap(newPw,oldPw){const server=await serverRow();
+  let pk=null;if(server){try{pk=await aesDec(await kek(oldPw,fromB64(server.salt),server.iter),fromB64(server.wrapped))}catch(e){throw new Error(L("Password lama salah.","Old password is wrong."))}}
+  else await verifyPassword(oldPw);
+  const {error}=await sb.auth.updateUser({password:newPw});if(error){if(pk)pk.fill(0);throw error}
+  if(pk){const salt=crypto.getRandomValues(new Uint8Array(16)),wrapped=await aesEnc(await kek(newPw,salt,ITER),pk);pk.fill(0);
+    const {error:e2}=await sb.from("couple_ukeys").update({wrapped:toB64(wrapped),salt:toB64(salt),iter:ITER,updated_at:new Date().toISOString()}).eq("user_id",E.uid);if(e2)throw e2}
+  return true}
+/* lupa password / kunci rusak: buat kunci baru. Pesan terenkripsi lama tidak bisa dibuka lagi. */
+async function resetKey(pw){await verifyPassword(pw);
+  const kp=await crypto.subtle.generateKey({name:"ECDH",namedCurve:"P-256"},true,["deriveBits"]);
+  const pj=await crypto.subtle.exportKey("jwk",kp.publicKey),pk=new Uint8Array(await crypto.subtle.exportKey("pkcs8",kp.privateKey));
+  const salt=crypto.getRandomValues(new Uint8Array(16)),wrapped=await aesEnc(await kek(pw,salt,ITER),pk);
+  const priv=await crypto.subtle.importKey("pkcs8",pk,{name:"ECDH",namedCurve:"P-256"},false,["deriveBits"]);pk.fill(0);
+  const row={pub:jwkPub(pj),wrapped:toB64(wrapped),salt:toB64(salt),iter:ITER,updated_at:new Date().toISOString()};
+  const had=!!(await serverRow());const {error}=had?await sb.from("couple_ukeys").update(row).eq("user_id",E.uid):await sb.from("couple_ukeys").insert(row);if(error)throw error;
+  E.priv=priv;E.pub=row.pub;await idbPut("acct:"+E.uid,{priv,pub:row.pub});E.wrap.clear();E.cache.clear();E.state="ok";await loadKeys(true);bump();return true}
 
-/* ---------- v2: amplop pesan ---------- */
-async function seal(bytes){await loadDevices();const ck=await newKey(),raw=await rawKey(ck),ct=await aesEnc(ck,bytes);
-  const k=[];for(const d of E.devices){try{const w=await aesEnc(await wrapKeyFor(d),raw);k.push([d.id,toB64(w)])}catch(e){}}
-  return {s:E.dev.id,c:toB64(ct),k}}
-async function open(env){const mine=(env.k||[]).find(x=>x[0]===E.dev.id);if(!mine)throw new Error("nokey");
-  let sender=E.devices.find(d=>d.id===env.s);if(!sender){await loadDevices(true);sender=E.devices.find(d=>d.id===env.s)}if(!sender)throw new Error("nosender");
-  const raw=await aesDec(await wrapKeyFor(sender),fromB64(mine[1]));return aesDec(await importAes(raw),fromB64(env.c))}
-/* pasangan belum pernah membuka versi ini → belum ada kunci tujuan. Kirim biasa (dan tampilkan peringatan)
-   supaya pesan tetap terbaca, bukan terkunci selamanya. */
-async function partnerReady(){await loadDevices();if(!E.devices.some(d=>d.user_id!==E.uid))await loadDevices(Date.now()-E.devAt>5000);
-  const r=E.devices.some(d=>d.user_id!==E.uid);if(r!==E.partner){E.partner=r;bump()}return r}
-async function encText(t){if(!E.ok)await load();if(!E.ok){if(E.v1key)return encTextV1(t);return t}
-  if(!(await partnerReady()))return t;
-  const env=await seal(te.encode(t));const out="enc2:"+toB64(te.encode(JSON.stringify(env)));E.cache.set(out,t);return out}
-function show(t){if(typeof t!=="string")return t;
-  if(t.startsWith("enc1:"))return showV1(t);
-  if(!t.startsWith("enc2:"))return t;
+/* ---------- v3: amplop pesan ---------- */
+const missing=uids=>uids.filter(u=>!E.keys.get(u));
+/* kalau ada anggota yang belum punya kunci, pesan dikirim tanpa E2E (tetap privat untuk anggota chat lewat RLS) */
+async function sealFor(text,uids){if(E.state!=="ok")await load();if(E.state!=="ok")return text;
+  await loadKeys();let miss=missing(uids);if(miss.length){await loadKeys(true);miss=missing(uids)}if(miss.length)return text;
+  const ck=await newKey(),raw=await rawKey(ck),ct=await aesEnc(ck,te.encode(text));const k=[];
+  for(const u of new Set([...uids,E.uid])){const p=u===E.uid?E.pub:E.keys.get(u);if(!p)continue;k.push([u,pfx(p),toB64(await aesEnc(await wrapKey(u,p),raw))])}
+  const out="enc3:"+toB64(te.encode(JSON.stringify({s:E.uid,sp:pfx(E.pub),c:toB64(ct),k})));E.cache.set(out,text);return out}
+async function open3(t){const env=JSON.parse(td.decode(fromB64(t.slice(5))));
+  const mine=(env.k||[]).find(x=>x[0]===E.uid);if(!mine)throw new Error("nokey");
+  if(mine[1]!==pfx(E.pub))throw new Error("oldkey");
+  let sp=pubFor(env.s,env.sp);if(!sp){await loadKeys(true);sp=pubFor(env.s,env.sp)}if(!sp)throw new Error("nosender");
+  const raw=await aesDec(await wrapKey(env.s,sp),fromB64(mine[2]));return td.decode(await aesDec(await importAes(raw),fromB64(env.c)))}
+const isEnc=t=>typeof t==="string"&&/^enc[123]:/.test(t);
+function show(t){if(typeof t!=="string"||!isEnc(t))return t;
   if(E.cache.has(t))return E.cache.get(t);
-  if(!E.ok){if(!E.loading)load().then(ok=>{if(ok)bump()});return "🔒 "+L("Pesan terenkripsi","Encrypted message")}
+  if(t.startsWith("enc1:"))return showV1(t);
+  if(t.startsWith("enc2:"))return showV2(t);
+  if(E.state!=="ok"){if(E.state==="init"&&!E.loading)load();return "🔒 "+(E.state==="needpw"||E.state==="nokey"?L("Terkunci — buka kunci enkripsi","Locked — unlock encryption"):L("Pesan terenkripsi","Encrypted message"))}
   if(!E.pending.has(t)){E.pending.add(t);
-    (async()=>{const env=JSON.parse(td.decode(fromB64(t.slice(5))));return td.decode(await open(env))})()
-     .then(p=>E.cache.set(t,p)).catch(e=>E.cache.set(t,"🔒 "+(e&&e.message==="nokey"?L("Dikirim sebelum perangkat ini terdaftar","Sent before this device was added"):L("Tidak bisa dibuka di perangkat ini","Can't be opened on this device"))))
-     .finally(()=>{E.pending.delete(t);bump()})}
+    open3(t).then(p=>E.cache.set(t,p)).catch(e=>E.cache.set(t,"🔒 "+({nokey:L("Pesan ini tidak dikunci untukmu","Not encrypted for you"),oldkey:L("Dikunci untuk kunci lamamu","Locked to your old key"),nosender:L("Kunci pengirim tidak dikenal","Unknown sender key")}[e&&e.message]||L("Tidak bisa dibuka","Can't be opened"))))
+      .finally(()=>{E.pending.delete(t);bump()})}
   return "…"}
-let bt=0;function bump(){clearTimeout(bt);bt=setTimeout(()=>document.dispatchEvent(new CustomEvent("ravi-e2e")),40)}
+const ready=t=>typeof t!=="string"||!isEnc(t)||E.cache.has(t);
+let bt=0;function bump(){clearTimeout(bt);bt=setTimeout(()=>{document.dispatchEvent(new CustomEvent("ravi-e2e"));E.listeners.forEach(f=>{try{f()}catch(e){}})},30)}
 
-/* ---------- foto & file: kunci acak per berkas, disimpan DI DALAM pesan terenkripsi ---------- */
-async function encBlob(blob){if(!E.ok)await load();
-  if(E.ok&&!(await partnerReady()))return {blob,ext:".jpg",k:null};
-  if(!E.ok){if(E.v1key){const out=await aesEnc(E.v1key,new Uint8Array(await blob.arrayBuffer()));return {blob:new Blob([out],{type:"application/octet-stream"}),ext:".enc",k:null}}return {blob,ext:".jpg",k:null}}
+/* ---------- foto & file: SELALU dikunci dengan kunci acak per berkas (kuncinya disimpan di dalam pesan) ---------- */
+async function encBlob(blob){if(!secure())return {blob,ext:".jpg",k:null};
   const fk=await newKey(),out=await aesEnc(fk,new Uint8Array(await blob.arrayBuffer()));return {blob:new Blob([out],{type:"application/octet-stream"}),ext:".enc",k:toB64(await rawKey(fk))}}
 async function decFile(buf,k){if(k)return aesDec(await importAes(fromB64(k)),buf);if(E.v1key)return aesDec(E.v1key,buf);throw new Error(L("Kunci file tidak ada.","Missing file key."))}
 function imgSrc(path,url,k){if(!path||!/\.enc$/.test(path))return url;if(E.imgs.has(path))return E.imgs.get(path);if(!url||(!k&&!E.v1key))return "";
   if(!E.pending.has(path)){E.pending.add(path);fetch(url).then(r=>{if(!r.ok)throw new Error(r.status);return r.arrayBuffer()}).then(b=>decFile(b,k)).then(p=>E.imgs.set(path,URL.createObjectURL(new Blob([p],{type:"image/jpeg"})))).catch(()=>{}).finally(()=>{E.pending.delete(path);bump()})}
   return ""}
 
-/* ---------- kode keamanan ---------- */
-async function safetyCode(){await loadDevices(true);const list=E.devices.map(d=>d.user_id+":"+d.pub.x+":"+d.pub.y).sort().join("\n");
-  const h=new Uint8Array(await crypto.subtle.digest("SHA-512",te.encode("ravi-safety-v1\n"+list)));const g=[];
+/* ---------- kode keamanan per kontak ---------- */
+async function safety(uid){await loadKeys(true);const a=E.pub||E.keys.get(E.uid),b=E.keys.get(uid);if(!a||!b)return null;
+  const list=[E.uid+":"+a.x+":"+a.y,uid+":"+b.x+":"+b.y].sort().join("\n");
+  const h=new Uint8Array(await crypto.subtle.digest("SHA-512",te.encode("ravi-safety-v3\n"+list)));const g=[];
   for(let i=0;i<12;i++){let n=0;for(let j=0;j<5;j++)n=(n*256+h[i*5+j])%100000;g.push(String(n).padStart(5,"0"))}return g}
-async function safetyDialog(){const g=await safetyCode();const mine=E.devices.filter(d=>d.user_id===E.uid),other=E.devices.filter(d=>d.user_id!==E.uid);
-  const bg=modal(L("🔐 Kode keamanan","🔐 Security code"),`<div class="crumb" style="line-height:1.5">${L("Pesan, foto & file kalian terenkripsi end-to-end. Untuk memastikan tidak ada yang menyadap, cocokkan 60 angka ini di HP kamu dan HP pasangan <b>secara langsung</b> (bukan lewat chat). Kalau sama persis, sambungan kalian aman.","Your messages, photos and files are end-to-end encrypted. To be sure nobody is intercepting, compare these 60 digits on both phones <b>in person</b> (not over chat). If they match exactly, you're secure.")}</div>
-    <div class="sc-code">${g.map(x=>`<span>${x}</span>`).join("")}</div>
-    <div class="crumb" style="margin-top:8px">${L("Perangkatmu","Your devices")}: ${mine.length} · ${L("Perangkat pasangan","Partner's devices")}: ${other.length}${E.changed?`<div class="msg warn" style="margin-top:8px">⚠️ ${L("Kode berubah karena pasanganmu menambah/mengganti perangkat. Cocokkan ulang, lalu ketuk Sudah dicek.","The code changed because your partner added or replaced a device. Compare again, then tap Verified.")}</div>`:""}</div>`,
-    ()=>{ackChanged()},E.changed?L("Sudah dicek ✓","Verified ✓"):"OK");const c=bg.querySelector(".c");if(c)c.style.display="none"}
+const keyChanged=uid=>!!(seen()[uid]||{}).warn;
+function ackKey(uid){const s=seen();if(s[uid]){s[uid].warn=false;saveSeen(s);bump()}}
+async function safetyDialog(uid,name){const g=await safety(uid);
+  const bg=modal("🔐 "+L("Kode keamanan","Security code")+(name?" · "+name:""),g?`<div class="crumb" style="line-height:1.5">${L("Pesan, foto & file kalian terenkripsi end-to-end. Untuk memastikan tidak ada yang menyadap, cocokkan 60 angka ini di HP kamu dan HP dia <b>secara langsung</b> (bukan lewat chat). Kalau sama persis, sambungan kalian aman.","Your messages, photos and files are end-to-end encrypted. To be sure nobody is intercepting, compare these 60 digits on both phones <b>in person</b> (not over chat). If they match exactly, you're secure.")}</div>
+    <div class="sc-code">${g.map(x=>`<span>${x}</span>`).join("")}</div>${keyChanged(uid)?`<div class="msg warn" style="margin-top:8px">⚠️ ${L("Kode berubah karena dia membuat kunci baru (misalnya lupa password). Cocokkan ulang, lalu ketuk Sudah dicek.","The code changed because they created a new key (e.g. forgot their password). Compare again, then tap Verified.")}</div>`:""}`
+    :`<div class="crumb">${E.state!=="ok"?L("Buka kunci enkripsimu dulu (masukkan password login).","Unlock your encryption first (enter your sign-in password)."):L("Dia belum membuka RaVi versi terbaru, jadi belum punya kunci enkripsi. Pesan untuknya sementara dikirim tanpa E2E (tetap privat untuk anggota chat).","They haven't opened the latest RaVi yet, so they have no encryption key. Messages to them are sent without E2E for now (still private to chat members).")}</div>`,
+    ()=>{ackKey(uid)},keyChanged(uid)?L("Sudah dicek ✓","Verified ✓"):"OK");const c=bg.querySelector(".c");if(c)c.style.display="none"}
 
-/* ---------- v1 (lama, kata sandi bersama) — hanya untuk MEMBACA pesan lama ---------- */
+/* ---------- dialog buka kunci ---------- */
+function unlockDialog(){return new Promise(res=>{const create=E.state==="nokey";
+  const bg=modal("🔐 "+(create?L("Aktifkan enkripsi chat","Turn on chat encryption"):L("Buka kunci enkripsi","Unlock encryption")),
+    `<div class="crumb" style="line-height:1.5">${create?L("Masukkan password login RaVi-mu. Password ini mengunci kunci enkripsi akunmu, jadi chat bisa dibuka di HP atau laptop mana pun yang kamu pakai login.","Enter your RaVi sign-in password. It locks your account's encryption key, so chats open on any phone or laptop you sign in on.")
+      :L("Masukkan password login RaVi sekali di perangkat ini untuk membuka pesan terenkripsi. Setelah itu tidak perlu lagi.","Enter your RaVi sign-in password once on this device to open encrypted messages. You won't need it again here.")}</div>
+     <label style="margin-top:10px">Password</label><input type="password" id="e3P" autocomplete="current-password">
+     ${create?`<label style="margin-top:8px">${L("Ulangi password","Repeat password")}</label><input type="password" id="e3P2" autocomplete="current-password">`:""}
+     <div class="msg err hide" id="e3M" style="margin-top:8px"></div>
+     <div class="crumb" style="margin-top:8px">⚠️ ${L("Kalau suatu hari lupa password lalu reset lewat email, pesan terenkripsi lama tidak bisa dibuka lagi.","If you ever forget your password and reset it by email, old encrypted messages can't be opened anymore.")}</div>`,
+    async g=>{const p=g.querySelector("#e3P").value,m=g.querySelector("#e3M"),btn=g.querySelector(".ok");
+      const fail=t=>{m.textContent=t;m.classList.remove("hide");btn.disabled=false;btn.textContent=create?L("Aktifkan","Turn on"):L("Buka","Unlock");return false};
+      if(!p)return fail(L("Password wajib diisi.","Password is required."));
+      if(create&&g.querySelector("#e3P2").value!==p)return fail(L("Kedua password tidak sama.","Passwords don't match."));
+      btn.disabled=true;btn.textContent=L("Memproses…","Working…");
+      try{await unlock(p);res(true)}catch(e){return fail(e.message||String(e))}},create?L("Aktifkan","Turn on"):L("Buka","Unlock"));
+  setTimeout(()=>bg.querySelector("#e3P")?.focus(),50);
+  bg.querySelector(".c")?.addEventListener("click",()=>res(false))})}
+
+/* ---------- v2 (per perangkat, lama) — hanya untuk MEMBACA ---------- */
+async function loadDev(){const d=await idbGet("dev:"+E.uid);if(!d)return;E.dev=d;
+  try{const {data}=await sb.from("couple_devices").select("id,user_id,pub");E.devices=(data||[]).filter(x=>x.pub&&x.pub.x)}catch(e){E.devices=[]}
+  for(const [k,v] of E.cache)if(k.startsWith("enc2:"))E.cache.delete(k);bump()}
+const devWrap=new Map();
+async function devWrapKey(d){if(devWrap.has(d.id))return devWrap.get(d.id);
+  const bits=await crypto.subtle.deriveBits({name:"ECDH",public:await importPub(d.pub)},E.dev.priv,256);
+  const hk=await crypto.subtle.importKey("raw",bits,"HKDF",false,["deriveKey"]);
+  const k=await crypto.subtle.deriveKey({name:"HKDF",hash:"SHA-256",salt:te.encode("ravi-e2e-v2"),info:te.encode([E.dev.id,d.id].sort().join("|"))},hk,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
+  devWrap.set(d.id,k);return k}
+function showV2(t){if(!E.dev)return "🔒 "+L("Pesan lama (dibuka di perangkat lain)","Old message (opened on another device)");
+  if(!E.pending.has(t)){E.pending.add(t);(async()=>{const env=JSON.parse(td.decode(fromB64(t.slice(5))));const mine=(env.k||[]).find(x=>x[0]===E.dev.id);if(!mine)throw new Error("nokey");
+      const sender=(E.devices||[]).find(d=>d.id===env.s);if(!sender)throw new Error("nosender");
+      const raw=await aesDec(await devWrapKey(sender),fromB64(mine[1]));return td.decode(await aesDec(await importAes(raw),fromB64(env.c)))})()
+    .then(p=>E.cache.set(t,p)).catch(()=>E.cache.set(t,"🔒 "+L("Pesan lama (dibuka di perangkat lain)","Old message (opened on another device)"))).finally(()=>{E.pending.delete(t);bump()})}
+  return "…"}
+
+/* ---------- v1 (kata sandi bersama, lama) — hanya untuk MEMBACA ---------- */
 const CHECK="ravi-e2e-ok";
 async function loadV1(){const {data}=await sb.from("couple_keys").select("salt,check_ct").eq("id",1).maybeSingle();E.v1row=data||null;
   if(E.v1row&&!E.v1key){const k=await idbGet("k:"+E.uid+":"+E.v1row.salt);if(k){try{if(td.decode(await aesDec(k,fromB64(E.v1row.check_ct)))===CHECK){E.v1key=k;bump()}}catch(e){}}}}
-async function unlockV1(pass){if(!E.v1row)await loadV1();if(!E.v1row)throw new Error(L("Tidak ada pesan lama berkata sandi.","No old password-protected messages."));
-  const base=await crypto.subtle.importKey("raw",te.encode(pass.normalize("NFKC")),"PBKDF2",false,["deriveKey"]);
-  const key=await crypto.subtle.deriveKey({name:"PBKDF2",salt:fromB64(E.v1row.salt),iterations:310000,hash:"SHA-256"},base,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
-  try{if(td.decode(await aesDec(key,fromB64(E.v1row.check_ct)))!==CHECK)throw 0}catch(e){throw new Error(L("Kata sandi chat salah.","Wrong chat password."))}
-  E.v1key=key;await idbPut("k:"+E.uid+":"+E.v1row.salt,key);E.cache.clear();bump()}
-async function encTextV1(t){const out="enc1:"+toB64(await aesEnc(E.v1key,te.encode(t)));E.cache.set(out,t);return out}
-function showV1(t){if(E.cache.has(t))return E.cache.get(t);if(!E.v1key)return "🔒 "+L("Pesan lama (perlu kata sandi chat)","Old message (needs chat password)");
+function showV1(t){if(!E.v1key)return "🔒 "+L("Pesan lama (perlu kata sandi chat)","Old message (needs chat password)");
   if(!E.pending.has(t)){E.pending.add(t);aesDec(E.v1key,fromB64(t.slice(5))).then(p=>E.cache.set(t,td.decode(p))).catch(()=>E.cache.set(t,"⚠️ "+L("Tidak bisa dibuka","Can't decrypt"))).finally(()=>{E.pending.delete(t);bump()})}return "…"}
-function v1Dialog(){modal(L("🔐 Buka pesan lama","🔐 Open old messages"),`<div class="crumb">${L("Pesan lama dikunci dengan kata sandi chat. Masukkan sekali untuk membacanya. Pesan baru tidak butuh kata sandi lagi.","Old messages were locked with a chat password. Enter it once to read them. New messages don't need a password.")}</div><input type="password" id="e2P" style="margin-top:8px"><div class="msg err hide" id="e2M" style="margin-top:8px"></div>`,
-  async g=>{try{await unlockV1(g.querySelector("#e2P").value)}catch(e){const m=g.querySelector("#e2M");m.textContent=e.message;m.classList.remove("hide");return false}},L("Buka","Unlock"))}
-function dialog(){if(E.v1row&&!E.v1key)v1Dialog();else safetyDialog()}
 
-/* ---------- tampilan di Chat & Feed ---------- */
-const css=document.createElement("style");css.textContent=`.e2-bar{display:flex;gap:8px;align-items:center;padding:7px 12px;border-bottom:1px solid var(--line);font-size:12.5px;line-height:1.4;background:var(--ambS)}
-.e2-bar b{display:block}.e2-bar>div{flex:1;min-width:0}
-.e2-pill{all:unset;cursor:pointer;font-weight:800;color:var(--grn)}.e2-pill.warn{color:var(--amb)}.e2-pill:focus-visible{outline:2px solid var(--acc);border-radius:6px}
-.sc-code{display:grid;grid-template-columns:repeat(4,1fr);gap:8px 10px;margin-top:12px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:clamp(15px,4.6vw,19px);font-weight:700;letter-spacing:.06em;text-align:center;background:var(--th);border-radius:14px;padding:12px;font-variant-numeric:tabular-nums}`;document.head.appendChild(css);
-async function decorate(){if(typeof route==="undefined"||(route!=="chat"&&route!=="feed"))return;await load();
-  const v=document.getElementById("view");if(!v)return;
-  if(!E.ok){const host=route==="chat"?v.querySelector(".ch-wrap .ch-head"):v.querySelector(".ph");if(!host||v.querySelector(".e2-bar"))return;
-    const bar=document.createElement("div");bar.className="e2-bar";
-    bar.innerHTML=`<span>⚠️</span><div><b>${L("Enkripsi otomatis belum siap","Automatic encryption isn't ready")}</b><span class="em"></span></div>`;
-    bar.querySelector(".em").textContent=/couple_devices|relation|schema cache/i.test(String(E.err&&E.err.message||E.err||""))?L("Jalankan supabase/setup-ravi.sql sekali di Supabase. Sampai itu, pesan baru dikirim tanpa enkripsi.","Run supabase/setup-ravi.sql once in Supabase. Until then, new messages are sent unencrypted."):String(E.err&&E.err.message||E.err||"");
-    host.after(bar);return}
-  if(!E.devices.some(d=>d.user_id!==E.uid)){E.partner=false;const host=route==="chat"?v.querySelector(".ch-wrap .ch-head"):v.querySelector(".ph");
-    if(host&&!v.querySelector(".e2-bar.np")){const bar=document.createElement("div");bar.className="e2-bar np";
-      bar.innerHTML=`<span>⏳</span><div><b>${L("Enkripsi aktif setelah pasanganmu membuka RaVi","Encryption turns on once your partner opens RaVi")}</b>${L("HP pasanganmu belum terdaftar, jadi pesan sementara dikirim biasa (tetap privat untuk kalian berdua). Begitu dia membuka chat sekali, pesan berikutnya otomatis terenkripsi.","Your partner's phone isn't registered yet, so messages are sent normally for now (still private to you two). Once they open the chat, new messages are encrypted automatically.")}</div>`;host.after(bar)}
-    return}
-  v.querySelectorAll(".e2-bar.np").forEach(b=>b.remove());
-  const cr=route==="chat"?v.querySelector(".ch-head .crumb"):v.querySelector(".ph h1");
-  if(cr&&!cr.querySelector(".e2-pill")){const p=document.createElement("button");p.className="e2-pill"+(E.changed?" warn":"");
-    p.textContent=E.changed?" · ⚠️ "+L("Kode keamanan berubah","Security code changed"):" · 🔐 E2E";p.title=L("Lihat kode keamanan","View security code");p.onclick=e=>{e.stopPropagation();safetyDialog()};cr.appendChild(p)}
-  if(E.v1row&&!E.v1key&&route==="chat"&&!v.querySelector(".e2-bar")){const host=v.querySelector(".ch-wrap .ch-head");if(host&&[...v.querySelectorAll(".bd")].some(b=>/^🔒/.test(b.textContent))){
-    const bar=document.createElement("div");bar.className="e2-bar";bar.innerHTML=`<span>🔒</span><div><b>${L("Ada pesan lama berkata sandi","There are old password-locked messages")}</b>${L("Pesan baru sudah otomatis terenkripsi.","New messages are encrypted automatically.")}</div><button class="sm pri">${L("Buka","Open")}</button>`;
-    bar.querySelector("button").onclick=v1Dialog;host.after(bar)}}}
-new MutationObserver(()=>{decorate().catch(()=>{})}).observe(document.getElementById("view")||document.body,{childList:true});
-document.addEventListener("ravi-e2e",()=>{if(typeof route==="undefined"||(route!=="chat"&&route!=="feed"))return;if(window.RAVI_SOCIAL_REFRESH)window.RAVI_SOCIAL_REFRESH();decorate().catch(()=>{})});
-addEventListener("load",()=>{const t=setInterval(()=>{if(typeof col!=="undefined"&&col){clearInterval(t);load().catch(()=>{})}},1500);setTimeout(()=>clearInterval(t),60000)});
-
-/* ---------- daftar perangkat (untuk halaman Keamanan) ---------- */
-async function devices(){await load();if(!E.ok)return {ok:false,err:E.err,list:[]};await loadDevices(true);return {ok:true,me:E.dev&&E.dev.id,uid:E.uid,list:E.devices}}
-async function removeDevice(id){const {error}=await sb.from("couple_devices").delete().eq("id",id);if(error)throw error;
-  if(E.dev&&id===E.dev.id){await idbDel("dev:"+E.uid);E.ok=false;E.dev=null;E.wrapKeys.clear()}await loadDevices(true);bump()}
+const css=document.createElement("style");css.textContent=`.sc-code{display:grid;grid-template-columns:repeat(4,1fr);gap:8px 10px;margin-top:12px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:clamp(15px,4.6vw,19px);font-weight:700;letter-spacing:.06em;text-align:center;background:var(--th);border-radius:14px;padding:12px;font-variant-numeric:tabular-nums}`;document.head.appendChild(css);
+addEventListener("load",()=>{const t=setInterval(()=>{if(typeof col!=="undefined"&&col){clearInterval(t);load().catch(()=>{})}},700);setTimeout(()=>clearInterval(t),60000)});
 
 window.RAVI_E2E_DEC=async(buf,k)=>decFile(buf,k);
-window.RAVI_E2E={load,enabled,unlocked,encText,show,encBlob,imgSrc,dialog,safetyDialog,devices,removeDevice,auto:true};
+window.RAVI_E2E={load,state:()=>E.state,ok:()=>E.state==="ok",uid:()=>E.uid,unlock,unlockDialog,sealFor,show,ready,isEnc,encBlob,imgSrc,decFile,
+  hasKey:u=>!!E.keys.get(u),loadKeys,missing,safety,safetyDialog,keyChanged,ackKey,rewrap,resetKey,
+  on:f=>{E.listeners.add(f);return()=>E.listeners.delete(f)}};
 })();

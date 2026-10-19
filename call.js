@@ -1,8 +1,8 @@
 /* =====================================================================
-   📞 TELEPON & 🎥 VIDEO CALL (WebRTC, ala WhatsApp/GMeet) untuk Rafi & Vina
-   Suara/video langsung antar-HP (terenkripsi DTLS-SRTP). Supabase Realtime
-   (broadcast) hanya dipakai untuk sinyal panggilan. Tidak ada tabel baru.
-   Butuh: couple-social.sql sudah dijalankan (untuk tahu siapa pasanganmu).
+   📞 TELEPON & 🎥 VIDEO CALL (WebRTC, ala WhatsApp/GMeet) ke kontak mana pun
+   Suara/video langsung antar-HP (terenkripsi DTLS-SRTP). Sinyal panggilan lewat
+   "kotak masuk" Realtime privat tiap akun (ravi-u-<id>): hanya pemiliknya yang bisa
+   mendengar. Kalau jaringan memblokir, lewat relay TURN (Cloudflare) dari Edge Function.
    ===================================================================== */
 (function(){
 const EN=()=>{try{return localStorage.getItem("bbp_lang")==="en"}catch(e){return false}};
@@ -11,25 +11,23 @@ const ICE=[{urls:["stun:stun.l.google.com:19302","stun:stun1.l.google.com:19302"
 const C={me:null,other:null,names:{},ch:null,ready:null,pc:null,local:null,remote:null,state:"idle",video:false,peerVideo:null,muted:false,camOff:false,facing:"user",share:null,
   t0:0,timer:0,ringT:0,pendingIce:[],role:null,id:null,ui:null,tone:null};
 const cap=s=>s?s.charAt(0).toUpperCase()+s.slice(1):s;
-const oName=()=>cap(C.names[C.other])||L("Pasangan","Partner");
-const avatarId=u=>/^vina/i.test(C.names[u]||"")?"vcap":/^(rafi|el)/i.test(C.names[u]||"")?"erusa":"vnel";
+const oName=()=>nm(C.other);
+const avatarId=u=>(window.RS&&RS.charOf(u))||"vnel";
 
 /* ---------- sinyal ---------- */
+const nm=u=>window.RS?RS.name(u):(C.names[u]||L("Kontak","Contact"));
 async function ready(){if(C.ready)return C.ready;
   C.ready=(async()=>{if(typeof sb==="undefined"||!sb)throw new Error("offline");
     const {data:s}=await sb.auth.getSession();C.me=s?.session?.user?.id;if(!C.me)throw new Error("login");
-    const {data,error}=await sb.from("couple_members").select("user_id,name");if(error)throw error;
-    (data||[]).forEach(m=>C.names[m.user_id]=m.name);C.other=(data||[]).map(m=>m.user_id).find(u=>u!==C.me)||null;
-    if(!C.other)throw new Error("nopartner");
-    const key=[C.me,C.other].sort().join("-").replace(/-/g,"").slice(0,40);
+    if(window.RS)await RS.init().catch(()=>{});
     loadIce();
-    const join=priv=>{const ch=sb.channel("ravi-call-"+key,{config:{private:priv,broadcast:{self:false}}});ch.on("broadcast",{event:"sig"},({payload})=>onSig(payload));return ch};
-    C.ch=join(true);C.priv=true;
-    C.ch.subscribe(st=>{if((st==="CHANNEL_ERROR"||st==="TIMED_OUT")&&C.priv){/* kebijakan channel privat belum dipasang (setup-ravi.sql) → pakai channel biasa */
-      try{sb.removeChannel(C.ch)}catch(e){}C.priv=false;C.ch=join(false);C.ch.subscribe();window.RAVI_CALL_PUBLIC=true}});return true})();
+    C.ch=sb.channel("ravi-u-"+C.me,{config:{private:true,broadcast:{self:false}}});C.ch.on("broadcast",{event:"sig"},({payload})=>onSig(payload));
+    C.ch.subscribe(st=>{if(st==="CHANNEL_ERROR"||st==="TIMED_OUT")C.ready=null});return true})();
   C.ready.catch(()=>{C.ready=null});return C.ready}
-const send=p=>{try{C.ch&&C.ch.send({type:"broadcast",event:"sig",payload:{...p,from:C.me,id:p.id||C.id}})}catch(e){}};
-
+const outs={};
+function send(p){const to=C.other;if(!to)return;const ch=outs[to]||(outs[to]=sb.channel("ravi-u-"+to,{config:{private:true}}));
+  const payload={...p,from:C.me,id:p.id||C.id};
+  try{(ch.httpSend?ch.httpSend("sig",payload):ch.send({type:"broadcast",event:"sig",payload})).catch(()=>{})}catch(e){}}
 /* ---------- nada dering (WebAudio, tanpa file) ---------- */
 function tone(kind){stopTone();try{const ac=new (window.AudioContext||window.webkitAudioContext)();const g=ac.createGain();g.gain.value=0;g.connect(ac.destination);
   const o1=ac.createOscillator(),o2=ac.createOscillator();o1.frequency.value=kind==="in"?660:440;o2.frequency.value=kind==="in"?880:480;o1.connect(g);o2.connect(g);o1.start();o2.start();
@@ -51,7 +49,8 @@ function newPC(list){const pc=new RTCPeerConnection({iceServers:list||ICE});C.re
   pc.onicecandidate=e=>{if(e.candidate){const ty=(/ typ (\w+)/.exec(e.candidate.candidate)||[])[1];if(ty in C.cand)C.cand[ty]++;send({t:"ice",c:e.candidate})}};
   pc.ontrack=e=>{e.streams[0]?e.streams[0].getTracks().forEach(t=>{if(!C.remote.getTracks().includes(t))C.remote.addTrack(t)}):C.remote.addTrack(e.track);draw()};
   pc.onconnectionstatechange=()=>{const s=pc.connectionState;if(s==="connected"){if(C.state!=="live"){C.state="live";C.t0=Date.now();stopTone();clearInterval(C.timer);C.timer=setInterval(tick,1000)}draw()}
-    else if(s==="failed"){end(L("Koneksi gagal. Jaringan salah satu dari kalian mungkin memblokir panggilan langsung.","Connection failed. One of your networks may block direct calls."),true)}
+    else if(s==="failed"){if(!C.restarted&&C.role==="caller"){C.restarted=true;pc.createOffer({iceRestart:true}).then(o=>pc.setLocalDescription(o)).then(()=>send({t:"offer",sdp:pc.localDescription})).catch(()=>{});return}
+      end(L("Koneksi gagal. Jaringan salah satu dari kalian mungkin memblokir panggilan langsung.","Connection failed. One of your networks may block direct calls."),true)}
     else if(s==="disconnected"){C.note=L("Sinyal lemah, menyambung ulang…","Weak signal, reconnecting…");draw()}};
   clearTimeout(C.wd1);clearTimeout(C.wd2);
   C.wd1=setTimeout(async()=>{if(C.pc!==pc||pc.connectionState==="connected")return;C.note=L("Mencoba jalur lain…","Trying another route…");draw();
@@ -63,24 +62,30 @@ function newPC(list){const pc=new RTCPeerConnection({iceServers:list||ICE});C.re
 async function flushIce(){const l=C.pendingIce;C.pendingIce=[];for(const c of l)try{await C.pc.addIceCandidate(c)}catch(e){}}
 
 /* ---------- alur panggilan ---------- */
-async function start(video){
-  try{await ready()}catch(e){status(e.message==="nopartner"||/couple_members/.test(e.message||"")?L("Panggilan butuh setup Chat berdua dulu (couple-social.sql).","Calls need the couple Chat setup first (couple-social.sql)."):L("Belum bisa menelepon: ","Can't call yet: ")+(e.message||e),"warn");return}
+async function start(peer,video,conv){
+  if(typeof peer==="boolean"){conv=video;video=peer;peer=null}
+  try{await ready()}catch(e){status(L("Belum bisa menelepon: ","Can't call yet: ")+(e.message||e),"warn");return}
   if(C.state!=="idle")return;
-  C.video=video;C.role="caller";C.id=Date.now().toString(36);C.state="calling";C.note="";draw();
+  if(!peer&&window.RS){peer=RS.partners().find(u=>u!==C.me)||null}
+  if(!peer){status(L("Pilih kontak yang mau ditelepon dari Chat.","Pick a contact to call from Chat."),"warn");return}
+  C.other=peer;C.conv=conv||null;C.video=video;C.role="caller";C.id=Date.now().toString(36);C.state="calling";C.note="";draw();
   try{C.local=await getMedia(video)}catch(e){C.state="idle";draw();alert(e.message);return}
   draw();tone("out");send({t:"ring",video});C.ringIv=setInterval(()=>{if(C.state==="calling")send({t:"ring",video})},3000);
-  if(window.RAVI_NOTIFY)window.RAVI_NOTIFY("call",{body:video?L("🎥 Video call masuk","🎥 Incoming video call"):L("📞 Panggilan suara masuk","📞 Incoming voice call")});
+  if(window.RAVI_NOTIFY)window.RAVI_NOTIFY("call",{to:[C.other],title:nm(C.me),body:video?L("🎥 Video call masuk","🎥 Incoming video call"):L("📞 Panggilan suara masuk","📞 Incoming voice call"),url:"./?go=chat&call=1"});
   C.ringT=setTimeout(()=>{if(C.state==="calling"){send({t:"cancel"});end(L("Tidak dijawab","No answer"),true,"missed")}},45000)}
 async function accept(){stopTone();C.state="connecting";draw();
   try{C.local=await getMedia(C.video)}catch(e){send({t:"decline"});end(e.message,true);return}
   C.pc=newPC(await iceList());send({t:"accept"});draw()}
 function decline(){send({t:"decline"});stopTone();reset()}
 async function onSig(p){if(!p||p.from===C.me)return;
-  if(p.t==="ring"){if(p.id&&p.id===C.id)return;if(C.state!=="idle"){send({t:"busy",id:p.id});return}
-    C.id=p.id;C.role="callee";C.video=!!p.video;C.state="ringing";C.note="";draw();tone("in");
+  if(p.t==="ring"){if(p.id&&p.id===C.id)return;if(C.state!=="idle"){const keep=C.other;C.other=p.from;send({t:"busy",id:p.id});C.other=keep;return}
+    if(window.RS&&!RS.S.members[p.from])return;
+    C.other=p.from;C.id=p.id;C.role="callee";C.video=!!p.video;C.state="ringing";C.note="";draw();
+    if(C.auto&&Date.now()-C.auto<45000){C.auto=0;accept();return}   /* diangkat dari tombol "Angkat" di notifikasi */
+    tone("in");
     try{if(document.hidden&&window.Notification&&Notification.permission==="granted")new Notification(oName()+L(" menelepon"," is calling"),{body:p.video?L("Video call masuk","Incoming video call"):L("Panggilan suara masuk","Incoming voice call"),icon:"icon-192.png",tag:"call",requireInteraction:true})}catch(e){}
     C.ringT=setTimeout(()=>{if(C.state==="ringing"){stopTone();reset()}},45000);return}
-  if(p.id&&C.id&&p.id!==C.id)return;
+  if(p.from!==C.other)return;if(p.id&&C.id&&p.id!==C.id)return;
   if(p.t==="cancel"&&C.state==="ringing"){stopTone();reset();status(L("Panggilan tak terjawab dari ","Missed call from ")+oName(),"warn");return}
   if(p.t==="busy"&&C.state==="calling"){end(L("Sedang dalam panggilan lain","On another call"),true);return}
   if(p.t==="decline"&&C.state==="calling"){end(L("Panggilan ditolak","Call declined"),true,"declined");return}
@@ -92,12 +97,14 @@ async function onSig(p){if(!p||p.from===C.me)return;
   if(p.t==="cam"){C.peerVideo=!!p.on;draw();return}
   if(p.t==="hangup"&&C.state!=="idle"){end(L("Panggilan selesai","Call ended"),false);return}}
 function hangup(){send({t:C.state==="calling"?"cancel":"hangup"});end(L("Panggilan selesai","Call ended"),false,C.state==="calling"?"cancelled":null)}
-async function end(msg,isErr,kind){const dur=C.t0?Math.round((Date.now()-C.t0)/1000):0,wasCaller=C.role==="caller",video=C.video;
+async function end(msg,isErr,kind){const dur=C.t0?Math.round((Date.now()-C.t0)/1000):0,wasCaller=C.role==="caller",video=C.video;C.lastOther=C.other;
   stopTone();reset();if(msg)status(msg+(dur?" · "+fmt(dur):""),isErr?"warn":"ok");
-  if(wasCaller)try{await sb.from("couple_msgs").insert({body:"[call:"+(video?"video":"voice")+":"+(dur||0)+":"+(kind||(dur?"done":"missed"))+"]"})}catch(e){}}
+  const other=C.lastOther,res=kind||(dur?"done":"missed");
+  if(wasCaller&&other){try{if(window.RS)RS.activity(other,"call",null,{v:video?1:0,d:dur||0,r:res});
+    if(window.RAVI_CHAT){const cid=await window.RAVI_CHAT.dmWith(other);await window.RAVI_CHAT.sendBody(cid,{t:"[call:"+(video?"video":"voice")+":"+(dur||0)+":"+res+"]"})}}catch(e){}}}
 function reset(){clearTimeout(C.wd1);clearTimeout(C.wd2);clearTimeout(C.ringT);clearInterval(C.ringIv);clearInterval(C.timer);try{C.pc&&C.pc.close()}catch(e){}
   [C.local,C.share].forEach(s=>s&&s.getTracks().forEach(t=>t.stop()));
-  Object.assign(C,{pc:null,local:null,remote:null,share:null,state:"idle",muted:false,camOff:false,t0:0,pendingIce:[],role:null,id:null,note:"",peerVideo:null});draw()}
+  Object.assign(C,{pc:null,local:null,remote:null,share:null,state:"idle",muted:false,camOff:false,t0:0,pendingIce:[],role:null,id:null,note:"",peerVideo:null,restarted:false});draw()}
 const fmt=s=>Math.floor(s/60)+":"+String(s%60).padStart(2,"0");
 function tick(){const el=C.ui&&C.ui.querySelector(".cl-time");if(el&&C.t0)el.textContent=fmt(Math.round((Date.now()-C.t0)/1000))}
 
@@ -163,19 +170,9 @@ function draw(){
   const on=(id,f)=>{const b=C.ui.querySelector("#"+id);if(b)b.onclick=f};
   on("clYes",accept);on("clNo",decline);on("clEnd",hangup);on("clMute",toggleMute);on("clCam",toggleCam);on("clFlip",flip);on("clShare",shareScreen);tick()}
 
-/* ---------- tombol di Chat + catatan panggilan ---------- */
-function decorateChat(){if(route!=="chat")return;const v=document.getElementById("view");if(!v)return;
-  const head=v.querySelector(".ch-head");if(head&&!head.querySelector(".cl-head-btns")){const d=document.createElement("div");d.className="cl-head-btns";
-    d.innerHTML=`<button id="clVoice" aria-label="${L("Telepon","Voice call")}" title="${L("Telepon","Voice call")}">📞</button><button id="clVideo" aria-label="${L("Video call","Video call")}" title="${L("Video call","Video call")}">🎥</button>`;
-    head.appendChild(d);d.querySelector("#clVoice").onclick=()=>start(false);d.querySelector("#clVideo").onclick=()=>start(true)}
-  v.querySelectorAll(".ch-b .bd").forEach(bd=>{const m=/^\[call:(voice|video):(\d+):(\w+)\]$/.exec(bd.textContent||"");if(!m)return;const b=bd.closest(".ch-b"),mine=b.classList.contains("me");
-    const ic=m[1]==="video"?"🎥":"📞",dur=+m[2],kind=m[3];
-    const txt=kind==="done"?(m[1]==="video"?L("Video call","Video call"):L("Panggilan suara","Voice call"))+" · "+fmt(dur):kind==="declined"?L("Panggilan ditolak","Call declined"):mine?L("Tidak dijawab","No answer"):L("Panggilan tak terjawab","Missed call");
-    const pill=document.createElement("div");pill.className="ch-call";pill.innerHTML=`<span>${kind==="done"?ic:"↩️ "+ic}</span><span class="tx"></span><span>· ${b.querySelector(".t")?.textContent.replace(/✓/g,"").trim()||""}</span><button>${L("Telepon balik","Call back")}</button>`;
-    pill.querySelector(".tx").textContent=txt;pill.querySelector("button").onclick=()=>start(m[1]==="video");b.replaceWith(pill)})}
-if(typeof render==="function"){const _r=render;render=function(){const o=_r.apply(this,arguments);try{decorateChat()}catch(e){}return o}}
-new MutationObserver(()=>{try{decorateChat()}catch(e){}}).observe(document.getElementById("view")||document.body,{childList:true});
-window.RAVI_CALL={start,state:()=>C.state};
+window.RAVI_CALL={start,state:()=>C.state,peer:()=>C.other,
+  autoAnswer:()=>{if(C.state==="ringing"){accept();return}C.auto=Date.now();ready().catch(()=>{})},
+  decline:()=>{if(C.state==="ringing")decline()}};
 /* siap menerima panggilan setelah login */
 addEventListener("load",()=>{const t=setInterval(()=>{if(typeof col!=="undefined"&&col){clearInterval(t);ready().catch(()=>{})}},2000);setTimeout(()=>clearInterval(t),60000)});
 addEventListener("beforeunload",()=>{if(C.state!=="idle")send({t:C.state==="calling"?"cancel":"hangup"})});

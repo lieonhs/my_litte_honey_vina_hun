@@ -126,6 +126,7 @@ Semua acara & jurnal disimpan di Supabase yang sama (per akun) — **tidak perlu
 Cukup **3 langkah**, sekali saja:
 
 1. **Database** — Supabase → SQL Editor → New query → tempel seluruh isi `supabase/setup-ravi.sql` → **Run**.
+1b. **Chat v3 (grup, notifikasi, enkripsi per akun)** — jalankan juga `supabase/ravi-chat-v3.sql` (aman diulang).
    (Cek dulu Authentication → Users: isinya hanya akun Rafi & Vina, karena skrip mendaftarkan semua akun yang ada sebagai pasangan.)
 2. **Edge Function `ravi`** — Edge Functions → Deploy a new function → Via Editor → nama **`ravi`** → tempel `supabase/functions/ravi/index.ts` → Deploy.
    Kunci notifikasi (VAPID) dibuat otomatis oleh function ini, tidak perlu diisi manual.
