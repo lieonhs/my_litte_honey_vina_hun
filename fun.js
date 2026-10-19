@@ -26,6 +26,7 @@ html.fun[data-char=vkantor]{--g1:#6a5acd;--g2:#b9a7f0;--acc:#6f5bd3;--accD:#5241
 html.fun[data-char=vorange]{--g1:#d93a0b;--g2:#ff8a3d;--acc:#e5531c;--accD:#b23f10;--accS:#ffe5d9;--sel:#fff0e8;--th:#fff1ea;--line:#f6dccf;--bg:#fff8f4}
 html.fun[data-char=vsantai]{--g1:#25272d;--g2:#5c6170;--acc:#3f4450;--accD:#23262d;--accS:#e6e7ea;--sel:#eeeff2;--th:#f0f1f3;--line:#dfe1e5;--bg:#f7f8f9}
 html.fun[data-char=vkrl]{--g1:#b8566f;--g2:#f2b8c6;--acc:#c25a78;--accD:#973f59;--accS:#fbe6ec;--sel:#fdeef2;--th:#fdf0f4;--line:#f3dbe3;--bg:#fff8fa}
+html.fun[data-char=vnel]{--g1:#ff6fa8;--g2:#6b8cff;--acc:#e0559a;--accD:#b13b77;--accS:#fde6f1;--sel:#fdeef6;--th:#f7eefb;--line:#eedff0;--bg:#fdf8fd}
 html.fun[data-char=erusa]{--g1:#1f1f24;--g2:#c9802f;--acc:#b8691f;--accD:#8f4f14;--accS:#f8ead9;--sel:#fbf1e5;--th:#f8efe4;--line:#eadfce;--bg:#fcf9f4}
 html.fun[data-char=ebuku]{--g1:#1d3b2c;--g2:#8fae5d;--acc:#2f6b4a;--accD:#1f4e35;--accS:#e2efe5;--sel:#eaf4ec;--th:#eef5ef;--line:#d8e7dc;--bg:#f6faf5}
 html.fun[data-char=erenang]{--g1:#1f7fb8;--g2:#6ec3e8;--acc:#1f8fc9;--accD:#176c99;--accS:#dff1fb;--sel:#e8f5fc;--th:#ecf6fc;--line:#d3e9f5;--bg:#f5fbfe}
@@ -41,6 +42,7 @@ html.fun[data-char=ekaget]{--g1:#e05a47;--g2:#ffb08a;--acc:#d9533f;--accD:#a83d2
  html.fun[data-char=vorange]:not([data-theme="light"]){--acc:#ff8a52;--accS:#3d2116;--sel:#3a2218;--bg:#1b1310;--card:#251a15;--th:#2e211b;--line:#45302a}
  html.fun[data-char=vsantai]:not([data-theme="light"]){--g1:#15161a;--g2:#40444f;--acc:#b9bfcc;--accS:#2a2d33;--sel:#2b2e35;--bg:#141518;--card:#1c1e22;--th:#24262b;--line:#363940}
  html.fun[data-char=vkrl]:not([data-theme="light"]){--acc:#f08aa6;--accS:#3b1f29;--sel:#3a2029;--bg:#1b1316;--card:#251a1e;--th:#2e2126;--line:#47313a}
+ html.fun[data-char=vnel]:not([data-theme="light"]){--g1:#b8407a;--g2:#4258b8;--acc:#ff8cc0;--accS:#3b2034;--sel:#38203a;--bg:#18141f;--card:#221b2c;--th:#2b2236;--line:#40334f}
  html.fun[data-char=erusa]:not([data-theme="light"]){--acc:#e0a050;--accS:#3a2a16;--sel:#372818;--bg:#151412;--card:#1f1d1a;--th:#292621;--line:#3e3a32}
  html.fun[data-char=ebuku]:not([data-theme="light"]){--acc:#7fc79a;--accS:#173324;--sel:#193325;--bg:#111a15;--card:#17231c;--th:#1e2d24;--line:#2c4234}
  html.fun[data-char=erenang]:not([data-theme="light"]){--acc:#6ec3e8;--accS:#16303f;--sel:#17303d;--bg:#10171c;--card:#162129;--th:#1c2a34;--line:#2a3f4d}
@@ -96,6 +98,22 @@ html:not(.fun) .charpick .pipi{display:block}
 .guide .term b{color:var(--acc)}
 @media (max-width:600px){.guide .term{grid-template-columns:1fr}.guide .term b{margin-top:6px}}
 `;document.head.appendChild(css);
+
+/* ---------- perbaikan menu ☰ di HP: bisa di-scroll sampai item terakhir ----------
+   Penyebab: aside di HP jadi position:fixed tapi masih membawa align-self:flex-start dari
+   versi desktop. Di browser baru, itu membuat tinggi menu = tinggi isinya (bukan tinggi layar),
+   jadi menu memanjang keluar layar dan tidak ada yang bisa di-scroll. Ditambah min-height
+   100vh-52px padahal header di HP 2 baris. */
+const navFix=document.createElement("style");navFix.id="navFix";navFix.textContent=`
+@media (max-width:860px){
+ aside#nav{align-self:stretch!important;top:var(--hdrH,98px)!important;bottom:0!important;height:auto!important;min-height:0!important;max-height:none!important;
+  overflow-y:auto!important;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;
+  padding-bottom:calc(24px + env(safe-area-inset-bottom))!important}
+ html:has(aside#nav.open),html:has(aside#nav.open) body{overflow:hidden!important}}`;
+document.head.appendChild(navFix);
+function syncHdr(){const h=document.querySelector("header");if(h)document.documentElement.style.setProperty("--hdrH",Math.round(h.getBoundingClientRect().height)+"px")}
+addEventListener("load",()=>{syncHdr();const h=document.querySelector("header");if(h&&window.ResizeObserver)new ResizeObserver(syncHdr).observe(h)});
+addEventListener("resize",syncHdr);
 
 /* ---------- karakter (semua original) ---------- */
 const CHARS={
@@ -250,6 +268,28 @@ function boySVG(id,mood,size){const o=BOYS[id],u="b"+(++bUid);
    <path d="M57 78 q3 2.4 6 0" stroke="#c98a68" stroke-width="2" fill="none" stroke-linecap="round"/>
    ${mouth}${o.over||""}${thumb}${extra}</svg>`}
 for(const [k,o] of Object.entries(BOYS))CHARS[k]={name:o.n,emoji:o.e,kind:o.k,desc:o.d,boy:true};
+/* ---------- stiker couple Vina & El (tier Mitos, di atas Legendaris) ---------- */
+const COUPLES={
+ cpkencan:{n:"Kencan Hemat",e:"💞",v:["vcap","happy"],b:["erusa","happy"],bg:["#ffd6e7","#ffe9c7"],deco:"heart"},
+ cpselfie:{n:"Selfie Kaget",e:"🤳",v:["vorange","think"],b:["ekaget","worried"],bg:["#1f2a44","#3b4a6b"],deco:"night"},
+ cptutup:{n:"Tutup Buku Bareng",e:"📒",v:["vkantor","party"],b:["ebuku","party"],bg:["#e8e2ff","#dff3e6"],deco:"spark"},
+ cpkrl:{n:"Pulang Bareng KRL",e:"🚆",v:["vkrl","sleep"],b:["erusa","sleep"],bg:["#fde2ea","#e3ecf9"],deco:"train"},
+ cpcocok:{n:"Saldo Cocok!",e:"💖",v:["vsantai","party"],b:["erenang","party"],bg:["#ffe1f0","#e0f2ff"],deco:"coin"}};
+let cUid=0;
+function coupleSVG(id,size,mood){const c=id==="vnel"?{n:"Vina & El",v:["vcap",mood||"happy"],b:["erusa",mood||"happy"],nobg:true,deco:mood==="party"?"heart":""}:COUPLES[id],u="c"+(++cUid);
+  const put=(svg,x,y,s)=>svg.replace(/<svg class="pipi" width="\d+" height="\d+"/,`<svg x="${x}" y="${y}" width="${s}" height="${s}"`);
+  const heart=(x,y,s,col)=>`<path transform="translate(${x} ${y}) scale(${s})" d="M0 4c-3-3-7-1-7 3c0 4 7 8 7 8s7-4 7-8c0-4-4-6-7-3z" fill="${col}" stroke="#fff" stroke-width="1.2"/>`;
+  const deco={heart:heart(60,14,1.5,"#ff4d7e")+heart(20,22,.8,"#ff8fb5")+heart(100,20,.8,"#ff8fb5"),
+   night:'<circle cx="98" cy="22" r="9" fill="#ffe9a8"/><circle cx="94" cy="19" r="8" fill="#2a3757"/><circle cx="22" cy="18" r="1.6" fill="#fff"/><circle cx="40" cy="10" r="1.2" fill="#fff"/><circle cx="70" cy="14" r="1.4" fill="#fff"/>'+heart(60,18,1.1,"#ff6f91"),
+   spark:'<path d="M60 6 l3 7 l7 1 l-5 5 l1.5 7 l-6.5 -3.5 l-6.5 3.5 l1.5 -7 l-5 -5 l7 -1z" fill="#ffd23f" stroke="#fff" stroke-width="1"/>'+heart(24,20,.8,"#7c4dff")+heart(96,20,.8,"#2f6b4a"),
+   train:'<rect x="14" y="10" width="92" height="22" rx="8" fill="#fff" opacity=".85"/><rect x="20" y="15" width="16" height="10" rx="2" fill="#bcd6f5"/><rect x="40" y="15" width="16" height="10" rx="2" fill="#bcd6f5"/><rect x="64" y="15" width="16" height="10" rx="2" fill="#bcd6f5"/><rect x="84" y="15" width="16" height="10" rx="2" fill="#bcd6f5"/><path d="M14 28 h92" stroke="#e5484d" stroke-width="2.4"/>',
+   coin:'<circle cx="60" cy="18" r="10" fill="#ffd23f" stroke="#e0a800" stroke-width="2"/><text x="60" y="22.5" font-size="11" font-weight="900" text-anchor="middle" fill="#a06d00" font-family="Nunito,sans-serif">Rp</text>'+heart(24,18,.9,"#ff4d7e")+heart(96,18,.9,"#ff4d7e")}[c.deco]||"";
+  return `<svg class="pipi couple" width="${size}" height="${size}" viewBox="0 0 120 120" role="img" aria-label="${c.n}">
+   ${c.bg?`<defs><linearGradient id="${u}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c.bg[0]}"/><stop offset="1" stop-color="${c.bg[1]}"/></linearGradient></defs>`:""}
+   ${c.nobg?"":`<rect x="2" y="2" width="116" height="116" rx="26" fill="url(#${u})"/>`}
+   ${deco}${put(boySVG(c.b[0],c.b[1],70),50,40,70)}${put(girlSVG(c.v[0],c.v[1],70),0,40,70)}</svg>`}
+window.COUPLES=COUPLES;
+CHARS.vnel={name:"Vina & El",emoji:"💑",kind:"tema couple",desc:"Berdua jagain keuangan bareng. Satu jajan, satu ngingetin anggaran.",couple:true};
 
 const charKey=()=>"bbp_char_"+(document.getElementById("who")?.textContent||"").split(" ")[0];
 function charId(){const p=window.PREFS?.char;if(p&&CHARS[p])return p;try{const l=localStorage.getItem(charKey());if(l&&CHARS[l])return l}catch(e){}return "pipi"}
@@ -257,7 +297,7 @@ const C=()=>CHARS[charId()];
 async function setChar(id){try{localStorage.setItem(charKey(),id)}catch(e){}window.PREFS={...(window.PREFS||{}),char:id};
   document.documentElement.dataset.char=id;
   try{if(col)await col.doc("prefs").set(window.PREFS)}catch(e){}render()}
-function pipi(mood="happy",size=64,id){const cid=id||charId();if(OUTFITS[cid])return girlSVG(cid,mood,size);if(BOYS[cid])return boySVG(cid,mood,size);const c=CHARS[cid];
+function pipi(mood="happy",size=64,id){const cid=id||charId();if(cid==="vnel")return coupleSVG("vnel",size,mood);if(COUPLES[cid])return coupleSVG(cid,size);if(OUTFITS[cid])return girlSVG(cid,mood,size);if(BOYS[cid])return boySVG(cid,mood,size);const c=CHARS[cid];
   const eyes={happy:'<circle cx="44" cy="52" r="5" fill="#2d2340"/><circle cx="76" cy="52" r="5" fill="#2d2340"/><circle cx="45.5" cy="50.5" r="1.6" fill="#fff"/><circle cx="77.5" cy="50.5" r="1.6" fill="#fff"/>',
     worried:'<circle cx="44" cy="54" r="5" fill="#2d2340"/><circle cx="76" cy="54" r="5" fill="#2d2340"/><path d="M36 42 l14 5 M84 42 l-14 5" stroke="#2d2340" stroke-width="3" stroke-linecap="round"/>',
     party:'<path d="M38 53 q6 -8 12 0 M70 53 q6 -8 12 0" stroke="#2d2340" stroke-width="3.5" fill="none" stroke-linecap="round"/>',
@@ -352,7 +392,7 @@ const STEPS=[
  {r:"budget",sel:".tiles",t:"Anggaran bulanan",d:"Tekan Ubah anggaran, isi gaji dan rencana tiap pos (kost, listrik, makan…). Aku kasih peringatan kuning/merah kalau mulai jebol.",m:"happy"},
  {r:"fs",sel:".tabs",t:"Laporan keuangan",d:"Laba Rugi, Neraca, dan Arus Kas otomatis dari jurnalmu. Bisa dicetak / disimpan PDF.",m:"party"},
  {r:"today",sel:".tiles",t:"📔 Jurnal Harian & Kalender",d:"Tombol 📔 Jurnal Harian di atas membuka sisi harian: agenda Hari Ini, Kalender (isi jadwal kuliah/shift sekali per semester), dan jurnal mood & kegiatanmu.",m:"happy"},
- {r:"quest",sel:".tiles",t:"🎯 Misi & koleksi stiker",d:"Selesaikan misi harian, mingguan, dan achievement untuk dapat stiker karakter. Paling langka: stiker Vina (Legendaris)! Tombol 🎯 di atas menandai hadiah yang siap diklaim.",m:"party"},
+ {r:"quest",sel:".tiles",t:"🎯 Misi & koleksi stiker",d:"Selesaikan misi harian, mingguan, dan achievement untuk dapat stiker karakter. Legendaris: stiker Vina & El. Paling langka: 5 stiker couple (Mitos)! Tombol 🎯 di atas menandai hadiah yang siap diklaim.",m:"party"},
  {r:"dash",sel:".pipi-card",t:"Siap mulai! 🎉",d:"Ikuti daftar langkah awal di kartu ini. Rutinitas emas: foto tiap transaksi, cek saldo real tiap minggu, tutup periode + backup tiap akhir bulan.",m:"party"}];
 let tourOn=false,ti=0,dimEl,boxEl;
 const seenKey=()=>"bbp_tour_"+(document.getElementById("who")?.textContent||"").split(" ")[0];
