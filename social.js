@@ -55,7 +55,7 @@ function subscribe(){if(S.sub)return;S.sub=true;
 function refresh(r){badge();if(route===r){const v=document.getElementById("view");if(!v)return;if(r==="chat")drawChat(v,true);else drawFeed(v)}}
 const unread=()=>S.msgs.filter(m=>m.sender!==S.me&&!m.read_at).length;
 function badge(){const a=document.querySelector('aside a[data-r="chat"]');if(a){let b=a.querySelector(".qbadge");const n=unread();if(n&&!b){b=document.createElement("span");b.className="qbadge";a.appendChild(b)}if(b){if(n)b.textContent=n;else b.remove()}}}
-function notifyMsg(m){if(route==="chat"&&!document.hidden)return;const txt=isStk(m.body)?"🧸 "+L("Stiker","Sticker"):(m.body||(m.img?"📷 "+L("Foto","Photo"):""));
+function notifyMsg(m){if(route==="chat"&&!document.hidden)return;const txt=/^\[call:/.test(m.body||"")?"📞 "+L("Panggilan","Call"):isStk(m.body)?"🧸 "+L("Stiker","Sticker"):(m.body||(m.img?"📷 "+L("Foto","Photo"):""));
   if(window.doPeek)window.doPeek(true,{t:"💬 "+name(m.sender),d:txt.slice(0,80),r:"chat",m:"happy",w:8});
   try{if(document.hidden&&window.Notification&&Notification.permission==="granted")new Notification(name(m.sender),{body:txt.slice(0,120),icon:"icon-192.png",tag:"chat"})}catch(e){}}
 
@@ -279,5 +279,8 @@ addEventListener("load",()=>{const t=setInterval(()=>{if(typeof col!=="undefined
 document.addEventListener("visibilitychange",()=>{if(!document.hidden&&route==="chat")markRead()});
 /* jangan ada popup pengingat yang menutupi kolom ketik saat chat/feed dibuka */
 if(window.doPeek){const _pk=window.doPeek;window.doPeek=function(){if(route==="chat"||route==="feed")return;return _pk.apply(this,arguments)}}
-const _go2=go;go=function(r){if(r==="chat"||r==="feed")document.querySelectorAll(".peek").forEach(e=>e.remove());return _go2.apply(this,arguments)};
+const pkCss=document.createElement("style");pkCss.textContent="html.on-chat .peek{display:none!important}";document.head.appendChild(pkCss);
+const markRoute=r=>document.documentElement.classList.toggle("on-chat",r==="chat"||r==="feed");
+const _go2=go;go=function(r){markRoute(r);return _go2.apply(this,arguments)};
+addEventListener("load",()=>markRoute(route));
 })();
