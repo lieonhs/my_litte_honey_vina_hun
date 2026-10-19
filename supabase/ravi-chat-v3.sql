@@ -365,3 +365,8 @@ grant execute on function public.ravi_escrow_key() to authenticated;
 -- couple_members.bio (<=160), .photo (path di bucket couple), .song jsonb {t,a,u}
 -- grant update (bio, photo, song) ke authenticated (baris sendiri via cm_update_own)
 -- ravi_friend_emails(): email diri sendiri + teman saja
+
+-- ===== Batas kuota Cloudflare Realtime (TURN) =====
+-- (migrasi ravi_turn_usage + ravi_usage_total) — aplikasi mencatat byte yang lewat relay TURN
+-- ravi_usage_add(bytes), ravi_usage_month() untuk anggota, ravi_usage_total() khusus service_role
+-- Edge Function "ravi" action "ice": >= 700 GB → telepon mati; >= 899 GB → semua fitur kuota mati

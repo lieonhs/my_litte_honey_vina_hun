@@ -57,6 +57,14 @@ Deno.serve(async (req) => {
 
   // 3) Server ICE: STUN + TURN (Cloudflare, atau Metered sebagai cadangan) bila diset.
   if (body.action === "ice") {
+    // Batas kuota Cloudflare Realtime (TURN, gratis 1.000 GB/bulan):
+    // >= 700 GB → telepon dimatikan; >= 899 GB → semua yang memakai kuota Cloudflare dimatikan.
+    const GB = 1e9, CALL_LIMIT = 700 * GB, HARD_LIMIT = 899 * GB;
+    const { data: tot } = await admin.rpc("ravi_usage_total");
+    const used = Number(tot || 0);
+    const usage = { bytes: used, callLimit: CALL_LIMIT, hardLimit: HARD_LIMIT };
+    if (used >= HARD_LIMIT) return json({ iceServers: [], turn: false, blocked: "all", usage });
+    if (used >= CALL_LIMIT) return json({ iceServers: [], turn: false, blocked: "calls", usage });
     const stun = [{ urls: ["stun:stun.cloudflare.com:3478", "stun:stun.l.google.com:19302"] }];
     const id = Deno.env.get("CF_TURN_KEY_ID"), tok = Deno.env.get("CF_TURN_API_TOKEN");
     const mDom = Deno.env.get("METERED_DOMAIN"), mKey = Deno.env.get("METERED_API_KEY");
@@ -73,17 +81,17 @@ Deno.serve(async (req) => {
           const servers = (j.iceServers ?? []).map((s: { urls: string | string[]; username?: string; credential?: string }) => ({
             ...s, urls: (Array.isArray(s.urls) ? s.urls : [s.urls]).filter((u) => !/:53(\?|$)/.test(u)),
           })).filter((s: { urls: string[] }) => s.urls.length);
-          return json({ iceServers: servers, turn: true, via: "cloudflare" });
+          return json({ iceServers: servers, turn: true, via: "cloudflare", usage });
         }
       } catch (_) { /* coba cadangan */ }
     }
     if (mDom && mKey) {
       try {
         const r = await fetch(`https://${mDom}/api/v1/turn/credentials?apiKey=${encodeURIComponent(mKey)}`);
-        if (r.ok) return json({ iceServers: [...stun, ...(await r.json())], turn: true, via: "metered" });
+        if (r.ok) return json({ iceServers: [...stun, ...(await r.json())], turn: true, via: "metered", usage });
       } catch (_) { /* pakai STUN saja */ }
     }
-    return json({ iceServers: stun, turn: false });
+    return json({ iceServers: stun, turn: false, usage });
   }
 
   // 4) Kirim notifikasi ke anggota chat / kontak tertentu.

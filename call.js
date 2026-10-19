@@ -51,13 +51,29 @@ async function getMedia(video){
   try{return await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true},video:video?{facingMode:C.facing,width:{ideal:1280},height:{ideal:720}}:false})}
   catch(e){throw new Error(e.name==="NotAllowedError"?L("Izin mikrofon/kamera ditolak. Izinkan lewat ikon gembok di address bar.","Microphone/camera permission denied. Allow it via the lock icon in the address bar."):e.name==="NotFoundError"?L("Mikrofon/kamera tidak ditemukan.","No microphone/camera found."):e.message)}}
 let iceP=null,iceAt=0;
-function loadIce(force){if(!window.RAVI_FN)return Promise.resolve(null);if(!iceP||force||Date.now()-iceAt>6*3600e3){iceAt=Date.now();iceP=window.RAVI_FN({action:"ice"}).then(r=>r&&r.iceServers&&r.iceServers.length?r.iceServers:null).catch(()=>null)}return iceP}
+function loadIce(force){if(!window.RAVI_FN)return Promise.resolve(null);if(!iceP||force||Date.now()-iceAt>6*3600e3){iceAt=Date.now();iceP=window.RAVI_FN({action:"ice"}).then(r=>{C.quota=r||null;return r&&r.iceServers&&r.iceServers.length?r.iceServers:null}).catch(()=>null)}return iceP}
+/* ---------- batas kuota Cloudflare Realtime ---------- */
+const gb=b=>(b/1e9).toFixed(b>=1e11?0:1);
+async function quotaBlocked(){await Promise.race([loadIce(true),new Promise(x=>setTimeout(x,3000))]);const q=C.quota;if(!q||!q.blocked)return null;
+  const u=q.usage||{};return q.blocked==="all"?L("Kuota Cloudflare bulan ini sudah ","This month's Cloudflare quota is at ")+gb(u.bytes||0)+" GB (≥ 899 GB). "+L("Semua fitur yang memakai kuota dimatikan sampai bulan depan.","Every feature that uses it is off until next month.")
+    :L("Kuota telepon bulan ini sudah ","This month's call quota is at ")+gb(u.bytes||0)+" GB (≥ 700 GB). "+L("Telepon & video call dimatikan sampai bulan depan.","Voice & video calls are off until next month.")}
+/* video call & berbagi layar khusus pasangan */
+const vidOK=u=>!window.RS||!RS.S.me||(RS.isPartner(RS.S.me)&&RS.isPartner(u));
+const VID_NO=()=>L("Video call & berbagi layar khusus pasangan pemilik RaVi. Panggilan suara tetap bisa.","Video calls & screen sharing are only for the RaVi couple. Voice calls still work.");
+/* ---------- hitung pemakaian relay TURN (yang memakai kuota) ---------- */
+async function meter(){if(!C.pc||C.state!=="live")return;try{const st=await C.pc.getStats();let pair=null;const map=new Map();st.forEach(r=>map.set(r.id,r));
+    st.forEach(r=>{if(r.type==="transport"&&r.selectedCandidatePairId)pair=map.get(r.selectedCandidatePairId)});
+    if(!pair)st.forEach(r=>{if(r.type==="candidate-pair"&&(r.selected||r.nominated)&&r.state==="succeeded")pair=r});
+    if(!pair)return;const lc=map.get(pair.localCandidateId),rc=map.get(pair.remoteCandidateId),relay=(lc&&lc.candidateType==="relay")||(rc&&rc.candidateType==="relay");
+    const tot=(pair.bytesSent||0)+(pair.bytesReceived||0);if(C.mLast==null)C.mLast=tot;const d=Math.max(0,tot-C.mLast);C.mLast=tot;if(relay)C.mBytes=(C.mBytes||0)+d;
+    if(C.mBytes>=50e6)flushMeter()}catch(e){}}
+function flushMeter(){const b=Math.round(C.mBytes||0);C.mBytes=0;if(b>0&&typeof sb!=="undefined"&&sb)sb.rpc("ravi_usage_add",{p_bytes:b}).then(()=>{},()=>{})}
 async function iceList(){const r=await Promise.race([loadIce(),new Promise(x=>setTimeout(()=>x(null),2500))]);return r||ICE}
 function newPC(list){const pc=new RTCPeerConnection({iceServers:list||ICE});C.remote=new MediaStream();
   C.cand={host:0,srflx:0,relay:0,remote:0};
   pc.onicecandidate=e=>{if(e.candidate){const ty=(/ typ (\w+)/.exec(e.candidate.candidate)||[])[1];if(ty in C.cand)C.cand[ty]++;send({t:"ice",c:e.candidate})}};
   pc.ontrack=e=>{e.streams[0]?e.streams[0].getTracks().forEach(t=>{if(!C.remote.getTracks().includes(t))C.remote.addTrack(t)}):C.remote.addTrack(e.track);draw()};
-  pc.onconnectionstatechange=()=>{const s=pc.connectionState;if(s==="connected"){if(C.state!=="live"){C.state="live";C.t0=Date.now();stopTone();clearInterval(C.timer);C.timer=setInterval(tick,1000)}draw()}
+  pc.onconnectionstatechange=()=>{const s=pc.connectionState;if(s==="connected"){if(C.state!=="live"){C.state="live";C.t0=Date.now();clearInterval(C.mIv);C.mIv=setInterval(meter,10000);setTimeout(meter,1500);stopTone();clearInterval(C.timer);C.timer=setInterval(tick,1000)}draw()}
     else if(s==="failed"){if(!C.restarted&&C.role==="caller"){C.restarted=true;pc.createOffer({iceRestart:true}).then(o=>pc.setLocalDescription(o)).then(()=>send({t:"offer",sdp:pc.localDescription})).catch(()=>{});return}
       end(L("Koneksi gagal. Jaringan salah satu dari kalian mungkin memblokir panggilan langsung.","Connection failed. One of your networks may block direct calls."),true)}
     else if(s==="disconnected"){C.note=L("Sinyal lemah, menyambung ulang…","Weak signal, reconnecting…");draw()}};
@@ -77,6 +93,9 @@ async function start(peer,video,conv){
   if(C.state!=="idle")return;
   if(!peer&&window.RS){peer=RS.partners().find(u=>u!==C.me)||null}
   if(!peer){status(L("Pilih kontak yang mau ditelepon dari Chat.","Pick a contact to call from Chat."),"warn");return}
+  if(video&&!vidOK(peer)){status(VID_NO(),"warn");video=false}
+  {const qb=await quotaBlocked();if(qb){status(qb,"err");return}}
+  if(C.state!=="idle")return;
   C.other=peer;C.conv=conv||null;C.video=video;C.role="caller";C.id=Date.now().toString(36);C.state="calling";C.note="";draw();
   try{C.local=await getMedia(video)}catch(e){C.state="idle";draw();alert(e.message);return}
   draw();tone("out");send({t:"ring",video});C.ringIv=setInterval(()=>{if(C.state==="calling")send({t:"ring",video})},3000);
@@ -84,14 +103,17 @@ async function start(peer,video,conv){
   const callPush=()=>{if(C.state==="calling"&&window.RAVI_NOTIFY)window.RAVI_NOTIFY("call",{to:[C.other],title:nm(C.me),body:video?L("🎥 Video call masuk","🎥 Incoming video call"):L("📞 Panggilan suara masuk","📞 Incoming voice call"),url:"./?go=chat&call=1"})};
   callPush();clearInterval(C.pushIv);C.pushIv=setInterval(callPush,6000);
   C.ringT=setTimeout(()=>{if(C.state==="calling"){send({t:"cancel"});end(L("Tidak dijawab","No answer"),true,"missed")}},45000)}
-async function accept(){stopTone();C.state="connecting";draw();
+async function accept(){stopTone();
+  {const qb=await quotaBlocked();if(qb){status(qb,"err");decline();return}}
+  if(C.video&&!vidOK(C.other))C.video=false;
+  C.state="connecting";draw();
   try{C.local=await getMedia(C.video)}catch(e){send({t:"decline"});end(e.message,true);return}
   C.pc=newPC(await iceList());send({t:"accept"});draw()}
 function decline(){send({t:"decline"});stopTone();reset()}
 async function onSig(p){if(!p||p.from===C.me)return;
   if(p.t==="ring"){if(p.id&&p.id===C.id)return;if(C.state!=="idle"){const keep=C.other;C.other=p.from;send({t:"busy",id:p.id});C.other=keep;return}
     if(window.RS&&!RS.S.members[p.from])return;
-    C.other=p.from;C.id=p.id;C.role="callee";C.video=!!p.video;C.state="ringing";C.note="";draw();
+    C.other=p.from;C.id=p.id;C.role="callee";C.video=!!p.video&&vidOK(p.from);C.state="ringing";C.note="";draw();
     if(C.auto&&Date.now()-C.auto<45000){C.auto=0;accept();return}   /* diangkat dari tombol "Angkat" di notifikasi */
     tone("in");
     try{if(document.hidden&&window.Notification&&Notification.permission==="granted")new Notification(oName()+L(" menelepon"," is calling"),{body:p.video?L("Video call masuk","Incoming video call"):L("Panggilan suara masuk","Incoming voice call"),icon:"icon-192.png",tag:"call",requireInteraction:true})}catch(e){}
@@ -108,14 +130,14 @@ async function onSig(p){if(!p||p.from===C.me)return;
   if(p.t==="cam"){C.peerVideo=!!p.on;draw();return}
   if(p.t==="hangup"&&C.state!=="idle"){end(L("Panggilan selesai","Call ended"),false);return}}
 function hangup(){send({t:C.state==="calling"?"cancel":"hangup"});end(L("Panggilan selesai","Call ended"),false,C.state==="calling"?"cancelled":null)}
-async function end(msg,isErr,kind){const dur=C.t0?Math.round((Date.now()-C.t0)/1000):0,wasCaller=C.role==="caller",video=C.video;C.lastOther=C.other;clearInterval(C.pushIv);
+async function end(msg,isErr,kind){try{await meter()}catch(e){}const dur=C.t0?Math.round((Date.now()-C.t0)/1000):0,wasCaller=C.role==="caller",video=C.video;C.lastOther=C.other;clearInterval(C.pushIv);
   /* ganti notifikasi "panggilan masuk" di HP dia menjadi "tak terjawab" supaya berhenti berdering */
   if(wasCaller&&(kind==="missed"||kind==="cancelled")&&window.RAVI_NOTIFY)window.RAVI_NOTIFY("missed",{to:[C.other],title:nm(C.me),body:(video?"🎥 ":"📞 ")+L("Panggilan tak terjawab","Missed call"),url:"./?go=notif",tag:"call"});
   stopTone();reset();if(msg)status(msg+(dur?" · "+fmt(dur):""),isErr?"warn":"ok");
   const other=C.lastOther,res=kind||(dur?"done":"missed");
   if(wasCaller&&other){try{if(window.RS)RS.activity(other,"call",null,{v:video?1:0,d:dur||0,r:res});
     if(window.RAVI_CHAT){const cid=await window.RAVI_CHAT.dmWith(other);await window.RAVI_CHAT.sendBody(cid,{t:"[call:"+(video?"video":"voice")+":"+(dur||0)+":"+res+"]"})}}catch(e){}}}
-function reset(){C.min=false;clearInterval(C.pushIv);clearTimeout(C.wd1);clearTimeout(C.wd2);clearTimeout(C.ringT);clearInterval(C.ringIv);clearInterval(C.timer);try{C.pc&&C.pc.close()}catch(e){}
+function reset(){clearInterval(C.mIv);flushMeter();C.mLast=null;C.min=false;clearInterval(C.pushIv);clearTimeout(C.wd1);clearTimeout(C.wd2);clearTimeout(C.ringT);clearInterval(C.ringIv);clearInterval(C.timer);try{C.pc&&C.pc.close()}catch(e){}
   [C.local,C.share].forEach(s=>s&&s.getTracks().forEach(t=>t.stop()));
   Object.assign(C,{pc:null,local:null,remote:null,share:null,state:"idle",muted:false,camOff:false,t0:0,pendingIce:[],role:null,id:null,note:"",peerVideo:null,restarted:false});draw()}
 const fmt=s=>Math.floor(s/60)+":"+String(s%60).padStart(2,"0");
@@ -123,7 +145,7 @@ function tick(){const el=C.ui&&C.ui.querySelector(".cl-time");if(el&&C.t0)el.tex
 
 /* ---------- kontrol ---------- */
 function toggleMute(){C.muted=!C.muted;C.local&&C.local.getAudioTracks().forEach(t=>t.enabled=!C.muted);draw()}
-async function toggleCam(){if(!C.local)return;let vt=C.local.getVideoTracks()[0];
+async function toggleCam(){if(!C.local)return;if(!vidOK(C.other)){status(VID_NO(),"warn");return}let vt=C.local.getVideoTracks()[0];
   if(!vt){try{const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:C.facing}});vt=s.getVideoTracks()[0];C.local.addTrack(vt);
       const sender=C.pc&&C.pc.getSenders().find(x=>x.track&&x.track.kind==="video");if(sender)await sender.replaceTrack(vt);else if(C.pc){C.pc.addTrack(vt,C.local);const o=await C.pc.createOffer();await C.pc.setLocalDescription(o);send({t:"offer",sdp:C.pc.localDescription})}
       C.video=true;C.camOff=false;send({t:"cam",on:true});draw()}catch(e){alert(e.message)}return}
@@ -132,7 +154,7 @@ async function flip(){if(!C.local||!C.local.getVideoTracks()[0])return;C.facing=
   try{const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:{exact:C.facing}}});const nt=s.getVideoTracks()[0],old=C.local.getVideoTracks()[0];
     const sender=C.pc&&C.pc.getSenders().find(x=>x.track&&x.track.kind==="video");if(sender)await sender.replaceTrack(nt);C.local.removeTrack(old);old.stop();C.local.addTrack(nt);draw()}
   catch(e){C.facing=C.facing==="user"?"environment":"user";status(L("Kamera lain tidak tersedia.","No other camera available."),"warn")}}
-async function shareScreen(){if(!C.pc)return;const sender=C.pc.getSenders().find(x=>x.track&&x.track.kind==="video");
+async function shareScreen(){if(!C.pc)return;if(!vidOK(C.other)){status(VID_NO(),"warn");return}const sender=C.pc.getSenders().find(x=>x.track&&x.track.kind==="video");
   if(C.share){const cam=C.local.getVideoTracks()[0];if(sender&&cam)await sender.replaceTrack(cam);C.share.getTracks().forEach(t=>t.stop());C.share=null;draw();return}
   if(!sender){status(L("Nyalakan kamera dulu, lalu share layar.","Turn on the camera first, then share the screen."),"warn");return}
   try{C.share=await navigator.mediaDevices.getDisplayMedia({video:true});const st=C.share.getVideoTracks()[0];await sender.replaceTrack(st);st.onended=()=>{if(C.share)shareScreen()};send({t:"cam",on:true});draw()}catch(e){C.share=null}}
@@ -193,7 +215,7 @@ function draw(){
      ${localVid&&!C.share?`<button class="cl-b" id="clFlip" aria-label="${L("Putar kamera","Flip camera")}">🔄<small>${L("Putar","Flip")}</small></button>`:""}
      ${canShare()&&C.state==="live"?`<button class="cl-b${C.share?" off":""}" id="clShare" aria-label="${L("Bagikan layar","Share screen")}">🖥️<small>${C.share?L("Stop share","Stop"):L("Share","Share")}</small></button>`:""}
      <button class="cl-b red" id="clEnd" aria-label="${L("Tutup","Hang up")}">📞<small>${L("Tutup","End")}</small></button>`}</div>`;
-  C.ui.querySelector(".cl-name").textContent=oName();
+  C.ui.querySelector(".cl-name").textContent=oName();if(!vidOK(C.other))C.ui.querySelectorAll("#clCam,#clFlip,#clShare").forEach(x=>x.remove());
   const rv=C.ui.querySelector(".cl-rv,.cl-ra");if(rv&&C.remote){rv.srcObject=C.remote;rv.play&&rv.play().catch(()=>{})}
   const lv=C.ui.querySelector(".cl-lv");if(lv){lv.srcObject=C.share||C.local;lv.play&&lv.play().catch(()=>{})}
   const on=(id,f)=>{const b=C.ui.querySelector("#"+id);if(b)b.onclick=f};

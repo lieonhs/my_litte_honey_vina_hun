@@ -627,7 +627,7 @@ async function older(){const cid=CH.open,st=CH.msgs.get(cid);if(!st||!st.more||s
 function wireRoom(cid){const c=CH.convs.get(cid),body=$$("#rmBody"),t=$$("#rmTxt"),room=$$("#rm");
   $$("#rmBack").onclick=()=>{if(mobile())closeRoom();else{CH.open=null;drawShell($$("#view"))}};
   $$("#rmT").onclick=$$("#rmAv").onclick=()=>c.kind==="group"?groupInfo(c):contactInfo(peer(c));
-  const v=$$("#rmVid"),p=$$("#rmCall");if(v)v.onclick=()=>startCall(true);if(p)p.onclick=()=>startCall(false);
+  const v=$$("#rmVid"),p=$$("#rmCall");{const pu=peer(CH.convs.get(CH.open));if(v&&pu&&!(R.isPartner(CH.me)&&R.isPartner(pu)))v.remove();else if(v)v.onclick=()=>startCall(true)}if(p)p.onclick=()=>startCall(false);
   $$("#rmMore").onclick=e=>roomMenu(e.currentTarget,c);
   $$("#rmFab").onclick=()=>toBottom(true);
   let sT=0;body.addEventListener("scroll",()=>{const ab=body.scrollHeight-body.scrollTop-body.clientHeight<70;if(ab!==CH.atBottom){CH.atBottom=ab;if(ab)CH.below=0;paintFab()}

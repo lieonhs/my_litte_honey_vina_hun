@@ -27,13 +27,16 @@ const css=document.createElement("style");css.textContent=`
 .ad-row.new{animation:adIn .3s ease-out}@keyframes adIn{from{background:var(--accS)}to{background:transparent}}
 .ad-ok{background:#25d366!important;border-color:#25d366!important;color:#fff!important}
 .ad-tag{font-size:11px;font-weight:800;padding:2px 8px;border-radius:99px;background:var(--th);margin-left:6px}
-.ad-empty{color:var(--mute);font-size:13.5px;padding:6px 0}`;document.head.appendChild(css);
+.ad-empty{color:var(--mute);font-size:13.5px;padding:6px 0}
+.ad-qb{position:relative;height:12px;border-radius:99px;background:var(--th);overflow:hidden;margin-bottom:8px}.ad-qb span{position:absolute;left:0;top:0;bottom:0;border-radius:99px;background:#22c55e;transition:width .4s}
+.ad-qb span.warn{background:#f59e0b}.ad-qb span.calls{background:#f97316}.ad-qb span.all{background:#ef4444}.ad-qb i{position:absolute;top:0;bottom:0;width:2px;background:var(--ink);opacity:.35}.ad-ql{margin-bottom:4px}`;document.head.appendChild(css);
 const ago=t=>R.ago(t);
 function draw(v){if(!v)return;
   if(!isAdmin()){v.innerHTML=page(L("Akun","Account"),"🛡️ "+L("Panel Admin","Admin Panel"))+`<div class="region"><div class="rb crumb">${L("Halaman ini khusus admin RaVi.","This page is for the RaVi admin only.")}</div></div>`;return}
   const pend=pending(),hist=A.list.filter(x=>x.status!=="pending").slice(0,15),mem=Object.values(R.S.members);
   v.innerHTML=page(L("Akun","Account"),"🛡️ "+L("Panel Admin","Admin Panel"))+
    `<div class="ad-stats"><div class="ad-stat${pend.length?" hot":""}"><b>${pend.length}</b><span>${L("Menunggu persetujuan","Waiting for approval")}</span></div><div class="ad-stat"><b>${mem.length}</b><span>${L("Anggota","Members")}</span></div><div class="ad-stat"><b id="adInv">–</b><span>${L("Link aktif","Active links")}</span></div></div>
+    <div class="region"><div class="rh">📞 ${L("Kuota telepon Cloudflare (bulan ini)","Cloudflare call quota (this month)")}</div><div class="rb" id="adQuota"><div class="crumb">…</div></div></div>
     <div class="region"><div class="rh"><span>⏳ ${L("Permintaan bergabung","Join requests")}</span></div><div class="rb" id="adPend">${pend.length?pend.map(x=>`<div class="ad-row" data-u="${x.user_id}"><span class="rv-av txt" style="width:44px;height:44px;font-size:18px;background:hsl(${[...x.user_id].reduce((h,c)=>(h*31+c.charCodeAt(0))%360,0)} 60% 55%)">${esc((x.name||"?").charAt(0).toUpperCase())}</span>
        <div class="tx"><b></b><span class="em"></span><span>${L("Mendaftar ","Signed up ")}${ago(x.created_at)}${L(" lalu"," ago")}</span></div><div class="act"><button class="sm ad-ok" data-ok="${x.user_id}">✓ ${L("Setujui","Approve")}</button><button class="sm" data-no="${x.user_id}" style="color:var(--red)">✕ ${L("Tolak","Decline")}</button></div></div>`).join("")
       :`<div class="ad-empty">${L("Tidak ada permintaan. Orang yang daftar lewat link undangan akan muncul di sini dan belum bisa masuk sampai kamu setujui.","No requests. People who sign up through an invite link appear here and can't get in until you approve them.")}</div>`}</div></div>
@@ -49,6 +52,11 @@ function draw(v){if(!v)return;
   v.querySelectorAll("[data-ok]").forEach(b=>b.onclick=()=>decide(b.dataset.ok,true,b));
   v.querySelectorAll("[data-no]").forEach(b=>b.onclick=()=>{const x=A.list.find(y=>y.user_id===b.dataset.no);modal(L("Tolak ","Decline ")+(x?.name||"")+"?",`<div class="crumb">${L("Akunnya diblokir dan tidak bisa masuk. Kamu bisa mengundangnya lagi nanti lewat Undang → manual.","Their account is blocked and can't sign in. You can invite them again later via Invite → manual.")}</div>`,()=>{decide(b.dataset.no,false,b)},L("Tolak","Decline"))});
   v.querySelectorAll("[data-kick]").forEach(b=>b.onclick=()=>window.RAVI_REMOVE_MEMBER&&window.RAVI_REMOVE_MEMBER(b.dataset.kick,()=>draw($("view"))));
+  sb.rpc("ravi_usage_month").then(({data})=>{const box=document.getElementById("adQuota");if(!box)return;const b=+data||0,gb=b/1e9,pc=Math.min(100,gb/1000*100);
+    const lvl=gb>=899?"all":gb>=700?"calls":gb>=600?"warn":"ok";
+    box.innerHTML=`<div class="ad-q"><div class="ad-qb"><span style="width:${pc.toFixed(2)}%" class="${lvl}"></span><i style="left:70%"></i><i style="left:89.9%"></i></div>
+      <div class="ad-ql"><b>${gb<10?gb.toFixed(2):gb.toFixed(0)} GB</b> ${L("dari 1.000 GB gratis","of the free 1,000 GB")}</div>
+      <div class="crumb" style="line-height:1.5">${lvl==="all"?"⛔ "+L("≥ 899 GB: semua fitur yang memakai kuota Cloudflare dimatikan sampai bulan depan.","≥ 899 GB: everything using the Cloudflare quota is off until next month."):lvl==="calls"?"🚫 "+L("≥ 700 GB: telepon & video call dimatikan sampai bulan depan.","≥ 700 GB: voice & video calls are off until next month."):lvl==="warn"?"⚠️ "+L("Mendekati batas 700 GB — telepon akan dimatikan otomatis.","Close to the 700 GB limit — calls will switch off automatically."):"✅ "+L("Aman. Telepon dimatikan otomatis di 700 GB, semua fitur kuota di 899 GB.","Fine. Calls switch off automatically at 700 GB, all quota features at 899 GB.")}<br>${L("Dihitung dari aplikasi (hanya panggilan lewat relay). Angka pasti ada di dash.cloudflare.com → Realtime → TURN.","Counted by the app (relayed calls only). Exact numbers: dash.cloudflare.com → Realtime → TURN.")}</div></div>`},()=>{});
   sb.from("ravi_invites").select("code,expires_at,used_by").then(({data})=>{const n=(data||[]).filter(x=>!x.used_by&&new Date(x.expires_at)>new Date()).length;const e=document.getElementById("adInv");if(e)e.textContent=n},()=>{})}
 async function decide(uid,ok,btn){if(btn){btn.disabled=true;btn.textContent="…"}
   try{await window.RAVI_FN({action:ok?"approve_join":"reject_join",user_id:uid});const x=A.list.find(y=>y.user_id===uid);if(x)x.status=ok?"approved":"rejected";
