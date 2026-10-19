@@ -276,7 +276,7 @@ const TOOLS=[["t_moment","💑",()=>L("Momen Kita","Our Moments"),()=>L("Hari be
  ["t_calc","🏦",()=>L("Kalkulator","Calculator"),()=>L("Cicilan flat vs efektif, investasi, diskon bertingkat.","Flat vs effective loans, investing, stacked discounts."),()=>""]];
 function vTools(v){
   v.innerHTML=page(L("Alat","Tools"),"🧰 "+L("Alat Serba Guna","All-in-one Tools"))+
-   `<div class="tl-hub">${[...TOOLS,...(window.EXTRA_TOOL_CARDS||[])].map(([r,e,n,d,pk])=>`<button class="tl-card" data-r2="${r}"><span class="ic">${e}</span><span><b>${n()}</b><span class="crumb">${d()}</span>${pk()?`<span class="peek">${pk()}</span>`:""}</span></button>`).join("")}</div>`;
+   `<div class="tl-hub">${[...TOOLS,...(window.EXTRA_TOOL_CARDS||[])].map((c,i)=>[c,i]).sort((a,b)=>((window.USAGE_SCORE?window.USAGE_SCORE(b[0][0]):0)-(window.USAGE_SCORE?window.USAGE_SCORE(a[0][0]):0))||a[1]-b[1]).map(x=>x[0]).map(([r,e,n,d,pk])=>`<button class="tl-card" data-r2="${r}"><span class="ic">${e}</span><span><b>${n()}</b><span class="crumb">${d()}</span>${pk()?`<span class="peek">${pk()}</span>`:""}</span></button>`).join("")}</div>`;
   v.querySelectorAll("[data-r2]").forEach(b=>b.onclick=()=>go(b.dataset.r2))}
 
 const VIEWS={tools:vTools,t_moment:vMoment,t_split:vSplit,t_wish:vWish,t_habit:vHabit,t_wheel:vWheel,t_calc:vCalc};

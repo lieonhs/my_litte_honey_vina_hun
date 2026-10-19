@@ -469,7 +469,7 @@ function drawSwitch(){const hdr=document.querySelector("header");if(!hdr)return;
   sw.querySelectorAll("button").forEach(b=>b.classList.toggle("on",b.dataset.app===modeOf(route)))}
 const _renderNav=renderNav;
 renderNav=function(){const all=NAV.slice(),sch=modeOf(route)==="sched";
-  const keep=all.filter(([g,items])=>g==="Bantuan"||g==="Misi"||g==="Alat"||g==="Berdua"||(sch?items.some(([k])=>SCHED_ROUTES.has(k)):!items.some(([k])=>SCHED_ROUTES.has(k))));
+  const keep=all.filter(([g,items])=>g==="Bantuan"||g==="Misi"||g==="Alat"||g==="Berdua"||g==="⭐ Sering dipakai"||(sch?items.some(([k])=>SCHED_ROUTES.has(k)):!items.some(([k])=>SCHED_ROUTES.has(k))));
   NAV.length=0;NAV.push(...keep);try{_renderNav()}finally{NAV.length=0;NAV.push(...all)}drawSwitch()};
 
 NAV.splice(1,0,["Harian",[["today","Hari Ini"],["sched","Kalender"],["diary","Jurnal Harian"],["notes","Catatan"]]]);
