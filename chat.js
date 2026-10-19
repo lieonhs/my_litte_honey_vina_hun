@@ -12,7 +12,7 @@ const L=(id,en)=>EN()?en:id;
 const E2=()=>window.RAVI_E2E,PR=()=>window.RAVI_PRESENCE;
 const mobile=()=>matchMedia("(max-width:860px)").matches;
 const CH={ready:null,me:null,convs:new Map(),msgs:new Map(),open:null,typing:new Map(),stars:new Set(),hidden:new Set(),drafts:new Map(),
-  reply:null,tray:[],chans:new Map(),sub:false,stkOpen:false,stkTab:"fav",atBottom:true,below:0,tmp:0,pend:new Map(),q:"",markT:{},inboxT:0};
+  reply:null,tray:[],vo:0,views:new Map(),chans:new Map(),sub:false,stkOpen:false,stkTab:"fav",atBottom:true,below:0,tmp:0,pend:new Map(),q:"",markT:{},inboxT:0};
 const $$=(s,r)=>(r||document).querySelector(s);
 const hhmm=R.hhmm;
 const dayKey=t=>{const d=new Date(t);return d.getFullYear()+"-"+d.getMonth()+"-"+d.getDate()};
@@ -97,6 +97,8 @@ function subscribe(){if(CH.sub)return;CH.sub=true;
   sb.channel("ravi-chat-db")
    .on("postgres_changes",{event:"*",schema:"public",table:"couple_msgs"},p=>{try{onMsg(p)}catch(e){console.error(e)}})
    .on("postgres_changes",{event:"*",schema:"public",table:"couple_conv_members"},p=>{try{onMember(p)}catch(e){console.error(e)}})
+   .on("postgres_changes",{event:"*",schema:"public",table:"couple_msg_views"},p=>{const v=p.new;if(!v||!v.msg_id)return;const x=CH.views.get(v.msg_id)||{};x[v.user_id]=v.views;CH.views.set(v.msg_id,x);
+     for(const [cid,st] of CH.msgs){const m=st.list.find(y=>y.id===v.msg_id);if(m){if(CH.open===cid)patchBubble(m);cleanupVO(m)}}})
    .on("postgres_changes",{event:"UPDATE",schema:"public",table:"couple_convs"},p=>{const c=CH.convs.get(p.new.id);if(!c)return;Object.assign(c,{name:p.new.name,emoji:p.new.emoji,pinned_msg:p.new.pinned_msg});paintInbox();if(CH.open===c.id){paintHead();paintPin()}})
    .subscribe();
   document.addEventListener("visibilitychange",()=>{if(!document.hidden&&CH.me){scheduleInbox();if(CH.open){catchUp(CH.open);markRead(CH.open)}}});
@@ -150,6 +152,7 @@ function sendTyping(cid,on){const x=CH.chans.get(cid);if(!x)return;const now=Dat
 const callRe=/^\[call:(voice|video):(\d+):(\w+)\]$/;
 function snip(m){if(!m)return "";const o=R.parse(R.pt(m.body));if(R.isStk(o.t))return "🧸 "+L("Stiker","Sticker");
   const cm=callRe.exec(o.t||"");if(cm)return (cm[1]==="video"?"🎥 ":"📞 ")+(cm[3]==="done"?L("Panggilan","Call"):L("Panggilan tak terjawab","Missed call"));
+  if(o.vo)return (o.vo===1?"①":"②")+" "+L("Foto ","Photo ")+(o.vo===1?L("sekali lihat","view once"):L("dua kali lihat","view twice"));
   if(o.f)return R.fIcon(o.f.m)+" "+o.f.n;if(m.img&&!o.t)return "📷 "+L("Foto","Photo");if(m.img)return "📷 "+o.t;return (o.t||"").replace(/\s+/g," ").slice(0,90)}
 function tickState(m,c){if(m.id<0)return m.failed?"fail":"pend";const os=others(c);if(!os.length)return "sent";const t=Date.parse(m.created_at)-1500;
   if(m.read_at&&os.length===1)return "read";
@@ -312,6 +315,17 @@ const css=document.createElement("style");css.textContent=`
 .stk-grid .pipi{animation:none!important}.stk-grid.uni{grid-template-columns:repeat(auto-fill,minmax(44px,1fr))}.stk-grid.uni button{font-size:26px;min-height:44px}
 .rm-drop{display:none;position:absolute;inset:0;z-index:8;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:var(--acc);background:color-mix(in srgb,var(--accS) 88%,transparent);border:3px dashed var(--acc);pointer-events:none}
 .rm.dragging .rm-drop{display:flex}
+/* ---- foto sekali / dua kali lihat ---- */
+.vo{all:unset;box-sizing:border-box;cursor:pointer;display:flex;gap:10px;align-items:center;min-width:190px;padding:10px 12px;border-radius:10px;background:rgba(0,0,0,.06);margin-bottom:3px}
+.vo .vi{width:30px;height:30px;border-radius:99px;display:flex;align-items:center;justify-content:center;font-size:18px;border:2px solid currentColor;color:var(--acc);font-weight:900}
+.vo .vl{font-weight:800;font-size:14px}.vo.done,.vo.mine{cursor:default;opacity:.7}.vo.done .vi{color:var(--mute);border-style:dashed}
+.vo:not([disabled]):hover{background:rgba(0,0,0,.1)}
+.vo-t{all:unset;cursor:pointer;flex:none;width:72px;height:72px;border-radius:10px;border:2px dashed var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:10.5px;color:var(--mute);text-align:center}
+.vo-t b{font-size:24px;line-height:1}.vo-t.on{border:2px solid var(--acc);color:var(--acc);background:var(--accS)}
+.vo-view{position:fixed;inset:0;z-index:950;background:#000;display:flex;flex-direction:column;animation:fade .15s;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.vo-top{display:flex;align-items:center;gap:10px;padding:calc(12px + env(safe-area-inset-top,0px)) 14px 12px;color:#fff;font-weight:700;font-size:14px}.vo-top span{flex:1}
+.vo-top button{all:unset;cursor:pointer;width:40px;height:40px;border-radius:99px;display:flex;align-items:center;justify-content:center;font-size:20px;background:rgba(255,255,255,.15)}
+.vo-img{flex:1;display:flex;align-items:center;justify-content:center;min-height:0;padding:0 0 calc(12px + env(safe-area-inset-bottom,0px))}.vo-img img{max-width:100%;max-height:100%;object-fit:contain;pointer-events:none}
 /* ---- menu pesan (ala WA) ---- */
 .cm-ov{position:fixed;inset:0;z-index:900;background:rgba(0,0,0,.18);animation:fade .15s}
 @keyframes fade{from{opacity:0}to{opacity:1}}
@@ -502,6 +516,7 @@ function paintNote(){const box=$$("#rmNote");if(!box)return;box.innerHTML="";con
 /* ---------- gambar pesan ---------- */
 const sysTop=c=>`<div class="rm-sys y" id="rmE2">🔐 ${L("Pesan & panggilan terenkripsi end-to-end. Tidak ada orang di luar chat ini, termasuk server, yang bisa membaca. Ketuk untuk kode keamanan.","Messages and calls are end-to-end encrypted. No one outside this chat, not even the server, can read them. Tap for the security code.")}</div>`;
 function renderAll(cid,scroll){const list=$$("#rmList");if(!list)return;const st=CH.msgs.get(cid),c=CH.convs.get(cid);
+  const voIds=st.list.filter(m=>m.img&&!CH.views.has(m.id)&&R.parse(R.pt(m.body)).vo).map(m=>m.id);if(voIds.length)loadViews(voIds).then(()=>{if(CH.open===cid)voIds.forEach(id=>{const m=st.list.find(x=>x.id===id);if(m)patchBubble(m)})}).catch(()=>{});
   const msgs=st.list.filter(m=>!CH.hidden.has(m.id));const fr=document.createDocumentFragment();
   const top=document.createElement("div");top.id="rmTop";top.innerHTML=st.more?`<div class="crumb" style="text-align:center;padding:8px">…</div>`:sysTop(c);fr.appendChild(top);
   const me=myMem(c),unreadFrom=c.unread>0?Date.parse(me.rd||0):null;let lastDay="",prev=null,unrPut=false;
@@ -523,12 +538,32 @@ function callPill(m,cm){const el=document.createElement("div");const mine=m.send
   const t=kind==="done"?(video?L("Video call","Video call"):L("Panggilan suara","Voice call")):kind==="declined"?L("Panggilan ditolak","Call declined"):mine?L("Tidak dijawab","No answer"):L("Panggilan tak terjawab","Missed call");
   el.innerHTML=`<span class="i">${ic(video?"video":"phone",18)}</span><div><b></b><span>${kind==="done"?Math.floor(dur/60)+":"+String(dur%60).padStart(2,"0")+" · ":""}${hhmm(m.created_at)}</span></div>${peer(CH.convs.get(m.conv_id))?`<button>${L("Telepon","Call")}</button>`:""}`;
   el.querySelector("b").textContent=(mine?"↗ ":"↙ ")+t;const b=el.querySelector("button");if(b)b.onclick=()=>startCall(video);return el}
-function sigOf(m,c,o){return [o.t,m.img||"",JSON.stringify(m.reacts||{}),CH.stars.has(m.id)?1:0,c.kind].join("\u0001")}
+function sigOf(m,c,o){return [o.t,m.img||"",JSON.stringify(m.reacts||{}),CH.stars.has(m.id)?1:0,c.kind,o.vo?JSON.stringify(CH.views.get(m.id)||{}):""].join("\u0001")}
+/* foto sekali/dua kali lihat */
+const myViews=m=>((CH.views.get(m.id)||{})[CH.me])||0;
+function voDone(m,c,o){if(m.sender===CH.me){const os=others(c);return os.length>0&&os.every(x=>((CH.views.get(m.id)||{})[x.u]||0)>=o.vo)}return myViews(m)>=o.vo}
+function voHTML(m,c,o){const mine=m.sender===CH.me,done=voDone(m,c,o),left=Math.max(0,o.vo-myViews(m));
+  const lbl=mine?(done?L("Dibuka","Opened"):L("Foto ","Photo ")+(o.vo===1?L("sekali lihat","view once"):L("dua kali lihat","view twice"))):done?L("Dibuka","Opened"):L("Foto","Photo")+(o.vo===2&&left===1?L(" · sisa 1×"," · 1 view left"):"");
+  return `<button class="vo${done?" done":""}${mine?" mine":""}" data-vo${mine||done?" disabled":""}><span class="vi">${o.vo===1?"①":"②"}</span><span class="vl">${esc(lbl)}</span></button>`}
+function cleanupVO(m){if(m.sender!==CH.me||!m.img)return;const c=CH.convs.get(m.conv_id),o=R.parse(R.pt(m.body));if(!o.vo||!c||!voDone(m,c,o))return;
+  const k="ravi_vo_rm";const done=lsGet(k,[]);if(done.includes(m.id))return;done.push(m.id);lsSet(k,done.slice(-500));sb.storage.from("couple").remove([m.img]).catch(()=>{})}
+async function loadViews(ids){ids=ids.filter(id=>id>0);if(!ids.length)return;const {data}=await sb.from("couple_msg_views").select("msg_id,user_id,views").in("msg_id",ids);
+  (data||[]).forEach(v=>{const x=CH.views.get(v.msg_id)||{};x[v.user_id]=v.views;CH.views.set(v.msg_id,x)})}
+async function openVO(m,el){const o=R.parse(R.pt(m.body));if(!o.vo||m.sender===CH.me||voDone(m,CH.convs.get(m.conv_id),o))return;
+  let n;try{const {data,error}=await sb.rpc("ravi_view",{m:m.id});if(error)throw error;n=data}catch(e){status(e.message||String(e),"err");return}
+  const x=CH.views.get(m.id)||{};x[CH.me]=n;CH.views.set(m.id,x);
+  if(n>o.vo){patchBubble(m);status(L("Foto ini sudah dibuka.","This photo was already opened."),"warn");return}
+  const ov=document.createElement("div");ov.className="vo-view";ov.innerHTML=`<div class="vo-top"><span>${o.vo===1?"①":"②"} ${esc(R.name(m.sender))} · ${o.vo===1?L("Foto sekali lihat","View-once photo"):n>=o.vo?L("Terakhir kali dilihat","Last view"):L("Masih bisa dilihat 1× lagi","1 more view left")}</span><button aria-label="${L("Tutup","Close")}">✕</button></div><div class="vo-img"><div class="crumb" style="color:#fff">${L("Membuka…","Opening…")}</div></div>`;
+  document.body.appendChild(ov);let url=null;const close=()=>{ov.remove();if(url)URL.revokeObjectURL(url);patchBubble(m)};
+  ov.querySelector(".vo-top button").onclick=close;ov.addEventListener("contextmenu",e=>e.preventDefault());addEventListener("keydown",function k(e){if(e.key==="Escape"){close();removeEventListener("keydown",k)}});
+  try{const u=(await R.urlsFor([m.img]))(m.img);const r=await fetch(u);const buf=await r.arrayBuffer();const plain=/\.enc$/.test(m.img)?await window.RAVI_E2E_DEC(buf,o.ik):new Uint8Array(buf);
+    url=URL.createObjectURL(new Blob([plain],{type:"image/jpeg"}));const im=document.createElement("img");im.src=url;im.draggable=false;im.alt="";ov.querySelector(".vo-img").replaceChildren(im)}
+  catch(e){ov.querySelector(".vo-img").innerHTML=`<div class="crumb" style="color:#fff">${L("Gagal membuka foto.","Couldn't open photo.")}</div>`}}
 function fillBubble(el,m,c,o,cont){const mine=m.sender===CH.me,stk=R.isStk(o.t)&&!o.r&&!o.f;
-  const onlyImg=m.img&&!o.t&&!o.r&&!o.f&&!o.fwd;
+  const onlyImg=m.img&&!o.vo&&!o.t&&!o.r&&!o.f&&!o.fwd;
   el.className="mb "+(mine?"me":"them")+(cont?" cont":"")+(stk?" stk":"")+(onlyImg?" only-img":"");
   const rx=Object.entries(m.reacts||{});const grp=c.kind==="group"&&!mine&&!cont;
-  el.innerHTML=`<div class="bb">${grp?`<b class="who" style="color:${nameColor(m.sender)}"></b>`:""}${o.fwd?`<span class="fw">${ic("fwd",14)} ${L("Diteruskan","Forwarded")}</span>`:""}${o.r?`<button class="q" data-jump="${+o.r.id||0}"><b></b><span></span></button>`:""}${m.img?`<img class="ph" data-img="${esc(m.img)}" alt="${L("Foto","Photo")}">`:""}${o.f?`<div class="fl"><span class="fi">${R.fIcon(o.f.m)}</span><div class="fm"><b></b><span>${R.fmtSize(o.f.s||0)}</span></div><button data-open aria-label="${L("Buka","Open")}">${/^video\//.test(o.f.m)?"▶":/^image\//.test(o.f.m)?"👁":"⬇"}</button></div><div class="md"></div>`:""}${stk?`<span class="stk-w" data-stk="${R.stkKey(o.t)}">${R.stkSVG(R.stkKey(o.t),132)}</span>`:o.t?`<span class="tx"></span>`:""}<span class="meta">${CH.stars.has(m.id)?`<span class="st">⭐</span>`:""}<span class="tm">${hhmm(m.created_at)}</span>${mine?TICK:""}</span></div>${rx.length?rxPill(rx):""}<button class="chev" tabindex="-1" aria-hidden="true">${ic("down",16)}</button>`;
+  el.innerHTML=`<div class="bb">${grp?`<b class="who" style="color:${nameColor(m.sender)}"></b>`:""}${o.fwd?`<span class="fw">${ic("fwd",14)} ${L("Diteruskan","Forwarded")}</span>`:""}${o.r?`<button class="q" data-jump="${+o.r.id||0}"><b></b><span></span></button>`:""}${m.img&&o.vo?voHTML(m,c,o):m.img?`<img class="ph" data-img="${esc(m.img)}" alt="${L("Foto","Photo")}">`:""}${o.f?`<div class="fl"><span class="fi">${R.fIcon(o.f.m)}</span><div class="fm"><b></b><span>${R.fmtSize(o.f.s||0)}</span></div><button data-open aria-label="${L("Buka","Open")}">${/^video\//.test(o.f.m)?"▶":/^image\//.test(o.f.m)?"👁":"⬇"}</button></div><div class="md"></div>`:""}${stk?`<span class="stk-w" data-stk="${R.stkKey(o.t)}">${R.stkSVG(R.stkKey(o.t),132)}</span>`:o.t?`<span class="tx"></span>`:""}<span class="meta">${CH.stars.has(m.id)?`<span class="st">⭐</span>`:""}<span class="tm">${hhmm(m.created_at)}</span>${mine?TICK:""}</span></div>${rx.length?rxPill(rx):""}<button class="chev" tabindex="-1" aria-hidden="true">${ic("down",16)}</button>`;
   if(grp)el.querySelector(".who").textContent=R.name(m.sender);
   const tx=el.querySelector(".tx");if(tx)tx.textContent=o.t;
   const q=el.querySelector(".q");if(q&&o.r){q.querySelector("b").textContent=o.r.w||"";q.querySelector("span").textContent=o.r.s||"";if(o.r.u)q.style.setProperty("--qc",nameColor(o.r.u))}
@@ -599,7 +634,7 @@ function wireRoom(cid){const c=CH.convs.get(cid),body=$$("#rmBody"),t=$$("#rmTxt
   paintReply();paintTray();paintStk();
   async function send(){const body=t.value.trim();if(!body&&!CH.tray.length)return;t.value="";grow();CH.drafts.delete(cid);sendTyping(cid,false);
     const r=CH.reply?{...CH.reply}:null;CH.reply=null;paintReply();
-    if(CH.tray.length){const items=CH.tray.splice(0);paintTray();let cap=body;for(const it of items){await sendFile(cid,it,cap,r);cap=""}return}
+    if(CH.tray.length){const items=CH.tray.splice(0);items.forEach(it=>{if(R.isPhoto(it.file))it.vo=CH.vo});CH.vo=0;paintTray();let cap=CH.vo?"":body;for(const it of items){await sendFile(cid,it,it.vo?"":cap,r);if(!it.vo)cap=""}if(cap&&items.every(x=>x.vo))sendBody(cid,{t:cap});return}
     sendBody(cid,{t:body,r})}}
 function attMenu(btn){const old=$$(".rm-att");if(old){old.remove();return}const rm=$$("#rm");const d=document.createElement("div");d.className="rm-att";
   d.innerHTML=`<button data-a="img"><span style="background:#7f66ff">${ic("img")}</span>${L("Foto & video","Photos & videos")}</button><button data-a="file"><span style="background:#5157ae">${ic("file")}</span>${L("Dokumen","Document")}</button>`;
@@ -607,8 +642,11 @@ function attMenu(btn){const old=$$(".rm-att");if(old){old.remove();return}const 
   d.querySelector('[data-a="img"]').onclick=()=>{d.remove();$$("#rmFile").click()};d.querySelector('[data-a="file"]').onclick=()=>{d.remove();$$("#rmAny").click()}}
 function addTray(files){for(const f of files.slice(0,10)){if(f.size>R.MAXF){status(L("Terlalu besar (maks. 50 MB): ","Too large (max 50 MB): ")+f.name,"warn");continue}
     CH.tray.push({file:f,prev:/^image\//.test(f.type)?URL.createObjectURL(f):null})}paintTray();$$("#rmTxt")?.focus()}
-function paintTray(){const box=$$("#rmTray");if(!box)return;const t0=$$("#rmTxt");if(!CH.tray.length){box.innerHTML="";if(t0)t0.placeholder=L("Ketik pesan","Message");return}
-  box.innerHTML=`<div class="rm-tray">${CH.tray.map((x,i)=>`<div class="ti">${x.prev?`<img src="${x.prev}" alt="">`:`<span class="fi">${R.fIcon(x.file.type||"")}</span>`}<span class="tn"></span><button data-trx="${i}" aria-label="${L("Hapus lampiran","Remove attachment")}">✕</button></div>`).join("")}</div>`;
+function paintTray(){const box=$$("#rmTray");if(!box)return;const t0=$$("#rmTxt");if(!CH.tray.length){box.innerHTML="";CH.vo=0;if(t0)t0.placeholder=L("Ketik pesan","Message");return}
+  const hasPhoto=CH.tray.some(x=>R.isPhoto(x.file));
+  box.innerHTML=`<div class="rm-tray">${CH.tray.map((x,i)=>`<div class="ti">${x.prev?`<img src="${x.prev}" alt="">`:`<span class="fi">${R.fIcon(x.file.type||"")}</span>`}<span class="tn"></span><button data-trx="${i}" aria-label="${L("Hapus lampiran","Remove attachment")}">✕</button></div>`).join("")}
+    ${hasPhoto?`<button class="vo-t${CH.vo?" on":""}" id="voT" aria-label="${L("Foto sekali/dua kali lihat","View once/twice")}"><b>${CH.vo===1?"①":CH.vo===2?"②":"∞"}</b><span>${CH.vo===1?L("Sekali lihat","View once"):CH.vo===2?L("Dua kali lihat","View twice"):L("Biasa","Normal")}</span></button>`:""}</div>`;
+  const vt=box.querySelector("#voT");if(vt)vt.onclick=()=>{CH.vo=(CH.vo+1)%3;paintTray();status(CH.vo===1?L("① Foto hanya bisa dilihat sekali","① Photo can be viewed once"):CH.vo===2?L("② Foto hanya bisa dilihat dua kali","② Photo can be viewed twice"):L("Foto biasa","Normal photo"),"ok")};
   box.querySelectorAll(".tn").forEach((n,i)=>n.textContent=CH.tray[i].file.name||L("Tempelan","Pasted"));
   box.querySelectorAll("[data-trx]").forEach(b=>b.onclick=()=>{const x=CH.tray.splice(+b.dataset.trx,1)[0];if(x&&x.prev)URL.revokeObjectURL(x.prev);paintTray()});
   const t=$$("#rmTxt");if(t)t.placeholder=L("Tambah keterangan…","Add a caption…")}
@@ -639,6 +677,7 @@ function wireBubble(el){let hold=0,sx=0,sy=0,dx=0,swiped=false,moved=false;
     if(e.target.closest(".chev")){openMenu(m,el);return}
     const q=e.target.closest("[data-jump]");if(q){jumpTo(+q.dataset.jump);return}
     if(e.target.closest("[data-rx]")){reactInfo(m);return}
+    if(e.target.closest("[data-vo]")){openVO(m,el);return}
     if(e.target.closest("[data-open]")){openFile(m,el,e.target.closest("[data-open]"));return}
     if(e.target.matches("img.ph")&&e.target.src){const bg=modal(L("Foto","Photo"),`<img alt="" style="width:100%;border-radius:12px">`,()=>true,"OK");bg.querySelector("img").src=e.target.src;const cc=bg.querySelector(".c");if(cc)cc.style.display="none";return}
     if(e.detail===2&&m.id>0){setReact(m,(m.reacts||{})[CH.me]==="❤️"?null:"❤️")}})}
@@ -659,9 +698,9 @@ function openMenu(m,el){if(!m||m.id<0)return;closeMenus();const c=CH.convs.get(m
   const rx=document.createElement("div");rx.className="cm-rx";rx.setAttribute("role","toolbar");
   rx.innerHTML=QUICK.map(e=>`<button data-e="${e}" class="${my===e?"on":""}" aria-label="${L("Reaksi ","React ")+e}">${e}</button>`).join("")+`<button class="pl" data-more aria-label="${L("Reaksi lain","More reactions")}">${ic("plus",20)}</button>`;
   const it=(a,i,t,cls)=>`<button data-a="${a}"${cls?` class="${cls}"`:""}>${ic(i,20)}<span>${t}</span></button>`;
-  const pinned=c.pinned_msg===m.id,starred=CH.stars.has(m.id);
+  const pinned=c.pinned_msg===m.id,starred=CH.stars.has(m.id),vo=!!o.vo;
   const menu=document.createElement("div");menu.className="cm-menu";menu.setAttribute("role","menu");
-  menu.innerHTML=it("reply","reply",L("Balas","Reply"))+(o.t&&!R.isStk(o.t)?it("copy","copy",L("Salin","Copy")):"")+it("react","react",L("Reaksi","React"))+it("fwd","fwd",L("Teruskan","Forward"))+
+  menu.innerHTML=it("reply","reply",L("Balas","Reply"))+(o.t&&!R.isStk(o.t)?it("copy","copy",L("Salin","Copy")):"")+it("react","react",L("Reaksi","React"))+(vo?"":it("fwd","fwd",L("Teruskan","Forward")))+
     it("pin","pin",pinned?L("Lepas sematan","Unpin"):L("Sematkan","Pin"))+it("star","star",starred?L("Hapus bintang","Unstar"):L("Bintangi","Star"))+
     (mine?it("info","info",L("Info pesan","Message info")):"")+`<hr>`+it("del","del",L("Hapus","Delete"),"danger");
   document.body.append(ov,rx,menu);
@@ -731,7 +770,7 @@ function tmpMsg(cid,body,img){const m={id:-(++CH.tmp)-Date.now()%1e6,conv_id:cid
 function confirmTmp(tmp,real){CH.pend.delete(real.body);const st=CH.msgs.get(real.conv_id);if(!st)return;
   if(st.list.some(x=>x.id===real.id)){st.list=st.list.filter(x=>x!==tmp);document.getElementById("m"+tmp.id)?.remove();return}
   real.body_plain=tmp.body;const i=st.list.indexOf(tmp);if(i>=0)st.list[i]=real;else st.list.push(real);
-  const el=document.getElementById("m"+tmp.id);if(el){el.id="m"+real.id;el.dataset.id=real.id;const tk=el.querySelector(".tk");if(tk)tk.dataset.s=tickState(real,CH.convs.get(real.conv_id))}
+  const el=document.getElementById("m"+tmp.id);if(el){el.id="m"+real.id;el.dataset.id=real.id;const tk=el.querySelector(".tk");if(tk)tk.dataset.s=tickState(real,CH.convs.get(real.conv_id));if(real.img)patchBubble(real)}
   const c=CH.convs.get(real.conv_id);if(c&&(!c.last||real.id>=c.last.id)){c.last=real;c.at=real.created_at;paintInbox()}}
 async function sendBody(cid,o){const plain=R.pack(o);const tmp=tmpMsg(cid,plain);
   let sealed;try{sealed=await seal(cid,plain)}catch(e){tmp.failed=true;patchBubble(tmp);status(e.message||String(e),"err");return}
@@ -742,9 +781,9 @@ async function sendBody(cid,o){const plain=R.pack(o);const tmp=tmpMsg(cid,plain)
   if(window.RAVI_NOTIFY)window.RAVI_NOTIFY("msg",{conv:cid,to:memberUids(cid).filter(u=>u!==CH.me),title:CH.convs.get(cid).kind==="group"?title(CH.convs.get(cid)):meName(),body:R.isEnc(sealed)?"💬 "+L("Pesan baru","New message"):R.isStk(o.t)?"🧸 "+L("Stiker","Sticker"):(o.t||"📎").slice(0,120)})}
 async function sendRaw(cid,o,img){const sealed=await seal(cid,R.pack(o));const {error}=await sb.from("couple_msgs").insert({conv_id:cid,body:sealed,img:img||null});if(error)throw error;
   if(window.RAVI_NOTIFY)window.RAVI_NOTIFY("msg",{conv:cid,to:memberUids(cid).filter(u=>u!==CH.me),title:meName(),body:"📷 "+L("Foto","Photo")})}
-async function sendFile(cid,it,cap,r){const tmp=tmpMsg(cid,R.pack({t:cap||(R.isPhoto(it.file)?"":"📎 "+it.file.name),r}),null);
-  if(it.prev){const el=document.getElementById("m"+tmp.id);if(el&&R.isPhoto(it.file)){const bb=el.querySelector(".bb");const im=document.createElement("img");im.className="ph";im.src=it.prev;bb.prepend(im);if(!cap)el.classList.add("only-img")}}
-  try{let sealed;if(R.isPhoto(it.file)){const p=await R.upPhoto(it.file,1600);sealed=await seal(cid,R.pack({t:cap,r,ik:R.PK[p]}));
+async function sendFile(cid,it,cap,r){const tmp=tmpMsg(cid,R.pack({t:cap||(R.isPhoto(it.file)?(it.vo?"📷 "+(it.vo===1?L("Foto sekali lihat","View-once photo"):L("Foto dua kali lihat","View-twice photo")):""):"📎 "+it.file.name),r}),null);
+  if(it.prev&&!it.vo){const el=document.getElementById("m"+tmp.id);if(el&&R.isPhoto(it.file)){const bb=el.querySelector(".bb");const im=document.createElement("img");im.className="ph";im.src=it.prev;bb.prepend(im);if(!cap)el.classList.add("only-img")}}
+  try{let sealed;if(R.isPhoto(it.file)){const p=await R.upPhoto(it.file,1600);sealed=await seal(cid,R.pack({t:cap,r,ik:R.PK[p],vo:it.vo||undefined}));
       CH.pend.set(sealed,tmp);tmp.img=p;const {data,error}=await sb.from("couple_msgs").insert({conv_id:cid,body:sealed,img:p}).select().single();if(error)throw error;if(CH.pend.has(sealed))confirmTmp(tmp,data)}
     else{const fm=await R.uploadFile(it.file);sealed=await seal(cid,R.pack({t:cap,r,f:fm}));CH.pend.set(sealed,tmp);
       const {data,error}=await sb.from("couple_msgs").insert({conv_id:cid,body:sealed}).select().single();if(error)throw error;if(CH.pend.has(sealed))confirmTmp(tmp,data);

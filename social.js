@@ -85,8 +85,8 @@ const pt=b=>E2()?E2().show(b):b;
 const isEnc=b=>typeof b==="string"&&/^enc[123]:/.test(b);
 async function sealFor(t,uids){if(!t||!E2())return t;return E2().sealFor(t,uids)}
 /* format pesan: teks biasa, atau "j1:{...}" untuk balasan / file / diteruskan / kunci foto (ikut terenkripsi) */
-function parse(shown){if(typeof shown==="string"&&shown.startsWith("j1:")){try{const o=JSON.parse(shown.slice(3));return {t:o.t||"",r:o.r||null,f:o.f||null,fwd:!!o.fwd,ik:o.ik||null}}catch(e){}}return {t:shown||"",r:null,f:null,fwd:false,ik:null}}
-function pack(o){if(!o.r&&!o.f&&!o.fwd&&!o.ik)return o.t||"";return "j1:"+JSON.stringify({t:o.t||undefined,r:o.r||undefined,f:o.f||undefined,fwd:o.fwd||undefined,ik:o.ik||undefined})}
+function parse(shown){if(typeof shown==="string"&&shown.startsWith("j1:")){try{const o=JSON.parse(shown.slice(3));return {t:o.t||"",r:o.r||null,f:o.f||null,fwd:!!o.fwd,ik:o.ik||null,vo:+o.vo||0}}catch(e){}}return {t:shown||"",r:null,f:null,fwd:false,ik:null,vo:0}}
+function pack(o){if(!o.r&&!o.f&&!o.fwd&&!o.ik&&!o.vo)return o.t||"";return "j1:"+JSON.stringify({t:o.t||undefined,r:o.r||undefined,f:o.f||undefined,fwd:o.fwd||undefined,ik:o.ik||undefined,vo:o.vo||undefined})}
 const PK={};   /* kunci acak foto yang baru diunggah: path → kunci */
 const ikOf=(path,body)=>PK[path]||parse(pt(body)).ik;
 
