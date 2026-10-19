@@ -1,6 +1,6 @@
 /* =====================================================================
    MODE LUCU + MASKOT "PIPI" + TUTORIAL INTERAKTIF + PANDUAN
-   Karakter: Pipi, Moci, Kodi, Cimi, Mumu — semua original untuk aplikasi ini.
+   Karakter: Pipi, Moci, Kodi, Cimi, Mumu — semua original untuk aplikasi ini. + chibi Vina & El.
    ===================================================================== */
 (function(){
 /* ---------- tema ---------- */
@@ -26,6 +26,10 @@ html.fun[data-char=vkantor]{--g1:#6a5acd;--g2:#b9a7f0;--acc:#6f5bd3;--accD:#5241
 html.fun[data-char=vorange]{--g1:#d93a0b;--g2:#ff8a3d;--acc:#e5531c;--accD:#b23f10;--accS:#ffe5d9;--sel:#fff0e8;--th:#fff1ea;--line:#f6dccf;--bg:#fff8f4}
 html.fun[data-char=vsantai]{--g1:#25272d;--g2:#5c6170;--acc:#3f4450;--accD:#23262d;--accS:#e6e7ea;--sel:#eeeff2;--th:#f0f1f3;--line:#dfe1e5;--bg:#f7f8f9}
 html.fun[data-char=vkrl]{--g1:#b8566f;--g2:#f2b8c6;--acc:#c25a78;--accD:#973f59;--accS:#fbe6ec;--sel:#fdeef2;--th:#fdf0f4;--line:#f3dbe3;--bg:#fff8fa}
+html.fun[data-char=erusa]{--g1:#1f1f24;--g2:#c9802f;--acc:#b8691f;--accD:#8f4f14;--accS:#f8ead9;--sel:#fbf1e5;--th:#f8efe4;--line:#eadfce;--bg:#fcf9f4}
+html.fun[data-char=ebuku]{--g1:#1d3b2c;--g2:#8fae5d;--acc:#2f6b4a;--accD:#1f4e35;--accS:#e2efe5;--sel:#eaf4ec;--th:#eef5ef;--line:#d8e7dc;--bg:#f6faf5}
+html.fun[data-char=erenang]{--g1:#1f7fb8;--g2:#6ec3e8;--acc:#1f8fc9;--accD:#176c99;--accS:#dff1fb;--sel:#e8f5fc;--th:#ecf6fc;--line:#d3e9f5;--bg:#f5fbfe}
+html.fun[data-char=ekaget]{--g1:#e05a47;--g2:#ffb08a;--acc:#d9533f;--accD:#a83d2d;--accS:#fde6e1;--sel:#fdeee9;--th:#fdf1ee;--line:#f4dcd6;--bg:#fff9f7}
 @media (prefers-color-scheme:dark){
  html.fun[data-char=bubu]:not([data-theme="light"]){--acc:#f0b25a;--accS:#3a2b16;--sel:#372a18;--bg:#1a150f;--card:#241d15;--th:#2d241a;--line:#44372a}
  html.fun[data-char=pandi]:not([data-theme="light"]){--acc:#5fd1c0;--accS:#16332f;--sel:#18332f;--bg:#111a19;--card:#172321;--th:#1e2d2a;--line:#2b423e}
@@ -37,6 +41,10 @@ html.fun[data-char=vkrl]{--g1:#b8566f;--g2:#f2b8c6;--acc:#c25a78;--accD:#973f59;
  html.fun[data-char=vorange]:not([data-theme="light"]){--acc:#ff8a52;--accS:#3d2116;--sel:#3a2218;--bg:#1b1310;--card:#251a15;--th:#2e211b;--line:#45302a}
  html.fun[data-char=vsantai]:not([data-theme="light"]){--g1:#15161a;--g2:#40444f;--acc:#b9bfcc;--accS:#2a2d33;--sel:#2b2e35;--bg:#141518;--card:#1c1e22;--th:#24262b;--line:#363940}
  html.fun[data-char=vkrl]:not([data-theme="light"]){--acc:#f08aa6;--accS:#3b1f29;--sel:#3a2029;--bg:#1b1316;--card:#251a1e;--th:#2e2126;--line:#47313a}
+ html.fun[data-char=erusa]:not([data-theme="light"]){--acc:#e0a050;--accS:#3a2a16;--sel:#372818;--bg:#151412;--card:#1f1d1a;--th:#292621;--line:#3e3a32}
+ html.fun[data-char=ebuku]:not([data-theme="light"]){--acc:#7fc79a;--accS:#173324;--sel:#193325;--bg:#111a15;--card:#17231c;--th:#1e2d24;--line:#2c4234}
+ html.fun[data-char=erenang]:not([data-theme="light"]){--acc:#6ec3e8;--accS:#16303f;--sel:#17303d;--bg:#10171c;--card:#162129;--th:#1c2a34;--line:#2a3f4d}
+ html.fun[data-char=ekaget]:not([data-theme="light"]){--acc:#ff8a75;--accS:#3d1f1a;--sel:#3a201b;--bg:#1b1413;--card:#251b19;--th:#2e2220;--line:#473430}
  html.fun[data-char=moci]:not([data-theme="light"]){--acc:#ff9a52;--accS:#3d2a1b;--sel:#3a2a1d;--bg:#1d1712;--card:#271f18;--th:#30261d;--line:#43362a}
  html.fun[data-char=kodi]:not([data-theme="light"]){--acc:#5fd28e;--accS:#183324;--sel:#1b3326;--bg:#121a15;--card:#18231c;--th:#1f2d24;--line:#2d4234}
  html.fun[data-char=cimi]:not([data-theme="light"]){--acc:#ffc93c;--accS:#3a3016;--sel:#383017;--bg:#1a1710;--card:#242016;--th:#2d281b;--line:#433b26}
@@ -181,6 +189,67 @@ function girlSVG(id,mood,size){const o=OUTFITS[id],u="g"+(++gUid);
    <circle cx="60" cy="76" r="1" fill="#e8a990"/>
    ${mouth}${extra}</svg>`}
 for(const [k,o] of Object.entries(OUTFITS))CHARS[k]={name:o.n,emoji:o.e,kind:o.k,desc:o.d,girl:true};
+/* ---------- karakter chibi "El" (versi kartun pemilik akun, dari fotonya sendiri) ----------
+   Ciri yang dipertahankan: rambut hitam belah tengah agak panjang, kacamata kotak hitam
+   dengan paku perak di ujung, pipi bulat, senyum tipis, gelang benang merah-putih. */
+const BOYS={
+ erusa:{n:"El Rusa",e:"🦌",k:"kaos hitam sablon rusa",d:"Jempol dulu, cek saldo kemudian. Calon juragan ternak.",
+  fill:"#1f1f24",body:'<rect x="60" y="91" width="11" height="14" fill="#3d3a22"/><path d="M62 99 q3 -4 7 -2 q-1 4 -5 4z" fill="#d9822b"/><rect x="66" y="95" width="13" height="16" fill="#efe3c8"/><path d="M69 104 q2 -4 6 -3 l2 -3 l.6 3 q1 2 -1 4 q-3 2 -7 -1z" fill="#8a5a33"/>'},
+ ebuku:{n:"El Valuasi",e:"📘",k:"kaos hijau tua & buku valuasi",d:"Nilai wajar dulu, baru belanja. DCF jalan terus.",
+  fill:"#1d3b2c",body:'<path d="M42 92 h20 M44 97 h16" stroke="#e9c46a" stroke-width="2.4" stroke-linecap="round"/><circle cx="49" cy="106" r="5" fill="none" stroke="#e9c46a" stroke-width="2"/><path d="M53 104 l9 -4" stroke="#e9c46a" stroke-width="2" stroke-linecap="round"/>',
+  over:'<g transform="rotate(-7 78 104)"><rect x="66" y="88" width="24" height="29" rx="2" fill="#d8bd8f" stroke="#7a5a35" stroke-width="1.6"/><rect x="66" y="88" width="4" height="29" fill="#b9975f"/><text x="79" y="100" font-size="6.5" font-weight="800" fill="#3b2a1a" text-anchor="middle" font-family="Nunito,sans-serif">DCF</text><path d="M73 104 h12 M73 108 h9" stroke="#7a5a35" stroke-width="1.3" stroke-linecap="round"/><rect x="72" y="111" width="14" height="3" rx="1.5" fill="#3f6b4f"/></g><circle cx="65" cy="104" r="4.2" fill="#e8b48c" stroke="#fff" stroke-width="1.4"/><circle cx="90" cy="99" r="4.2" fill="#e8b48c" stroke="#fff" stroke-width="1.4"/>'},
+ erenang:{n:"El Renang",e:"🏊",k:"habis berenang, handuk di bahu",d:"Seger habis renang. Iuran kolam sudah masuk anggaran.",wet:true,
+  fill:"#e8b48c",body:'<path d="M30 88 Q44 96 46 118 L36 118 Q34 100 26 94Z" fill="#6ec3e8"/><path d="M90 88 Q76 96 74 118 L84 118 Q86 100 94 94Z" fill="#6ec3e8"/><path d="M33 98 l8 -2 M35 106 l9 -2 M87 98 l-8 -2 M85 106 l-9 -2" stroke="#fff" stroke-width="2" stroke-linecap="round"/><path d="M52 98 q8 4 16 0" stroke="#d29a74" stroke-width="1.4" fill="none" stroke-linecap="round"/>'},
+ ekaget:{n:"El Kaget",e:"😮",k:"kaos putih, lihat tagihan",d:"Kaget lihat tagihan PayLater. Untung sudah ada pengingat.",
+  fill:"#f6f5f0",body:'<path d="M50 87 q10 9 20 0" stroke="#dcdad2" stroke-width="2.4" fill="none"/><path d="M36 96 q4 3 8 1 M84 96 q-4 3 -8 1" stroke="#dcdad2" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M58 104 q4 2 8 0" stroke="#e6e4dc" stroke-width="1.6" fill="none"/>'}};
+let bUid=0;
+function boySVG(id,mood,size){const o=BOYS[id],u="b"+(++bUid);
+  const H="#1d1613",SK="#f3cba8",SK2="#e3b088",INK="#2a1d18";
+  if(id==="ekaget"&&mood==="happy")mood="worried";
+  const eye=(x,y)=>`<ellipse cx="${x}" cy="${y}" rx="4.4" ry="5.2" fill="${INK}"/><ellipse cx="${x}" cy="${y+1.8}" rx="3" ry="2.6" fill="#6b4632"/><circle cx="${x+1.5}" cy="${y-1.9}" r="1.7" fill="#fff"/><circle cx="${x-1.5}" cy="${y+2}" r=".8" fill="#fff" opacity=".9"/>`;
+  const eyes={happy:eye(45,67)+eye(75,67),
+    party:`<path d="M39 68 q6 -6 12 0 M69 68 q6 -6 12 0" stroke="${INK}" stroke-width="3" fill="none" stroke-linecap="round"/>`,
+    worried:`<circle cx="45" cy="67" r="5.4" fill="#fff"/><circle cx="75" cy="67" r="5.4" fill="#fff"/><circle cx="45" cy="67" r="3" fill="${INK}"/><circle cx="75" cy="67" r="3" fill="${INK}"/><circle cx="46" cy="66" r="1" fill="#fff"/><circle cx="76" cy="66" r="1" fill="#fff"/>`,
+    think:eye(47,65)+eye(77,65),
+    sleep:`<path d="M39 68 q6 4 12 0 M69 68 q6 4 12 0" stroke="${INK}" stroke-width="2.6" fill="none" stroke-linecap="round"/>`}[mood];
+  const brow={happy:'<path d="M37 53 q8 -3 15 0 M68 53 q7 -3 15 0"',party:'<path d="M37 52 q8 -4 15 -1 M68 51 q7 -3 15 1"',
+    worried:'<path d="M37 51 q8 -5 15 -3 M68 48 q7 -2 15 3"',think:'<path d="M38 52 q8 -2 15 1 M69 50 q7 -3 15 0"',sleep:'<path d="M37 54 q8 -2 15 0 M68 54 q7 -2 15 0"'}[mood]+` stroke="${H}" stroke-width="3.2" fill="none" stroke-linecap="round"/>`;
+  const mouth={happy:'<path d="M53 84 q7 4.5 14 -1" stroke="#9c4b3c" stroke-width="2.3" fill="none" stroke-linecap="round"/>',
+    party:'<path d="M50 81 q10 13 20 0 z" fill="#7a2f2a"/><path d="M51.5 81.6 h17 q-.4 3 -1.8 3.6 h-13.4 q-1.4 -.6 -1.8 -3.6z" fill="#fff"/><ellipse cx="60" cy="88" rx="4" ry="2.2" fill="#e87a7a"/>',
+    worried:'<ellipse cx="60" cy="86" rx="4.2" ry="5" fill="#7a2f2a"/><ellipse cx="60" cy="88.5" rx="2.6" ry="1.8" fill="#e87a7a"/>',
+    think:'<path d="M56 85 q5 -2 9 1" stroke="#9c4b3c" stroke-width="2.2" fill="none" stroke-linecap="round"/>',
+    sleep:'<ellipse cx="60" cy="85" rx="2.2" ry="1.7" fill="#9c4b3c"/>'}[mood];
+  const extra={worried:'<path d="M99 42 q4 8 0 12 q-4 -4 0 -12z" fill="#7cc7ff"/><path d="M14 30 v10 M14 45 v1" stroke="#ff8a3d" stroke-width="3.4" stroke-linecap="round"/>',
+    party:'<path d="M10 20 l4 8 l8 -2 l-6 6 l4 8 l-8 -4 l-6 6 l2 -8 l-8 -4 l8 -2z" fill="#ffd23f"/><path d="M104 18 l2 4 l4 1 l-4 2 l-2 4 l-2 -4 l-4 -2 l4 -1z" fill="#7cc7ff"/><circle cx="110" cy="40" r="3" fill="#33c38a"/>',
+    think:'<circle cx="102" cy="26" r="4" fill="#cfe3d6"/><circle cx="110" cy="14" r="6" fill="#cfe3d6"/>',
+    sleep:'<text x="96" y="30" font-size="15" font-weight="800" fill="#3f6b4f" font-family="Nunito,sans-serif">z</text><text x="106" y="18" font-size="11" font-weight="800" fill="#3f6b4f" font-family="Nunito,sans-serif">z</text>'}[mood]||"";
+  // jempol (pose khas di foto) di sisi kiri, plus gelang benang merah-putih
+  const thumb=o.over?"":`<g><path d="M24 100 q-2 -12 4 -14 q3 -1 3 4 l-1 5 h6 q4 0 3 5 l-1 6 q-1 4 -6 4 h-6 q-3 0 -3 -4z" fill="${SK}" stroke="#fff" stroke-width="1.8" paint-order="stroke"/><path d="M23 112 q7 3 14 0" stroke="#e53935" stroke-width="2.4" fill="none"/><path d="M23 112 q7 3 14 0" stroke="#fff" stroke-width="2.4" fill="none" stroke-dasharray="2.2 2.2"/></g>`;
+  const wet=o.wet?'<path d="M30 40 q2 4 0 6 q-2 -2 0 -6z M92 44 q2 4 0 6 q-2 -2 0 -6z M60 14 q2 4 0 6 q-2 -2 0 -6z" fill="#7cc7ff"/>':"";
+  const fringe=o.wet
+   ?`<path d="M22 64 Q18 24 60 20 Q102 24 98 64 Q95 54 90 50 L88 58 Q84 48 78 44 L76 54 Q70 44 64 42 L62 52 Q56 42 50 44 L46 54 Q42 46 36 48 L32 58 Q28 54 22 64Z" fill="${H}"/>`
+   :`<path d="M21 66 Q17 24 60 20 Q103 24 99 66 Q96 54 89 47 Q86 40 76 37 Q71 47 61 50 Q65 41 60 33 Q52 46 37 50 Q27 55 21 66Z" fill="${H}"/><path d="M60 26 q-8 12 -3 24" stroke="${H}" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M40 30 Q52 23 66 25" stroke="#fff" stroke-opacity=".35" stroke-width="3.2" fill="none" stroke-linecap="round"/>`;
+  return `<svg class="pipi" width="${size}" height="${size}" viewBox="0 0 120 120" role="img" aria-label="${o.n}">
+   <defs><clipPath id="${u}"><ellipse cx="60" cy="103" rx="27" ry="15"/></clipPath>
+   <linearGradient id="${u}l" x1="0" y1="0" x2="0" y2="1"><stop offset=".3" stop-color="#cfe6ff" stop-opacity="0"/><stop offset="1" stop-color="#bcdcff" stop-opacity=".45"/></linearGradient></defs>
+   <ellipse cx="60" cy="116" rx="31" ry="3.5" fill="rgba(0,0,0,.08)"/>
+   <rect x="44" y="107" width="12" height="9" rx="4.5" fill="#3a3a44"/><rect x="64" y="107" width="12" height="9" rx="4.5" fill="#3a3a44"/>
+   <ellipse cx="60" cy="103" rx="27" ry="15" fill="none" stroke="#fff" stroke-width="3.2"/>
+   <g clip-path="url(#${u})"><rect x="30" y="86" width="60" height="34" fill="${o.fill}"/>${o.body}</g>
+   <path d="M19 66 Q15 18 60 16 Q105 18 101 66 Q99 74 94 76 L26 76 Q21 74 19 66Z" fill="${H}" stroke="#fff" stroke-width="3.2" stroke-linejoin="round" paint-order="stroke"/>
+   <ellipse cx="22" cy="69" rx="6" ry="7.5" fill="${SK2}" stroke="#fff" stroke-width="2.4" paint-order="stroke"/><ellipse cx="98" cy="69" rx="6" ry="7.5" fill="${SK2}" stroke="#fff" stroke-width="2.4" paint-order="stroke"/>
+   <ellipse cx="60" cy="63" rx="37" ry="33" fill="${SK}"/>
+   <path d="M26 44 Q20 56 24 72 Q27 66 28 58 Q30 50 36 46Z" fill="${H}"/><path d="M94 44 Q100 56 96 72 Q93 66 92 58 Q90 50 84 46Z" fill="${H}"/>
+   ${fringe}${wet}
+   <ellipse cx="36" cy="80" rx="6.5" ry="3.6" fill="#f08f7a" opacity=".4"/><ellipse cx="84" cy="80" rx="6.5" ry="3.6" fill="#f08f7a" opacity=".4"/>
+   ${brow}${eyes}
+   <rect x="32" y="57" width="26" height="20" rx="4.5" fill="url(#${u}l)" stroke="#141414" stroke-width="3.2"/><rect x="62" y="57" width="26" height="20" rx="4.5" fill="url(#${u}l)" stroke="#141414" stroke-width="3.2"/>
+   <path d="M58 63 q2 -2.4 4 0" stroke="#141414" stroke-width="2.8" fill="none"/><path d="M32 61 L23 59 M88 61 L97 59" stroke="#141414" stroke-width="3"/>
+   <circle cx="35.5" cy="60" r="1.1" fill="#d9d9d9"/><circle cx="84.5" cy="60" r="1.1" fill="#d9d9d9"/>
+   <path d="M36 61 q3 -2.6 6 -2.8 M66 61 q3 -2.6 6 -2.8" stroke="#fff" stroke-opacity=".75" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+   <path d="M57 78 q3 2.4 6 0" stroke="#c98a68" stroke-width="2" fill="none" stroke-linecap="round"/>
+   ${mouth}${o.over||""}${thumb}${extra}</svg>`}
+for(const [k,o] of Object.entries(BOYS))CHARS[k]={name:o.n,emoji:o.e,kind:o.k,desc:o.d,boy:true};
 
 const charKey=()=>"bbp_char_"+(document.getElementById("who")?.textContent||"").split(" ")[0];
 function charId(){const p=window.PREFS?.char;if(p&&CHARS[p])return p;try{const l=localStorage.getItem(charKey());if(l&&CHARS[l])return l}catch(e){}return "pipi"}
@@ -188,7 +257,7 @@ const C=()=>CHARS[charId()];
 async function setChar(id){try{localStorage.setItem(charKey(),id)}catch(e){}window.PREFS={...(window.PREFS||{}),char:id};
   document.documentElement.dataset.char=id;
   try{if(col)await col.doc("prefs").set(window.PREFS)}catch(e){}render()}
-function pipi(mood="happy",size=64,id){const cid=id||charId();if(OUTFITS[cid])return girlSVG(cid,mood,size);const c=CHARS[cid];
+function pipi(mood="happy",size=64,id){const cid=id||charId();if(OUTFITS[cid])return girlSVG(cid,mood,size);if(BOYS[cid])return boySVG(cid,mood,size);const c=CHARS[cid];
   const eyes={happy:'<circle cx="44" cy="52" r="5" fill="#2d2340"/><circle cx="76" cy="52" r="5" fill="#2d2340"/><circle cx="45.5" cy="50.5" r="1.6" fill="#fff"/><circle cx="77.5" cy="50.5" r="1.6" fill="#fff"/>',
     worried:'<circle cx="44" cy="54" r="5" fill="#2d2340"/><circle cx="76" cy="54" r="5" fill="#2d2340"/><path d="M36 42 l14 5 M84 42 l-14 5" stroke="#2d2340" stroke-width="3" stroke-linecap="round"/>',
     party:'<path d="M38 53 q6 -8 12 0 M70 53 q6 -8 12 0" stroke="#2d2340" stroke-width="3.5" fill="none" stroke-linecap="round"/>',
@@ -365,9 +434,9 @@ function doPeek(force,override){
   let tip=override||peekTips();if(!override&&!force&&tip.t===lastPeekTip)tip=peekTips();lastPeekTip=tip.t;
   const pos=["bl","br","r"][Math.floor(Math.random()*3)],side=pos==="r"?"r":"b";
   peekEl=document.createElement("div");peekEl.className=`peek ${side} ${pos}`;
-  const girl=!!OUTFITS[charId()];
+  const girl=!!OUTFITS[charId()],boy=!!BOYS[charId()];
   peekEl.innerHTML=`<div class="bub" role="status"><b>${esc(tip.t)}</b>${esc(tip.d)}${tip.r?"<small>Ketuk untuk buka →</small>":""}</div>
-   <div class="who" style="--hand:${girl?"#ffe0cc":(CHARS[charId()].feet||"#f48fb1")}">${pipi(tip.m,96)}<span class="hand" style="left:14px"></span><span class="hand" style="right:14px"></span></div>`;
+   <div class="who" style="--hand:${girl?"#ffe0cc":boy?"#f3cba8":(CHARS[charId()].feet||"#f48fb1")}">${pipi(tip.m,96)}<span class="hand" style="left:14px"></span><span class="hand" style="right:14px"></span></div>`;
   document.body.appendChild(peekEl);
   requestAnimationFrame(()=>requestAnimationFrame(()=>peekEl&&peekEl.classList.add("show")));
   const close=()=>{if(!peekEl)return;const el=peekEl;peekEl=null;el.classList.remove("show");setTimeout(()=>el.remove(),650)};
