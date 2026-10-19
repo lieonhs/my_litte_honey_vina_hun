@@ -484,6 +484,8 @@ function closeRoom(fromPop){if(!CH.open)return;saveDraft();sendTyping(CH.open,fa
   const room=$$("#cxRoom");if(room&&mobile())room.innerHTML="";paintInbox()}
 addEventListener("popstate",()=>{if(CH.open&&mobile())closeRoom(true)});
 function vv(){const v=window.visualViewport,h=document.documentElement;if(!v){h.style.removeProperty("--vvh");return}
+  /* kalau layar sempat di-zoom (pinch), jangan ikut mengecil/bergeser */
+  if(v.scale&&Math.abs(v.scale-1)>.02){h.style.removeProperty("--vvh");h.style.removeProperty("--vvt");return}
   h.style.setProperty("--vvh",v.height+"px");h.style.setProperty("--vvt",v.offsetTop+"px")}
 if(window.visualViewport){const f=()=>{if(!document.documentElement.classList.contains("cx-full"))return;const wasBottom=CH.atBottom;vv();if(wasBottom)toBottom(false)};visualViewport.addEventListener("resize",f);visualViewport.addEventListener("scroll",f)}
 function saveDraft(){const t=$$("#rmTxt");if(t&&CH.open)CH.drafts.set(CH.open,t.value)}
