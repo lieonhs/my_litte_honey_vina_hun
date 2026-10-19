@@ -2,6 +2,8 @@
 <html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Buku Besar Pribadi</title>
 <link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 <meta name="theme-color" content="#2b2926">
@@ -93,6 +95,7 @@ td.ind1{padding-left:22px}
 
 <header>
   <button class="ham" id="ham" aria-label="Menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+  <img src="icon.svg" alt="" width="30" height="30" style="border-radius:9px;flex:none;box-shadow:0 1px 3px rgba(0,0,0,.2)">
   <span class="app">Buku Besar Pribadi</span>
   <span class="ent" id="who">Entitas: Pribadi · IDR</span><button class="sm" id="logout" style="background:none;color:var(--hdrInk);border-color:rgba(255,255,255,.3)">Keluar</button>
 </header>
@@ -624,7 +627,7 @@ function showLogin(msg){
 
 function startData(uid,email){
   $("login")?.remove();if(email)$("who").textContent=email+" · IDR";sample=receiptReader;col=makeCol(uid);
-  col.onSnapshot(snap=>{closed=[];window.BILLS=null;window.PREFS=null;window.EVDOCS=[];window.DIARY={};window.NOTES=[];window.QUEST=null;accState={};jeDocs=[];legacyTx=[];budgets={};legacyPlans={};coaExtra=[];
+  col.onSnapshot(snap=>{closed=[];window.BILLS=null;window.PREFS=null;window.EVDOCS=[];window.DIARY={};window.NOTES=[];window.QUEST=null;window.TOOLS=null;accState={};jeDocs=[];legacyTx=[];budgets={};legacyPlans={};coaExtra=[];
     snap.docs.forEach(doc=>{const v=doc.data(),k=doc.id;
       if(k.startsWith("acc_"))accState[k.slice(4)]=v;
       else if(k.startsWith("bud_"))budgets[k.slice(4)]=v;
@@ -634,6 +637,7 @@ function startData(uid,email){
       else if(k==="bills")window.BILLS=v;
       else if(k==="prefs")window.PREFS=v;
       else if(k==="quest")window.QUEST=v;
+      else if(k==="tools")window.TOOLS=v;
       else if(v.kind==="ev")window.EVDOCS.push({...v,_id:k});
       else if(v.kind==="dj")window.DIARY[v.date||k.slice(3)]=v;
       else if(v.kind==="note")window.NOTES.push({...v,_id:k});
@@ -660,6 +664,7 @@ render();
 <script src="fun.js"></script>
 <script src="quest.js"></script>
 <script src="games.js"></script>
+<script src="tools.js"></script>
 <script src="cute.js"></script>
 <script src="i18n.js"></script>
 </body></html>

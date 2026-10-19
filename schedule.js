@@ -460,7 +460,7 @@ document.addEventListener("visibilitychange",()=>{if(!document.hidden)checkRemin
 /* ---------- dua aplikasi: Keuangan & Harian ---------- */
 const SCHED_ROUTES=new Set(["today","sched","diary","notes"]);
 let appMode=(()=>{try{return localStorage.getItem("bbp_app")||"fin"}catch(e){return "fin"}})();
-const SHARED=new Set(["guide","quest","album","look"]);
+const SHARED=new Set(["guide","quest","album","look","games","tools","t_moment","t_split","t_wish","t_habit","t_wheel","t_calc"]);
 const modeOf=r=>SCHED_ROUTES.has(r)?"sched":(SHARED.has(r)?appMode:"fin");
 function drawSwitch(){const hdr=document.querySelector("header");if(!hdr)return;let sw=hdr.querySelector(".appsw");
   if(!sw){sw=document.createElement("div");sw.className="appsw";sw.innerHTML='<button data-app="fin">💰 Jurnal Keuangan</button><button data-app="sched">📔 Jurnal Harian</button>';
@@ -469,7 +469,7 @@ function drawSwitch(){const hdr=document.querySelector("header");if(!hdr)return;
   sw.querySelectorAll("button").forEach(b=>b.classList.toggle("on",b.dataset.app===modeOf(route)))}
 const _renderNav=renderNav;
 renderNav=function(){const all=NAV.slice(),sch=modeOf(route)==="sched";
-  const keep=all.filter(([g,items])=>g==="Bantuan"||g==="Misi"||(sch?items.some(([k])=>SCHED_ROUTES.has(k)):!items.some(([k])=>SCHED_ROUTES.has(k))));
+  const keep=all.filter(([g,items])=>g==="Bantuan"||g==="Misi"||g==="Alat"||(sch?items.some(([k])=>SCHED_ROUTES.has(k)):!items.some(([k])=>SCHED_ROUTES.has(k))));
   NAV.length=0;NAV.push(...keep);try{_renderNav()}finally{NAV.length=0;NAV.push(...all)}drawSwitch()};
 
 NAV.splice(1,0,["Harian",[["today","Hari Ini"],["sched","Kalender"],["diary","Jurnal Harian"],["notes","Catatan"]]]);
