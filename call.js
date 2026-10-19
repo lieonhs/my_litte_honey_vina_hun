@@ -111,7 +111,13 @@ async function accept(){stopTone();
   C.pc=newPC(await iceList());send({t:"accept"});draw()}
 function decline(){send({t:"decline"});stopTone();reset()}
 async function onSig(p){if(!p||p.from===C.me)return;
-  if(p.t==="ring"){if(p.id&&p.id===C.id)return;if(C.state!=="idle"){const keep=C.other;C.other=p.from;send({t:"busy",id:p.id});C.other=keep;return}
+  if(p.t==="ring"){if(p.id&&p.id===C.id)return;
+    /* saling menelepon di saat bersamaan: satu pihak (urutan id akun) mengalah dan otomatis mengangkat panggilan yang lain */
+    if(C.state==="calling"&&p.from===C.other){if(String(C.me)<String(p.from)){clearTimeout(C.ringT);clearInterval(C.ringIv);clearInterval(C.pushIv);stopTone();
+        if(C.local){C.local.getTracks().forEach(t=>t.stop());C.local=null}
+        C.id=p.id;C.role="callee";C.video=!!p.video&&vidOK(p.from);C.state="ringing";C.note="";draw();accept()}
+      return}
+    if(C.state!=="idle"){const keep=C.other;C.other=p.from;send({t:"busy",id:p.id});C.other=keep;return}
     if(window.RS&&!RS.S.members[p.from])return;
     C.other=p.from;C.id=p.id;C.role="callee";C.video=!!p.video&&vidOK(p.from);C.state="ringing";C.note="";draw();
     if(C.auto&&Date.now()-C.auto<45000){C.auto=0;accept();return}   /* diangkat dari tombol "Angkat" di notifikasi */
