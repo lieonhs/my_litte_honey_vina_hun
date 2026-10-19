@@ -516,7 +516,7 @@ function showLogin(msg){
    <label>Password</label><input id="lg_p" type="password" autocomplete="current-password">
    <div id="lg_m" class="msg err ${msg?"":"hide"}" style="margin:12px 0 0">${esc(msg||"")}</div>
    <button class="pri" id="lg_b" style="width:100%;margin-top:14px;min-height:42px">Masuk</button></div></div>`;
-  const go2=async()=>{$("lg_b").disabled=true;window.__ravi_pw=$("lg_p").value; /* dipakai sekali oleh e2ee.js untuk membuka kunci enkripsi akun, lalu dihapus */
+  const go2=async()=>{$("lg_b").disabled=true;window.__ravi_pw=$("lg_p").value;window.__ravi_land="chat"; /* habis login langsung ke Chat */ /* dipakai sekali oleh e2ee.js untuk membuka kunci enkripsi akun, lalu dihapus */
     const {error}=await sb.auth.signInWithPassword({email:$("lg_e").value.trim(),password:$("lg_p").value});
     if(error){window.__ravi_pw=undefined;$("lg_m").textContent=/banned/i.test(error.message||"")?"Akun ini sudah dikeluarkan dari RaVi oleh admin.":"Gagal masuk: "+error.message;$("lg_m").classList.remove("hide");$("lg_b").disabled=false}};
   $("lg_b").onclick=go2;$("lg_p").onkeydown=e=>{if(e.key==="Enter")go2()}}
@@ -567,6 +567,8 @@ async function startData(uid,email){
   if(!(await mfaGate()))return;
   if(!(await memberGate(uid)))return;
   $("login")?.remove();if(email)$("who").textContent=email+" · IDR";sample=receiptReader;col=makeCol(uid);
+  if(window.__ravi_land){route=window.__ravi_land;window.__ravi_land=null;try{localStorage.setItem("bbp_route",route)}catch(e){}render()}
+  document.dispatchEvent(new CustomEvent("ravi-in"));
   col.onSnapshot(snap=>{closed=[];window.BILLS=null;window.PREFS=null;window.EVDOCS=[];window.DIARY={};window.NOTES=[];window.QUEST=null;window.TOOLS=null;accState={};jeDocs=[];legacyTx=[];budgets={};legacyPlans={};coaExtra=[];
     snap.docs.forEach(doc=>{const v=doc.data(),k=doc.id;
       if(k.startsWith("acc_"))accState[k.slice(4)]=v;

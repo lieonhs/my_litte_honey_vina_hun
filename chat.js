@@ -134,8 +134,38 @@ function mark(cid,read){const k=cid+(read?"r":"d");if(CH.markT[k])return;CH.mark
 function markRead(cid){const c=CH.convs.get(cid);if(!c||document.hidden)return;if(c.unread){c.unread=0;badge();paintInbox()}mark(cid,true);
   /* versi lama masih memakai kolom read_at per pesan */
   const st=CH.msgs.get(cid);if(st){const ids=st.list.filter(m=>m.sender!==CH.me&&!m.read_at&&m.id>0).map(m=>m.id);if(ids.length){const ts=new Date().toISOString();st.list.forEach(m=>{if(ids.includes(m.id))m.read_at=ts});sb.from("couple_msgs").update({read_at:ts}).in("id",ids).then(()=>{},()=>{})}}}
-function notify(c,m){const txt=snip(m);if(route!=="chat"&&window.doPeek)window.doPeek(true,{t:"💬 "+(c.kind==="group"?title(c)+" · "+R.name(m.sender):R.name(m.sender)),d:txt.slice(0,80),r:"chat",m:"happy",w:6});
+function notify(c,m){const txt=snip(m);if(route!=="chat"||CH.open!==c.id)qrShow(c,m);
   try{if(document.hidden&&window.Notification&&Notification.permission==="granted"&&localStorage.getItem("bbp_push_ok")!=="1")new Notification(c.kind==="group"?title(c):R.name(m.sender),{body:txt.slice(0,120),icon:"icon-192.png",tag:"c"+c.id})}catch(e){}}
+
+/* ---------- jendela balas cepat (pesan masuk saat sedang di halaman lain) ---------- */
+const qrCss=document.createElement("style");qrCss.textContent=`
+#qrWin{position:fixed;right:max(16px,env(safe-area-inset-right));top:calc(14px + env(safe-area-inset-top));z-index:70;width:min(360px,calc(100vw - 24px));background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:18px;box-shadow:0 14px 40px rgba(0,0,0,.22);padding:10px 12px 12px;animation:qrIn .22s ease-out}
+@keyframes qrIn{from{opacity:0;transform:translateY(-10px) scale(.98)}to{opacity:1;transform:none}}
+#qrWin.out{animation:qrOut .18s ease-in forwards}@keyframes qrOut{to{opacity:0;transform:translateY(-8px)}}
+#qrWin .qh{display:flex;gap:10px;align-items:center;cursor:pointer}#qrWin .qh .tx{flex:1;min-width:0}#qrWin .qh b{display:block;font-size:14px}
+#qrWin .qh span.m{display:block;font-size:13px;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#qrWin .qx{all:unset;cursor:pointer;width:28px;height:28px;border-radius:99px;display:flex;align-items:center;justify-content:center;color:var(--mute)}#qrWin .qx:hover{background:var(--th)}
+#qrWin form{display:flex;gap:6px;margin-top:10px}#qrWin input{flex:1;min-width:0;border-radius:99px;padding:9px 14px}
+#qrWin button.sd{all:unset;cursor:pointer;width:38px;height:38px;border-radius:99px;background:var(--acc);color:#fff;display:flex;align-items:center;justify-content:center;flex:none}
+#qrWin .ok{font-size:12.5px;color:var(--mute);margin-top:8px}
+@media (max-width:860px){#qrWin{left:12px;right:12px;width:auto}}
+@media (prefers-reduced-motion:reduce){#qrWin,#qrWin.out{animation:none}}`;document.head.appendChild(qrCss);
+let qrT=0;
+function qrClose(){const w=document.getElementById("qrWin");if(!w)return;clearTimeout(qrT);w.classList.add("out");setTimeout(()=>w.remove(),180)}
+function qrShow(c,m){if(document.querySelector(".sheetBg")||document.getElementById("callUI")?.offsetParent)return;
+  let w=document.getElementById("qrWin");const typing=w&&w.dataset.c===String(c.id)&&w.querySelector("input")?.value;
+  if(!w){w=document.createElement("div");w.id="qrWin";w.setAttribute("role","dialog");document.body.appendChild(w)}
+  const who=c.kind==="group"?title(c)+" · "+R.name(m.sender):R.name(m.sender);w.dataset.c=c.id;w.dataset.m=m.id;
+  if(!typing){w.innerHTML=`<div class="qh">${c.kind==="group"?convAv(c,38):R.avatar(m.sender,38)}<div class="tx"><b></b><span class="m"></span></div><button class="qx" aria-label="${L("Tutup","Close")}">✕</button></div>
+    <form><input placeholder="${L("Balas…","Reply…")}" maxlength="2000" aria-label="${L("Balas pesan","Reply to message")}"><button class="sd" aria-label="${L("Kirim","Send")}"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12 20 4l-6 16-3-7z"/></svg></button></form>`;
+    w.querySelector("b").textContent=who;
+    w.querySelector(".qx").onclick=e=>{e.stopPropagation();qrClose()};
+    w.querySelector(".qh").onclick=()=>{qrClose();go("chat");window.RAVI_CHAT.open(c.id)};
+    const inp=w.querySelector("input");inp.onfocus=()=>clearTimeout(qrT);inp.onblur=()=>{if(!inp.value)arm()};inp.onkeydown=e=>{if(e.key==="Escape")qrClose()};
+    w.querySelector("form").onsubmit=async e=>{e.preventDefault();const t=inp.value.trim();if(!t)return;inp.value="";const cid=w.dataset.c;
+      await sendBody(cid,{t});markRead(cid);w.querySelector("form").outerHTML=`<div class="ok">✓ ${L("Terkirim","Sent")}</div>`;clearTimeout(qrT);qrT=setTimeout(qrClose,1400)}}
+  const sp=w.querySelector(".m"),fill=()=>{if(sp.isConnected)sp.textContent=snip(m)};fill();setTimeout(fill,600);
+  const arm=()=>{clearTimeout(qrT);qrT=setTimeout(()=>{const i=w.querySelector("input");if(!i||(!i.value&&document.activeElement!==i))qrClose()},9000)};arm()}
 
 /* ---------- mengetik… ---------- */
 function typingChan(cid){if(CH.chans.has(cid)||CH.chans.size>25)return;
@@ -411,8 +441,6 @@ function paintBell(){const n=window.RAVI_NOTIF_COUNT?window.RAVI_NOTIF_COUNT():0
 document.addEventListener("ravi-notif",paintBell);
 function paintNotes(){const box=$$("#cxNotes");if(!box)return;box.innerHTML="";
   const st=E2()?E2().state():"err";
-  if(st==="needpw"||st==="nokey"){const d=document.createElement("div");d.className="pn-bar";d.innerHTML=`<span>🔐</span><div style="flex:1"><b>${st==="nokey"?L("Aktifkan enkripsi chat","Turn on chat encryption"):L("Buka kunci enkripsi","Unlock encryption")}</b>${L("Masukkan password login sekali di perangkat ini.","Enter your sign-in password once on this device.")}</div><button class="sm pri">${L("Buka","Open")}</button>`;
-    d.querySelector("button").onclick=()=>E2().unlockDialog();box.appendChild(d)}
   if(window.RAVI_PUSH_BANNER)window.RAVI_PUSH_BANNER(box)}
 function convSorted(){return [...CH.convs.values()].sort((a,b)=>Date.parse(b.at||0)-Date.parse(a.at||0))}
 function paintInbox(){const box=$$("#cxList");if(!box)return;const term=CH.q.trim().toLowerCase();
@@ -493,10 +521,9 @@ function paintPin(){const box=$$("#rmPin");if(!box)return;const c=CH.convs.get(C
   const d=document.createElement("div");d.className="rm-pin";d.innerHTML=`${ic("pin",16)}<span></span>`;d.querySelector("span").textContent=m?snip(m):L("Pesan disematkan","Pinned message");
   d.onclick=()=>jumpTo(c.pinned_msg);box.appendChild(d);
   if(!m)sb.from("couple_msgs").select("*").eq("id",c.pinned_msg).maybeSingle().then(({data})=>{if(data&&box.isConnected)d.querySelector("span").textContent=snip(data)},()=>{})}
-function paintNote(){const box=$$("#rmNote");if(!box)return;box.innerHTML="";const c=CH.convs.get(CH.open);if(!c||!E2())return;const st=E2().state();
-  let html="";if(st==="needpw"||st==="nokey")html=`<span>🔐</span><div><b>${L("Pesan terkunci di perangkat ini","Messages are locked on this device")}</b>${L("Masukkan password login sekali untuk membukanya.","Enter your sign-in password once to open them.")}</div><button class="sm pri" data-ul>${L("Buka","Open")}</button>`;
-  else if(st==="ok"){const miss=E2().missing(others(c).map(x=>x.u));if(miss.length)html=`<span>⏳</span><div><b>${L("Belum terenkripsi end-to-end","Not end-to-end encrypted yet")}</b>${esc(miss.map(R.name).join(", "))} ${L("belum membuka RaVi versi terbaru. Pesan tetap privat untuk anggota chat.","hasn't opened the latest RaVi yet. Messages stay private to chat members.")}</div>`}
-  if(!html)return;const d=document.createElement("div");d.className="rm-note";d.innerHTML=html;box.appendChild(d);const b=d.querySelector("[data-ul]");if(b)b.onclick=()=>E2().unlockDialog()}
+function paintNote(){const box=$$("#rmNote");if(box)box.innerHTML=""} /* enkripsi berjalan otomatis di belakang layar — tidak ada banner */
+document.addEventListener("click",e=>{const m=e.target.closest&&e.target.closest(".mb");if(!m||!E2())return;const st=E2().state();
+  if((st==="needpw"||st==="nokey")&&/🔒/.test(m.textContent||"")&&E2().autoUnlock)E2().autoUnlock({ask:true})});
 
 /* ---------- gambar pesan ---------- */
 const sysTop=c=>`<div class="rm-sys y" id="rmE2">🔐 ${L("Pesan & panggilan terenkripsi end-to-end. Tidak ada orang di luar chat ini, termasuk server, yang bisa membaca. Ketuk untuk kode keamanan.","Messages and calls are end-to-end encrypted. No one outside this chat, not even the server, can read them. Tap for the security code.")}</div>`;
@@ -758,7 +785,8 @@ function confirmTmp(tmp,real){CH.pend.delete(real.body);const st=CH.msgs.get(rea
   const el=document.getElementById("m"+tmp.id);if(el){el.id="m"+real.id;el.dataset.id=real.id;const tk=el.querySelector(".tk");if(tk)tk.dataset.s=tickState(real,CH.convs.get(real.conv_id));if(real.img)patchBubble(real)}
   const c=CH.convs.get(real.conv_id);if(c&&(!c.last||real.id>=c.last.id)){c.last=real;c.at=real.created_at;paintInbox()}}
 async function sendBody(cid,o){const plain=R.pack(o);const tmp=tmpMsg(cid,plain);
-  let sealed;try{sealed=await seal(cid,plain)}catch(e){tmp.failed=true;patchBubble(tmp);status(e.message||String(e),"err");return}
+  let sealed;try{sealed=await seal(cid,plain)}catch(e){const st=CH.msgs.get(cid);if(st)st.list=st.list.filter(x=>x!==tmp);document.getElementById("m"+tmp.id)?.remove();
+    const inp=$$("#rmTxt");if(inp&&!inp.value&&o.t){inp.value=o.t;inp.dispatchEvent(new Event("input"))}status(e.message||String(e),"err");return}
   if(sealed!==plain&&window.RAVI_E2E)tmp.body=sealed;CH.pend.set(sealed,tmp);
   const {data,error}=await sb.from("couple_msgs").insert({conv_id:cid,body:sealed}).select().single();
   if(error){CH.pend.delete(sealed);tmp.failed=true;const tk=document.querySelector("#m"+CSS.escape(String(tmp.id))+" .tk");if(tk)tk.dataset.s="fail";status(L("Pesan gagal terkirim: ","Message not sent: ")+error.message,"err");return}

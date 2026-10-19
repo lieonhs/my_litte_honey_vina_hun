@@ -70,7 +70,7 @@ async function showJoin(){let el=document.getElementById("login");if(!el){el=doc
     if(p.length<8)return fail(L("Password minimal 8 karakter.","Password needs 8+ characters."));if(p!==$("jnP2").value)return fail(L("Kedua password tidak sama.","Passwords don't match."));
     const g=$("jnGo");g.disabled=true;g.textContent=L("Membuat akun…","Creating account…");
     try{await joinFn({code:INV,email:e,password:p,name:n});window.__ravi_pw=p;
-      const {error}=await sb.auth.signInWithPassword({email:e,password:p});if(error)throw error;history.replaceState(null,"",location.pathname)}
+      window.__ravi_land="chat";const {error}=await sb.auth.signInWithPassword({email:e,password:p});if(error)throw error;history.replaceState(null,"",location.pathname)}
     catch(err){window.__ravi_pw=undefined;fail(err.message||String(err))}}}
 const _show=typeof showLogin==="function"?showLogin:null;
 if(_show&&INV){showLogin=function(msg){if(new URLSearchParams(location.search).get("invite"))return showJoin();return _show(msg)}}

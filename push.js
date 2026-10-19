@@ -76,9 +76,13 @@ window.RAVI_PUSH_SUBSCRIBE=subscribe;window.RAVI_PUSH_STATE=pushState;window.RAV
 /* ---------- buka dari notifikasi: ?go=chat&c=<id> ---------- */
 function goFromUrl(u){try{const q=new URL(u,location.href).searchParams,g=q.get("go"),c=q.get("c");
   if(q.get("ans")==="1"&&window.RAVI_CALL)window.RAVI_CALL.autoAnswer();
-  if(g==="chat"&&c&&window.RAVI_CHAT){go("chat");window.RAVI_CHAT.open(c);return}
+  const rep=q.get("reply");if(g==="chat"&&c&&rep&&window.RAVI_CHAT){sendReply(c,rep);return}
+  if(g==="chat"&&c&&window.RAVI_CHAT){go("chat");window.RAVI_CHAT.open(c);if(q.get("rf")==="1")setTimeout(()=>document.getElementById("rmTxt")?.focus(),700);return}
   if(g&&window.EXTRA_VIEWS&&window.EXTRA_VIEWS[g])go(g)}catch(e){}}
-if("serviceWorker" in navigator)navigator.serviceWorker.addEventListener("message",e=>{if(e.data&&e.data.ravi==="go")goFromUrl(e.data.url);if(e.data&&e.data.ravi==="decline"&&window.RAVI_CALL)window.RAVI_CALL.decline()});
+/* balasan dari jendela notifikasi: kirim tanpa harus membuka chat */
+async function sendReply(cid,text){try{await window.RAVI_CHAT.init();await window.RAVI_CHAT.sendBody(cid,{t:String(text).slice(0,2000)});
+    status((EN()?"Reply sent ✓":"Balasan terkirim ✓"),"ok");setTimeout(()=>status(""),1800)}catch(e){status(e.message||String(e),"err")}}
+if("serviceWorker" in navigator)navigator.serviceWorker.addEventListener("message",e=>{if(e.data&&e.data.ravi==="reply"){const q=new URL(e.data.url,location.href).searchParams;if(q.get("c"))sendReply(q.get("c"),e.data.text);return}if(e.data&&e.data.ravi==="go")goFromUrl(e.data.url);if(e.data&&e.data.ravi==="decline"&&window.RAVI_CALL)window.RAVI_CALL.decline()});
 addEventListener("load",()=>{const href=location.href,has=new URLSearchParams(location.search).get("go")||new URLSearchParams(location.search).get("ans");
   if(new URLSearchParams(location.search).get("ans")==="1"){const w=setInterval(()=>{if(window.RAVI_CALL){clearInterval(w);window.RAVI_CALL.autoAnswer()}},100);setTimeout(()=>clearInterval(w),5000)}
   const t=setInterval(()=>{if(typeof col!=="undefined"&&col){clearInterval(t);ready().catch(()=>{});

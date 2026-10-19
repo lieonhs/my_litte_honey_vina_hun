@@ -39,11 +39,12 @@ async function kek(pw,salt,iter){const base=await crypto.subtle.importKey("raw",
 const pfx=j=>j.x.slice(0,16);
 /* kunci pembungkus antara akun ini dan akun lain */
 async function wrapKey(otherUid,otherPub){const id=otherUid+":"+otherPub.x;if(E.wrap.has(id))return E.wrap.get(id);
-  const bits=await crypto.subtle.deriveBits({name:"ECDH",public:await importPub(otherPub)},E.priv,256);
+  const k=await deriveWrap(E.priv,E.uid,E.pub,otherUid,otherPub);E.wrap.set(id,k);return k}
+async function deriveWrap(myPriv,myUid,myPub,otherUid,otherPub){
+  const bits=await crypto.subtle.deriveBits({name:"ECDH",public:await importPub(otherPub)},myPriv,256);
   const hk=await crypto.subtle.importKey("raw",bits,"HKDF",false,["deriveKey"]);
-  const info=[E.uid+":"+E.pub.x,otherUid+":"+otherPub.x].sort().join("|");
-  const k=await crypto.subtle.deriveKey({name:"HKDF",hash:"SHA-256",salt:te.encode("ravi-e2e-v3"),info:te.encode(info)},hk,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
-  E.wrap.set(id,k);return k}
+  const info=[myUid+":"+myPub.x,otherUid+":"+otherPub.x].sort().join("|");
+  return crypto.subtle.deriveKey({name:"HKDF",hash:"SHA-256",salt:te.encode("ravi-e2e-v3"),info:te.encode(info)},hk,{name:"AES-GCM",length:256},false,["encrypt","decrypt"])}
 
 /* ---------- kunci publik semua anggota (+ riwayat kunci lama supaya pesan lama tetap terbaca) ---------- */
 const seenKey=()=>"ravi_e2e_seen3_"+E.uid;
@@ -63,7 +64,21 @@ function pubFor(uid,prefix){const k=E.keys.get(uid);if(k&&(!prefix||pfx(k)===pre
   for(const o of [h.cur,...(h.old||[])])if(o&&(!prefix||o.x.slice(0,16)===prefix))return o;return null}
 
 /* ---------- membuka / membuat kunci akun ---------- */
-const serverRow=async()=>(await sb.from("couple_ukeys").select("pub,wrapped,salt,iter").eq("user_id",E.uid).maybeSingle()).data||null;
+const serverRow=async()=>(await sb.from("couple_ukeys").select("pub,wrapped,salt,iter,wrapped_sys").eq("user_id",E.uid).maybeSingle()).data||null;
+/* kunci sistem per akun (dari Vault di server, hanya untuk anggota yang login): membuka kunci akun otomatis tanpa minta password */
+let escK=null;async function escrowKey(){if(escK)return escK;try{const {data,error}=await sb.rpc("ravi_escrow_key");if(error||!data)return null;escK=await importAes(fromB64(data));return escK}catch(e){return null}}
+async function saveEscrow(pk){const k=await escrowKey();if(!k)return;try{await sb.from("couple_ukeys").update({wrapped_sys:toB64(await aesEnc(k,pk))}).eq("user_id",E.uid)}catch(e){}}
+async function fromEscrow(server){if(!server||!server.wrapped_sys)return false;const k=await escrowKey();if(!k)return false;
+  try{const pk=await aesDec(k,fromB64(server.wrapped_sys));E.priv=await crypto.subtle.importKey("pkcs8",pk,{name:"ECDH",namedCurve:"P-256"},false,["deriveBits"]);pk.fill(0);E.pub=jwkPub(server.pub);
+    await idbPut("acct:"+E.uid,{priv:E.priv,pub:E.pub});E.wrap.clear();E.state="ok";for(const [k2,v] of E.cache)if(typeof v==="string"&&v.startsWith("🔒"))E.cache.delete(k2);return true}catch(e){return false}}
+/* akun belum punya kunci: buat diam-diam (tanpa password), disimpan lewat kunci sistem */
+async function createSilent(){const k=await escrowKey();if(!k)return false;
+  const kp=await crypto.subtle.generateKey({name:"ECDH",namedCurve:"P-256"},true,["deriveBits"]);
+  const pj=await crypto.subtle.exportKey("jwk",kp.publicKey),pk=new Uint8Array(await crypto.subtle.exportKey("pkcs8",kp.privateKey));const pub=jwkPub(pj);
+  const {error}=await sb.from("couple_ukeys").insert({pub,wrapped:"",salt:"",iter:0,wrapped_sys:toB64(await aesEnc(k,pk))});
+  if(error){pk.fill(0);return false}
+  E.priv=await crypto.subtle.importKey("pkcs8",pk,{name:"ECDH",namedCurve:"P-256"},false,["deriveBits"]);pk.fill(0);E.pub=pub;
+  await idbPut("acct:"+E.uid,{priv:E.priv,pub:E.pub});E.state="ok";await loadKeys(true);return true}
 async function load(force){if(E.state==="ok"&&!force)return true;if(E.loading)return E.loading;
   E.loading=(async()=>{try{
       if(!secure()){E.state="insecure";throw new Error(L("Enkripsi butuh koneksi aman (https).","Encryption needs a secure (https) connection."))}
@@ -71,18 +86,24 @@ async function load(force){if(E.state==="ok"&&!force)return true;if(E.loading)re
       await loadKeys(true);
       const server=E.keys.get(E.uid)?await serverRow():null;
       const local=await idbGet("acct:"+E.uid);
-      if(server&&local&&local.priv&&local.pub&&local.pub.x===server.pub.x){E.priv=local.priv;E.pub=local.pub;E.state="ok"}
-      else{const pw=window.__ravi_pw;               /* password yang baru diketik di layar login (hanya di memori) */
-        if(pw){try{await unlock(pw,{server,verified:true})}catch(e){}}
-        if(E.state!=="ok")E.state=server?"needpw":"nokey"}
+      if(server&&local&&local.priv&&local.pub&&local.pub.x===server.pub.x){E.priv=local.priv;E.pub=local.pub;E.state="ok";
+        const pw=window.__ravi_pw;if(!server.wrapped_sys&&pw&&server.wrapped){try{await unlock(pw,{server})}catch(e){}}}
+      else{
+        if(await fromEscrow(server)){}                  /* otomatis, tanpa password */
+        else{const pw=window.__ravi_pw;               /* password yang baru diketik di layar login (hanya di memori) */
+          if(pw){try{await unlock(pw,{server,verified:true})}catch(e){}}
+          if(E.state!=="ok"&&!server)await createSilent().catch(()=>{});
+          if(E.state!=="ok")E.state=server?"needpw":"nokey"}}
       window.__ravi_pw=undefined;
       loadV1().catch(()=>{});loadDev().catch(()=>{});
       E.err=null;bump();return E.state==="ok"}
     catch(e){if(E.state==="init")E.state="err";E.err=e;bump();return false}finally{E.loading=null}})();
   return E.loading}
 async function unlock(pw,o={}){const server=o.server!==undefined?o.server:await serverRow();
-  if(server){const k=await kek(pw,fromB64(server.salt),server.iter);let pk;
+  if(server){if(!server.wrapped){if(await fromEscrow(server)){bump();return true}throw new Error(L("Kunci belum bisa dibuka. Coba lagi sebentar.","Key can't be opened yet. Try again shortly."))}
+    const k=await kek(pw,fromB64(server.salt),server.iter);let pk;
     try{pk=await aesDec(k,fromB64(server.wrapped))}catch(e){throw new Error(L("Password salah. Pakai password yang kamu pakai untuk login RaVi.","Wrong password. Use the password you sign in to RaVi with."))}
+    if(!server.wrapped_sys)await saveEscrow(pk);
     const priv=await crypto.subtle.importKey("pkcs8",pk,{name:"ECDH",namedCurve:"P-256"},false,["deriveBits"]);pk.fill(0);
     E.priv=priv;E.pub=jwkPub(server.pub)}
   else{ /* akun belum punya kunci: buat baru */
@@ -91,7 +112,7 @@ async function unlock(pw,o={}){const server=o.server!==undefined?o.server:await 
     const pj=await crypto.subtle.exportKey("jwk",kp.publicKey),pk=new Uint8Array(await crypto.subtle.exportKey("pkcs8",kp.privateKey));
     const salt=crypto.getRandomValues(new Uint8Array(16)),wrapped=await aesEnc(await kek(pw,salt,ITER),pk);
     const pub=jwkPub(pj);
-    const {error}=await sb.from("couple_ukeys").insert({pub,wrapped:toB64(wrapped),salt:toB64(salt),iter:ITER});
+    const ek=await escrowKey();const {error}=await sb.from("couple_ukeys").insert({pub,wrapped:toB64(wrapped),salt:toB64(salt),iter:ITER,...(ek?{wrapped_sys:toB64(await aesEnc(ek,pk))}:{})});
     if(error){pk.fill(0);if(/duplicate|unique|23505/i.test((error.message||"")+(error.code||"")))return unlock(pw,{});throw error}
     E.priv=await crypto.subtle.importKey("pkcs8",pk,{name:"ECDH",namedCurve:"P-256"},false,["deriveBits"]);pk.fill(0);E.pub=pub;await loadKeys(true)}
   await idbPut("acct:"+E.uid,{priv:E.priv,pub:E.pub});E.wrap.clear();E.state="ok";
@@ -102,10 +123,10 @@ async function verifyPassword(pw){let aal=null;try{aal=(await sb.auth.mfa.getAut
   const {error}=await sb.auth.signInWithPassword({email:E.email,password:pw});if(error)throw new Error(L("Password salah. Pakai password login RaVi.","Wrong password. Use your RaVi sign-in password."))}
 /* ganti password login + bungkus ulang kunci akun (kunci & pesan lama tetap sama) */
 async function rewrap(newPw,oldPw){const server=await serverRow();
-  let pk=null;if(server){try{pk=await aesDec(await kek(oldPw,fromB64(server.salt),server.iter),fromB64(server.wrapped))}catch(e){throw new Error(L("Password lama salah.","Old password is wrong."))}}
+  let pk=null;if(server&&server.wrapped){try{pk=await aesDec(await kek(oldPw,fromB64(server.salt),server.iter),fromB64(server.wrapped))}catch(e){throw new Error(L("Password lama salah.","Old password is wrong."))}}
   else await verifyPassword(oldPw);
   const {error}=await sb.auth.updateUser({password:newPw});if(error){if(pk)pk.fill(0);throw error}
-  if(pk){const salt=crypto.getRandomValues(new Uint8Array(16)),wrapped=await aesEnc(await kek(newPw,salt,ITER),pk);pk.fill(0);
+  if(pk){const salt=crypto.getRandomValues(new Uint8Array(16)),wrapped=await aesEnc(await kek(newPw,salt,ITER),pk);await saveEscrow(pk);pk.fill(0);
     const {error:e2}=await sb.from("couple_ukeys").update({wrapped:toB64(wrapped),salt:toB64(salt),iter:ITER,updated_at:new Date().toISOString()}).eq("user_id",E.uid);if(e2)throw e2}
   return true}
 /* lupa password / kunci rusak: buat kunci baru. Pesan terenkripsi lama tidak bisa dibuka lagi. */
@@ -113,30 +134,38 @@ async function resetKey(pw){await verifyPassword(pw);
   const kp=await crypto.subtle.generateKey({name:"ECDH",namedCurve:"P-256"},true,["deriveBits"]);
   const pj=await crypto.subtle.exportKey("jwk",kp.publicKey),pk=new Uint8Array(await crypto.subtle.exportKey("pkcs8",kp.privateKey));
   const salt=crypto.getRandomValues(new Uint8Array(16)),wrapped=await aesEnc(await kek(pw,salt,ITER),pk);
+  const ek=await escrowKey(),ws=ek?toB64(await aesEnc(ek,pk)):null;
   const priv=await crypto.subtle.importKey("pkcs8",pk,{name:"ECDH",namedCurve:"P-256"},false,["deriveBits"]);pk.fill(0);
-  const row={pub:jwkPub(pj),wrapped:toB64(wrapped),salt:toB64(salt),iter:ITER,updated_at:new Date().toISOString()};
+  const row={pub:jwkPub(pj),wrapped:toB64(wrapped),salt:toB64(salt),iter:ITER,wrapped_sys:ws,updated_at:new Date().toISOString()};
   const had=!!(await serverRow());const {error}=had?await sb.from("couple_ukeys").update(row).eq("user_id",E.uid):await sb.from("couple_ukeys").insert(row);if(error)throw error;
   E.priv=priv;E.pub=row.pub;await idbPut("acct:"+E.uid,{priv,pub:row.pub});E.wrap.clear();E.cache.clear();E.state="ok";await loadKeys(true);bump();return true}
 
 /* ---------- v3: amplop pesan ---------- */
 const missing=uids=>uids.filter(u=>!E.keys.get(u));
 /* kalau ada anggota yang belum punya kunci, pesan dikirim tanpa E2E (tetap privat untuk anggota chat lewat RLS) */
-async function sealFor(text,uids){if(E.state!=="ok")await load();if(E.state!=="ok")return text;
+async function sealFor(text,uids){if(E.state!=="ok")await load();
+  /* kunci akun ada tapi belum dibuka di perangkat ini: jangan diam-diam kirim tanpa enkripsi */
   await loadKeys();let miss=missing(uids);if(miss.length){await loadKeys(true);miss=missing(uids)}if(miss.length)return text;
+  if(E.state!=="ok"){ /* perangkat ini belum terbuka: tetap kunci pesannya dengan kunci sementara (tanpa minta password) */
+    if(!E.uid)return text;const kp=await crypto.subtle.generateKey({name:"ECDH",namedCurve:"P-256"},true,["deriveBits"]),ep=jwkPub(await crypto.subtle.exportKey("jwk",kp.publicKey));
+    const ck=await newKey(),raw=await rawKey(ck),ct=await aesEnc(ck,te.encode(text));const k=[];
+    for(const u of new Set([...uids,E.uid])){const p=E.keys.get(u);if(!p)continue;k.push([u,pfx(p),toB64(await aesEnc(await deriveWrap(kp.privateKey,E.uid,ep,u,p),raw))])}
+    const out="enc3:"+toB64(te.encode(JSON.stringify({s:E.uid,e:ep,c:toB64(ct),k})));E.cache.set(out,text);return out}
   const ck=await newKey(),raw=await rawKey(ck),ct=await aesEnc(ck,te.encode(text));const k=[];
   for(const u of new Set([...uids,E.uid])){const p=u===E.uid?E.pub:E.keys.get(u);if(!p)continue;k.push([u,pfx(p),toB64(await aesEnc(await wrapKey(u,p),raw))])}
   const out="enc3:"+toB64(te.encode(JSON.stringify({s:E.uid,sp:pfx(E.pub),c:toB64(ct),k})));E.cache.set(out,text);return out}
 async function open3(t){const env=JSON.parse(td.decode(fromB64(t.slice(5))));
   const mine=(env.k||[]).find(x=>x[0]===E.uid);if(!mine)throw new Error("nokey");
   if(mine[1]!==pfx(E.pub))throw new Error("oldkey");
-  let sp=pubFor(env.s,env.sp);if(!sp){await loadKeys(true);sp=pubFor(env.s,env.sp)}if(!sp)throw new Error("nosender");
-  const raw=await aesDec(await wrapKey(env.s,sp),fromB64(mine[2]));return td.decode(await aesDec(await importAes(raw),fromB64(env.c)))}
+  let raw;if(env.e){raw=await aesDec(await deriveWrap(E.priv,E.uid,E.pub,env.s,env.e),fromB64(mine[2]))}
+  else{let sp=pubFor(env.s,env.sp);if(!sp){await loadKeys(true);sp=pubFor(env.s,env.sp)}if(!sp)throw new Error("nosender");
+  raw=await aesDec(await wrapKey(env.s,sp),fromB64(mine[2]))}return td.decode(await aesDec(await importAes(raw),fromB64(env.c)))}
 const isEnc=t=>typeof t==="string"&&/^enc[123]:/.test(t);
 function show(t){if(typeof t!=="string"||!isEnc(t))return t;
   if(E.cache.has(t))return E.cache.get(t);
   if(t.startsWith("enc1:"))return showV1(t);
   if(t.startsWith("enc2:"))return showV2(t);
-  if(E.state!=="ok"){if(E.state==="init"&&!E.loading)load();return "🔒 "+(E.state==="needpw"||E.state==="nokey"?L("Terkunci — buka kunci enkripsi","Locked — unlock encryption"):L("Pesan terenkripsi","Encrypted message"))}
+  if(E.state!=="ok"){if(E.state==="init"&&!E.loading)load();return E.loading||E.state==="init"?"…":"🔒 "+L("Pesan lama · ketuk untuk membuka","Older message · tap to open")}
   if(!E.pending.has(t)){E.pending.add(t);
     open3(t).then(p=>E.cache.set(t,p)).catch(e=>E.cache.set(t,"🔒 "+({nokey:L("Pesan ini tidak dikunci untukmu","Not encrypted for you"),oldkey:L("Dikunci untuk kunci lamamu","Locked to your old key"),nosender:L("Kunci pengirim tidak dikenal","Unknown sender key")}[e&&e.message]||L("Tidak bisa dibuka","Can't be opened"))))
       .finally(()=>{E.pending.delete(t);bump()})}
@@ -165,11 +194,20 @@ async function safetyDialog(uid,name){const g=await safety(uid);
     :`<div class="crumb">${E.state!=="ok"?L("Buka kunci enkripsimu dulu (masukkan password login).","Unlock your encryption first (enter your sign-in password)."):L("Dia belum membuka RaVi versi terbaru, jadi belum punya kunci enkripsi. Pesan untuknya sementara dikirim tanpa E2E (tetap privat untuk anggota chat).","They haven't opened the latest RaVi yet, so they have no encryption key. Messages to them are sent without E2E for now (still private to chat members).")}</div>`,
     ()=>{ackKey(uid)},keyChanged(uid)?L("Sudah dicek ✓","Verified ✓"):"OK");const c=bg.querySelector(".c");if(c)c.style.display="none"}
 
+/* ---------- buka otomatis: pakai password yang tersimpan di browser (Chrome/Android), kalau tidak ada baru tanya ---------- */
+let autoP=null;
+function autoUnlock(o){if(E.state==="ok")return Promise.resolve(true);if(autoP)return autoP;
+  autoP=(async()=>{try{if(E.state==="init"||E.loading)await load();if(E.state==="ok")return true;
+      if(E.state==="needpw"&&window.PasswordCredential&&navigator.credentials){try{const c=await navigator.credentials.get({password:true,mediation:"optional"});
+          if(c&&c.password){try{await unlock(c.password);return true}catch(e){}}}catch(e){}}
+      if(o&&o.ask&&(E.state==="needpw"||E.state==="nokey"))return await unlockDialog();return false}
+    finally{setTimeout(()=>{autoP=null},300)}})();return autoP}
 /* ---------- dialog buka kunci ---------- */
 function unlockDialog(){return new Promise(res=>{const create=E.state==="nokey";
   const bg=modal("🔐 "+(create?L("Aktifkan enkripsi chat","Turn on chat encryption"):L("Buka kunci enkripsi","Unlock encryption")),
     `<div class="crumb" style="line-height:1.5">${create?L("Masukkan password login RaVi-mu. Password ini mengunci kunci enkripsi akunmu, jadi chat bisa dibuka di HP atau laptop mana pun yang kamu pakai login.","Enter your RaVi sign-in password. It locks your account's encryption key, so chats open on any phone or laptop you sign in on.")
       :L("Masukkan password login RaVi sekali di perangkat ini untuk membuka pesan terenkripsi. Setelah itu tidak perlu lagi.","Enter your RaVi sign-in password once on this device to open encrypted messages. You won't need it again here.")}</div>
+     <input type="email" autocomplete="username" value="${esc(E.email||"")}" readonly hidden aria-hidden="true">
      <label style="margin-top:10px">Password</label><input type="password" id="e3P" autocomplete="current-password">
      ${create?`<label style="margin-top:8px">${L("Ulangi password","Repeat password")}</label><input type="password" id="e3P2" autocomplete="current-password">`:""}
      <div class="msg err hide" id="e3M" style="margin-top:8px"></div>
@@ -179,7 +217,7 @@ function unlockDialog(){return new Promise(res=>{const create=E.state==="nokey";
       if(!p)return fail(L("Password wajib diisi.","Password is required."));
       if(create&&g.querySelector("#e3P2").value!==p)return fail(L("Kedua password tidak sama.","Passwords don't match."));
       btn.disabled=true;btn.textContent=L("Memproses…","Working…");
-      try{await unlock(p);res(true)}catch(e){return fail(e.message||String(e))}},create?L("Aktifkan","Turn on"):L("Buka","Unlock"));
+      try{await unlock(p);res(true);try{if(window.PasswordCredential&&E.email)navigator.credentials.store(new PasswordCredential({id:E.email,password:p})).catch(()=>{})}catch(e){}}catch(e){return fail(e.message||String(e))}},create?L("Aktifkan","Turn on"):L("Buka","Unlock"));
   setTimeout(()=>bg.querySelector("#e3P")?.focus(),50);
   bg.querySelector(".c")?.addEventListener("click",()=>res(false))})}
 
@@ -209,9 +247,11 @@ function showV1(t){if(!E.v1key)return "🔒 "+L("Pesan lama (perlu kata sandi ch
 
 const css=document.createElement("style");css.textContent=`.sc-code{display:grid;grid-template-columns:repeat(4,1fr);gap:8px 10px;margin-top:12px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:clamp(15px,4.6vw,19px);font-weight:700;letter-spacing:.06em;text-align:center;background:var(--th);border-radius:14px;padding:12px;font-variant-numeric:tabular-nums}`;document.head.appendChild(css);
 addEventListener("load",()=>{const t=setInterval(()=>{if(typeof col!=="undefined"&&col){clearInterval(t);load().catch(()=>{})}},700);setTimeout(()=>clearInterval(t),60000)});
+/* coba lagi diam-diam saat aplikasi dibuka kembali (mis. kunci sistem baru tersedia) */
+document.addEventListener("visibilitychange",()=>{if(!document.hidden&&E.uid&&(E.state==="needpw"||E.state==="nokey"))load(true).catch(()=>{})});
 
 window.RAVI_E2E_DEC=async(buf,k)=>decFile(buf,k);
-window.RAVI_E2E={load,state:()=>E.state,ok:()=>E.state==="ok",uid:()=>E.uid,unlock,unlockDialog,sealFor,show,ready,isEnc,encBlob,imgSrc,decFile,
+window.RAVI_E2E={load,autoUnlock,state:()=>E.state,ok:()=>E.state==="ok",uid:()=>E.uid,unlock,unlockDialog,sealFor,show,ready,isEnc,encBlob,imgSrc,decFile,
   hasKey:u=>!!E.keys.get(u),loadKeys,missing,safety,safetyDialog,keyChanged,ackKey,rewrap,resetKey,
   on:f=>{E.listeners.add(f);return()=>E.listeners.delete(f)}};
 })();

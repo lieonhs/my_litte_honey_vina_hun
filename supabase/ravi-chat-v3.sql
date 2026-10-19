@@ -326,3 +326,26 @@ alter policy "ravi_rt_insert" on realtime.messages with check (public.ravi_topic
 
 -- status awal: anggota lama dianggap sudah membaca semua pesan lama
 update public.couple_conv_members set read_at = coalesce(read_at, now()), delivered_at = coalesce(delivered_at, now()) where read_at is null;
+
+-- ===== Buka kunci enkripsi otomatis (tanpa minta password ke pengguna) =====
+-- Kunci privat akun juga disimpan terbungkus dengan kunci sistem per akun.
+-- Kunci sistem = HMAC(rahasia di Supabase Vault, user_id); hanya bisa diambil
+-- oleh anggota yang sudah disetujui & login (RPC ravi_escrow_key).
+alter table public.couple_ukeys add column if not exists wrapped_sys text;
+grant insert (wrapped_sys), update (wrapped_sys) on public.couple_ukeys to authenticated;
+do $$ begin
+  if not exists (select 1 from vault.secrets where name='ravi_escrow_master') then
+    perform vault.create_secret(encode(extensions.gen_random_bytes(32),'base64'),'ravi_escrow_master','Kunci sistem RaVi');
+  end if;
+end $$;
+create or replace function public.ravi_escrow_key() returns text
+language plpgsql stable security definer set search_path='' as $$
+declare s text;
+begin
+  if auth.uid() is null or not public.is_couple() or not public.mfa_ok() then return null; end if;
+  select decrypted_secret into s from vault.decrypted_secrets where name='ravi_escrow_master';
+  if s is null then return null; end if;
+  return encode(extensions.hmac(convert_to('ravi-escrow-v1:'||auth.uid()::text,'utf8'), decode(s,'base64'), 'sha256'),'base64');
+end $$;
+revoke all on function public.ravi_escrow_key() from public, anon;
+grant execute on function public.ravi_escrow_key() to authenticated;

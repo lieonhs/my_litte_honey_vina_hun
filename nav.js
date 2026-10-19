@@ -107,7 +107,7 @@ const sxCss=document.createElement("style");sxCss.textContent=`
  html.sxp aside#nav{display:block!important;position:fixed!important;left:var(--railW)!important;top:0!important;bottom:auto!important;width:256px!important;height:100vh!important;height:100dvh!important;min-height:0!important;max-height:none!important;
   transform:none!important;box-shadow:none!important;z-index:44;padding:0 0 12px!important;overflow-y:auto;overscroll-behavior:contain;background:var(--card);border-right:1px solid var(--line);display:flex!important;flex-direction:column}
  html.sxp aside#nav [data-sxh]{display:none!important}
- html.sxp main{margin-left:calc(var(--railW) + 256px)!important}
+ html.sx.sxp main{margin-left:calc(var(--railW) + 256px)!important}
  html.sxp #view{max-width:1180px;margin:0 auto}
  .sxp-head{position:sticky;top:0;z-index:2;background:var(--card);padding:18px 16px 10px;border-bottom:1px solid var(--line);margin-bottom:6px}
  .sxp-head h2{margin:0;font-size:19px;display:flex;align-items:center;gap:8px}
@@ -206,4 +206,6 @@ const _go3=go;go=function(r){const prev=typeof route!=="undefined"?route:null;ap
   setTimeout(drawRail,0);return o};
 document.addEventListener("ravi-notif",drawRail);document.addEventListener("ravi-admin",drawRail);document.addEventListener("ravi-unread",()=>{const b=document.getElementById("rlUn");if(b){const n=+(document.querySelector('aside a[data-r="chat"] .qbadge')?.textContent||0)||0;b.hidden=!n;b.textContent=n||""}});
 addEventListener("load",()=>{applyMode(typeof route!=="undefined"?route:"");setTimeout(drawRail,2500)});
+document.addEventListener("ravi-in",()=>setTimeout(()=>applyMode(typeof route!=="undefined"?route:""),0));
+document.addEventListener("ravi-data",()=>panel());
 })();
