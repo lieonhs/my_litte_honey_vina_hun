@@ -364,6 +364,7 @@ function drawShell(v){
      <div class="cx-top"><h1>💬 Chat</h1>
       <button class="cx-ib" id="cxCalls" aria-label="${L("Log panggilan","Call log")}" title="${L("Log panggilan","Call log")}">${ic("call")}</button>
       <button class="cx-ib" id="cxBell" aria-label="${L("Notifikasi","Notifications")}" title="${L("Notifikasi","Notifications")}">${ic("bell")}<span class="bdg" hidden></span></button>
+      ${R.S.members[CH.me]?.role==="admin"?`<button class="cx-ib" id="cxAdd" aria-label="${L("Tambah anggota","Add member")}" title="${L("Tambah anggota RaVi","Add RaVi member")}">${ic("user")}<span class="bdg" style="background:#25d366">+</span></button>`:""}
       <button class="cx-ib" id="cxNew" aria-label="${L("Chat baru","New chat")}" title="${L("Chat baru","New chat")}">${ic("plus")}</button></div>
      <label class="cx-search">${ic("search",18)}<input id="cxQ" type="search" placeholder="${L("Cari chat atau orang","Search chats or people")}" autocomplete="off" aria-label="${L("Cari","Search")}"></label>
      <div class="cx-chips" role="tablist"><button data-f="all" class="${filt==="all"?"on":""}">${L("Semua","All")}</button><button data-f="unread" class="${filt==="unread"?"on":""}">${L("Belum dibaca","Unread")}</button><button data-f="group" class="${filt==="group"?"on":""}">${L("Grup","Groups")}</button></div>
@@ -373,7 +374,7 @@ function drawShell(v){
    <button class="cx-fab" id="cxFab" aria-label="${L("Chat baru","New chat")}">${ic("plus",26)}</button>`;
   const q=$$("#cxQ",v);q.value=CH.q;q.oninput=()=>{CH.q=q.value;paintInbox()};
   v.querySelectorAll("[data-f]").forEach(b=>b.onclick=()=>{filt=b.dataset.f;v.querySelectorAll("[data-f]").forEach(x=>x.classList.toggle("on",x===b));paintInbox()});
-  $$("#cxNew",v).onclick=$$("#cxFab",v).onclick=newChatSheet;
+  $$("#cxNew",v).onclick=$$("#cxFab",v).onclick=newChatSheet;const ad=$$("#cxAdd",v);if(ad)ad.onclick=addMemberSheet;
   $$("#cxBell",v).onclick=()=>go("notif");$$("#cxCalls",v).onclick=()=>{window.RAVI_NOTIF_TAB="calls";go("notif")};
   paintInbox();paintNotes();paintBell();
   if(CH.open&&CH.convs.has(CH.open))drawRoom(CH.open,true);
@@ -826,5 +827,5 @@ addEventListener("load",()=>{const t=setInterval(()=>{if(typeof col!=="undefined
 document.addEventListener("visibilitychange",()=>{if(!document.hidden&&CH.open&&route==="chat")markRead(CH.open)});
 window.RAVI_CHAT={init,open:cid=>{if(CH.convs.has(cid))openRoom(cid);else init().then(()=>loadInbox()).then(()=>openRoom(cid)).catch(()=>{})},
   dmWith:async u=>{await init();const c=[...CH.convs.values()].find(x=>x.kind==="dm"&&peer(x)===u);if(c)return c.id;const {data,error}=await sb.rpc("ravi_dm",{other:u});if(error)throw error;await loadInbox();return data},
-  convs:()=>CH.convs,title:cid=>title(CH.convs.get(cid)),snip,jump:(cid,mid)=>{openRoom(cid);setTimeout(()=>jumpTo(mid),400)},sendBody,state:CH};
+  addMember:()=>{R.init().then(addMemberSheet)},convs:()=>CH.convs,title:cid=>title(CH.convs.get(cid)),snip,jump:(cid,mid)=>{openRoom(cid);setTimeout(()=>jumpTo(mid),400)},sendBody,state:CH};
 })();

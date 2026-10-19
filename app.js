@@ -580,3 +580,10 @@ render();
   if(session)startData(session.user.id,session.user.email);else showLogin();
   sb.auth.onAuthStateChange((ev,ses)=>{if(ev==="SIGNED_IN"&&ses&&!col)startData(ses.user.id,ses.user.email);if(ev==="SIGNED_OUT")showLogin()});
 })();
+
+/* ---------- selalu pakai versi terbaru: kalau index.html di server punya versi skrip baru, muat ulang sekali ---------- */
+(function(){const cur=(document.querySelector('script[src^="app.js?v="]')?.getAttribute("src")||"").split("v=")[1]||"";
+  async function check(){try{const r=await fetch("index.html?_="+Date.now(),{cache:"no-store"});if(!r.ok)return;const t=await r.text();const m=/app\.js\?v=([\w.-]+)/.exec(t);
+      if(m&&cur&&m[1]!==cur){const k="ravi_reloaded_"+m[1];if(sessionStorage.getItem(k))return;sessionStorage.setItem(k,"1");
+        if(document.querySelector(".sheetBg,#callUI"))return;location.reload()}}catch(e){}}
+  addEventListener("load",()=>setTimeout(check,3000));document.addEventListener("visibilitychange",()=>{if(!document.hidden)check()})})();
