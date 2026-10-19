@@ -200,3 +200,34 @@ create policy "mfa_required_storage" on storage.objects as restrictive to authen
 -- ===================== (G) KIRIM FILE DI CHAT =====================
 -- Bucket "couple" menerima semua jenis file (PDF, video, dokumen) sampai 50 MB.
 update storage.buckets set allowed_mime_types = null, file_size_limit = 52428800 where id = 'couple';
+
+-- ===================== (H) ENKRIPSI OTOMATIS PER PERANGKAT (ala WhatsApp) =====================
+-- Hanya kunci PUBLIK tiap perangkat yang disimpan di sini. Kunci privat tidak pernah keluar dari perangkat.
+create table if not exists public.couple_devices (
+  id         uuid primary key,
+  user_id    uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  pub        jsonb not null,
+  label      text,
+  created_at timestamptz not null default now(),
+  last_seen  timestamptz
+);
+alter table public.couple_devices enable row level security;
+drop policy if exists "cd_select" on public.couple_devices;
+drop policy if exists "cd_insert_own" on public.couple_devices;
+drop policy if exists "cd_update_own" on public.couple_devices;
+drop policy if exists "cd_delete_own" on public.couple_devices;
+create policy "cd_select" on public.couple_devices for select to authenticated using (public.is_couple());
+create policy "cd_insert_own" on public.couple_devices for insert to authenticated with check (public.is_couple() and user_id = auth.uid());
+create policy "cd_update_own" on public.couple_devices for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy "cd_delete_own" on public.couple_devices for delete to authenticated using (user_id = auth.uid());
+-- kunci publik tidak boleh diganti diam-diam (mencegah penyusupan kunci): hanya label & last_seen yang boleh berubah
+create or replace function public.cd_lock_pub() returns trigger language plpgsql set search_path = public as $$
+begin if new.pub is distinct from old.pub or new.user_id is distinct from old.user_id then raise exception 'kunci publik perangkat tidak boleh diubah'; end if; return new; end $$;
+drop trigger if exists cd_lock_pub on public.couple_devices;
+create trigger cd_lock_pub before update on public.couple_devices for each row execute function public.cd_lock_pub();
+do $$ begin
+  execute 'drop policy if exists "mfa_required" on public.couple_devices';
+  execute $p$create policy "mfa_required" on public.couple_devices as restrictive to authenticated using (
+    array[(select auth.jwt()->>'aal')] <@ (select case when count(id) > 0 then array['aal2'] else array['aal1','aal2'] end
+    from auth.mfa_factors where (select auth.uid()) = user_id and status = 'verified'))$p$;
+end $$;
