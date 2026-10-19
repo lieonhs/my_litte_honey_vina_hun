@@ -86,7 +86,7 @@ let stkTab="kata",stkOpen=false;
 const E2=()=>window.RAVI_E2E;
 const pt=b=>E2()?E2().show(b):b;                      // teks yang ditampilkan
 async function seal(t){if(!t||!E2())return t;await E2().load();if(E2().enabled()&&!E2().unlocked()){E2().dialog();throw new Error(L("Chat terkunci. Masukkan kata sandi chat dulu.","Chat is locked. Enter the chat password first."))}return E2().encText(t)}
-const isEnc=b=>typeof b==="string"&&b.startsWith("enc1:");
+const isEnc=b=>typeof b==="string"&&/^enc[12]:/.test(b);
 const pushText=(plain,fallback)=>E2()&&E2().enabled()?fallback:plain;   // jangan bocorkan isi lewat notifikasi
 /* ---------- foto ---------- */
 const urls={};
@@ -97,8 +97,8 @@ function loadImg(f){return new Promise((y,n)=>{const u=URL.createObjectURL(f),i=
 async function upPhoto(file,max){const img=await loadImg(file),s=Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight)),c=document.createElement("canvas");
   c.width=Math.round(img.naturalWidth*s);c.height=Math.round(img.naturalHeight*s);c.getContext("2d").drawImage(img,0,0,c.width,c.height);
   let blob=await new Promise(r=>c.toBlob(r,"image/jpeg",.82)),ext=".jpg";
-  if(E2()){await E2().load();if(E2().enabled()){if(!E2().unlocked()){E2().dialog();throw new Error(L("Chat terkunci. Masukkan kata sandi chat dulu.","Chat is locked. Enter the chat password first."))}const r=await E2().encBlob(blob);blob=r.blob;ext=r.ext}}
-  const path=S.me+"/"+Date.now().toString(36)+Math.random().toString(36).slice(2,6)+ext;
+  let fk=null;if(E2()){const r=await E2().encBlob(blob);blob=r.blob;ext=r.ext;fk=r.k}
+  const path=S.me+"/"+Date.now().toString(36)+Math.random().toString(36).slice(2,6)+ext;if(fk)PK[path]=fk;
   const {error}=await sb.storage.from("couple").upload(path,blob,{contentType:"image/jpeg"});if(error)throw error;return path}
 
 const css=document.createElement("style");css.textContent=`
@@ -186,8 +186,10 @@ function withInit(v,title,draw){
    ===================================================================== */
 let lastCount=-1;
 /* ---------- format pesan: teks biasa, atau "j1:{...}" untuk balasan / file / diteruskan (ikut terenkripsi) ---------- */
-function parse(shown){if(typeof shown==="string"&&shown.startsWith("j1:")){try{const o=JSON.parse(shown.slice(3));return {t:o.t||"",r:o.r||null,f:o.f||null,fwd:!!o.fwd}}catch(e){}}return {t:shown||"",r:null,f:null,fwd:false}}
-function pack(o){if(!o.r&&!o.f&&!o.fwd)return o.t||"";return "j1:"+JSON.stringify({t:o.t||undefined,r:o.r||undefined,f:o.f||undefined,fwd:o.fwd||undefined})}
+function parse(shown){if(typeof shown==="string"&&shown.startsWith("j1:")){try{const o=JSON.parse(shown.slice(3));return {t:o.t||"",r:o.r||null,f:o.f||null,fwd:!!o.fwd,ik:o.ik||null}}catch(e){}}return {t:shown||"",r:null,f:null,fwd:false,ik:null}}
+function pack(o){if(!o.r&&!o.f&&!o.fwd&&!o.ik)return o.t||"";return "j1:"+JSON.stringify({t:o.t||undefined,r:o.r||undefined,f:o.f||undefined,fwd:o.fwd||undefined,ik:o.ik||undefined})}
+const PK={};   /* kunci acak foto yang baru diunggah: path → kunci */
+const ikMap=list=>{const m={};for(const x of list){const o=parse(pt(x.b));if(o.ik&&x.p)m[x.p]=o.ik}return m};
 const MAXF=50*1024*1024;
 const fmtSize=n=>n<1024?n+" B":n<1048576?(n/1024).toFixed(0)+" KB":(n/1048576).toFixed(1).replace(".",",")+" MB";
 const fIcon=m=>/^video\//.test(m)?"🎬":/^audio\//.test(m)?"🎵":/pdf/.test(m)?"📕":/sheet|excel|csv/.test(m)?"📊":/word|document/.test(m)?"📄":/presentation|powerpoint/.test(m)?"📽️":/zip|rar|7z|compressed/.test(m)?"🗜️":/^image\//.test(m)?"🖼️":"📎";
@@ -195,15 +197,13 @@ function snip(m){const o=parse(pt(m.body));if(isStk(o.t))return "🧸 "+L("Stike
   if(o.f)return fIcon(o.f.m)+" "+o.f.n;if(m.img&&!o.t)return "📷 "+L("Foto","Photo");return (o.t||"").slice(0,90)}
 async function uploadFile(file){if(file.size>MAXF)throw new Error(L("Ukuran maksimal 50 MB: ","Max size is 50 MB: ")+file.name);
   let blob=file,ext=(/\.([a-z0-9]{1,6})$/i.exec(file.name||"")||[,"bin"])[1].toLowerCase(),ct=file.type||"application/octet-stream",enc=false;
-  if(E2()){await E2().load();if(E2().enabled()){if(!E2().unlocked()){E2().dialog();throw new Error(L("Chat terkunci. Masukkan kata sandi chat dulu.","Chat is locked. Enter the chat password first."))}
-    const r=await E2().encBlob(file);blob=new Blob([await r.blob.arrayBuffer()],{type:"application/octet-stream"});ext="enc";ct="application/octet-stream";enc=true}}
+  let fk=null;if(E2()){const r=await E2().encBlob(file);if(r.ext===".enc"){blob=new Blob([await r.blob.arrayBuffer()],{type:"application/octet-stream"});ext="enc";ct="application/octet-stream";enc=true;fk=r.k}}
   const path=S.me+"/f_"+Date.now().toString(36)+Math.random().toString(36).slice(2,6)+"."+ext;
   const {error}=await sb.storage.from("couple").upload(path,blob,{contentType:ct});if(error)throw error;
-  return {p:path,n:(file.name||"file").slice(0,120),s:file.size,m:file.type||"application/octet-stream",e:enc}}
+  return {p:path,n:(file.name||"file").slice(0,120),s:file.size,m:file.type||"application/octet-stream",e:enc,k:fk||undefined}}
 async function fileURL(f){const u=(await urlsFor([f.p]))(f.p);if(!f.e)return u;
   const r=await fetch(u);if(!r.ok)throw new Error("HTTP "+r.status);const buf=await r.arrayBuffer();
-  const key=E2();if(!key||!key.unlocked())throw new Error(L("Buka kunci chat dulu.","Unlock the chat first."));
-  const plain=await window.RAVI_E2E_DEC(buf);return URL.createObjectURL(new Blob([plain],{type:f.m}))}
+  const plain=await window.RAVI_E2E_DEC(buf,f.k);return URL.createObjectURL(new Blob([plain],{type:f.m}))}
 const isPhoto=f=>/^image\/(jpeg|png|webp|heic|heif)$/i.test(f.type||"");
 
 function drawChat(v,live){
@@ -246,7 +246,8 @@ function drawChat(v,live){
   const grow=()=>{const t=$("chTxt");t.style.height="auto";t.style.height=Math.min(120,t.scrollHeight)+"px"};
   const t=$("chTxt");t.value=S.draft;grow();if(hadFocus||(!live&&matchMedia("(min-width:861px)").matches))t.focus();
   if(atBottom||!live||S.msgs.length!==lastCount&&S.msgs[S.msgs.length-1]?.sender===S.me)nl.scrollTop=nl.scrollHeight;else nl.scrollTop=prevTop;lastCount=S.msgs.length;
-  urlsFor(S.msgs.map(m=>m.img)).then(u=>v.querySelectorAll("[data-img]").forEach(i=>{const s=E2()?E2().imgSrc(i.dataset.img,u(i.dataset.img)):u(i.dataset.img);if(s)i.src=s;i.onload=()=>{if(atBottom||!live)nl.scrollTop=nl.scrollHeight}}));
+  const ikc=ikMap(S.msgs.map(m=>({p:m.img,b:m.body})));
+  urlsFor(S.msgs.map(m=>m.img)).then(u=>v.querySelectorAll("[data-img]").forEach(i=>{const s=E2()?E2().imgSrc(i.dataset.img,u(i.dataset.img),ikc[i.dataset.img]):u(i.dataset.img);if(s)i.src=s;i.onload=()=>{if(atBottom||!live)nl.scrollTop=nl.scrollHeight}}));
   t.oninput=()=>{S.draft=t.value;grow()};
   t.onkeydown=e=>{if(e.key==="Enter"&&!e.shiftKey&&matchMedia("(hover:hover)").matches){e.preventDefault();send()}if(e.key==="Escape"&&S.reply){S.reply=null;drawChat(v,true)}};
   /* tempel gambar / file dari clipboard */
@@ -295,7 +296,7 @@ function drawChat(v,live){
     if(S.tray.length){const items=S.tray.splice(0);S.sending=true;drawChat(v,true);let cap=body,n=0;
       for(const it of items){status(L("Mengirim ","Sending ")+(++n)+"/"+items.length+"…","");
         try{const r=S.reply?{id:S.reply.id,w:S.reply.w,s:S.reply.s}:null;
-          if(isPhoto(it.file)){const p=await upPhoto(it.file,1600);const o={t:cap,r};const {error}=await sb.from("couple_msgs").insert({body:(cap||r)?await seal(pack(o)):null,img:p});if(error)throw error}
+          if(isPhoto(it.file)){const p=await upPhoto(it.file,1600);const o={t:cap,r,ik:PK[p]};const {error}=await sb.from("couple_msgs").insert({body:(cap||r||o.ik)?await seal(pack(o)):null,img:p});if(error)throw error}
           else{const fm=await uploadFile(it.file);const {error}=await sb.from("couple_msgs").insert({body:await seal(pack({t:cap,r,f:fm}))});if(error)throw error}
           cap="";S.reply=null}catch(err){status(L("Gagal mengirim ","Couldn't send ")+(it.file.name||"")+": "+(err.message||err),"err")}
         if(it.prev)URL.revokeObjectURL(it.prev)}
@@ -330,7 +331,7 @@ function forward(m,o,v){const canShare=!!navigator.share;
     <button data-f="chat">💬 ${L("Kirim ulang di chat ini","Send again in this chat")}</button><button data-f="note">📝 ${L("Simpan ke Catatan","Save to Notes")}</button>${canShare?`<button data-f="share">📤 ${L("Bagikan ke aplikasi lain (WhatsApp, dll.)","Share to another app (WhatsApp, etc.)")}</button>`:""}</div>`,()=>true,"OK");
   bg.querySelector(".crumb").textContent="“"+snip(m)+"”";const c=bg.querySelector(".c");if(c)c.style.display="none";const ok=bg.querySelector(".ok");if(ok)ok.textContent=L("Tutup","Close");
   bg.querySelectorAll("[data-f]").forEach(b=>b.onclick=async()=>{const k=b.dataset.f;bg.remove();
-    try{if(k==="chat"){if(m.img){const {error}=await sb.from("couple_msgs").insert({body:await seal(pack({t:o.t,fwd:true})),img:m.img});if(error)throw error;await loadMsgs();drawChat(v,false)}
+    try{if(k==="chat"){if(m.img){const {error}=await sb.from("couple_msgs").insert({body:await seal(pack({t:o.t,fwd:true,ik:o.ik})),img:m.img});if(error)throw error;await loadMsgs();drawChat(v,false)}
         else if(S.sendBody)S.sendBody({t:o.t,f:o.f,fwd:true})}
       else if(k==="note"){if(!col)throw new Error("offline");const body=(o.t||"")+(o.f?"\n📎 "+o.f.n:"")+(m.img&&!o.t?"📷 "+L("Foto dari chat","Photo from chat"):"");
         await col.doc("nt_"+Date.now()).set({kind:"note",title:L("Dari chat · ","From chat · ")+name(m.sender),body,color:"blue",pinned:false,tags:["chat"],items:[],created:Date.now(),updated:Date.now()});status(L("Disimpan ke Catatan 📝","Saved to Notes 📝"),"ok")}
@@ -364,13 +365,13 @@ function drawFeed(v){
       <div style="position:relative"><img class="fd-img" data-img="${esc(p.img)}" data-dbl="${p.id}" alt=""></div>
       <div class="fd-act"><button data-like="${p.id}" aria-pressed="${liked}" aria-label="${L("Suka","Like")}">${liked?"❤️":"🤍"}</button><button data-cfocus="${p.id}" aria-label="${L("Komentar","Comment")}">💬</button></div>
       <div class="fd-likes">${(p.likes||[]).length?(esc((p.likes||[]).map(name).join(" & "))+L(" menyukai ini"," liked this")):L("Belum ada yang suka","No likes yet")}</div>
-      ${p.caption?`<div class="fd-cap"><b class="au"></b> <span class="cp"></span></div>`:""}
+      ${p.caption&&parse(pt(p.caption)).t?`<div class="fd-cap"><b class="au"></b> <span class="cp"></span></div>`:""}
       ${cm.map(c=>`<div class="fd-cm" data-c="${c.id}"><b></b><span></span>${c.author===S.me?` <button class="lnk" data-cdel="${c.id}" style="font-size:11px">${L("hapus","delete")}</button>`:""}</div>`).join("")}
       <div class="fd-add"><input data-cin="${p.id}" placeholder="${L("Tambah komentar…","Add a comment…")}" maxlength="300"><button class="sm" data-csend="${p.id}">${L("Kirim","Send")}</button></div></article>`}).join("")
    :`<div class="region"><div class="rb"><div class="pipi-card" style="margin:0">${window.pipi?window.pipi("party",64,"vnel"):""}<div class="bubble"><b>${L("Feed khusus kalian berdua","A feed just for you two")}</b><div>${L("Posting foto momen sehari-hari. Yang bisa lihat, like, dan komentar cuma kamu dan Vina.","Post everyday moments. Only you and Vina can see, like and comment.")}</div></div></div></div></div>`);
-  v.querySelectorAll(".fd-post").forEach(el=>{const p=posts.find(x=>x.id==el.dataset.p);el.querySelectorAll(".au").forEach(a=>a.textContent=name(p.author));const cp=el.querySelector(".cp");if(cp)cp.textContent=pt(p.caption);
+  v.querySelectorAll(".fd-post").forEach(el=>{const p=posts.find(x=>x.id==el.dataset.p);el.querySelectorAll(".au").forEach(a=>a.textContent=name(p.author));const cp=el.querySelector(".cp");if(cp)cp.textContent=parse(pt(p.caption)).t;
     (S.comments[p.id]||[]).forEach(c=>{const r=el.querySelector(`[data-c="${c.id}"]`);r.querySelector("b").textContent=name(c.author);r.querySelector("span").textContent=pt(c.body)})});
-  urlsFor(posts.map(p=>p.img)).then(u=>v.querySelectorAll("[data-img]").forEach(i=>{const s=E2()?E2().imgSrc(i.dataset.img,u(i.dataset.img)):u(i.dataset.img);if(s)i.src=s}));
+  const pik=ikMap(posts.map(p=>({p:p.img,b:p.caption})));urlsFor(posts.map(p=>p.img)).then(u=>v.querySelectorAll("[data-img]").forEach(i=>{const s=E2()?E2().imgSrc(i.dataset.img,u(i.dataset.img),pik[i.dataset.img]):u(i.dataset.img);if(s)i.src=s}));
   v.querySelectorAll("[data-fm]").forEach(b=>b.onclick=()=>{fdMode=b.dataset.fm;drawFeed(v)});
   v.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{fdMode="list";drawFeed(v);document.getElementById("post"+b.dataset.go)?.scrollIntoView({block:"start"})});
   const like=async id=>{const p=S.posts.find(x=>x.id===id);const has=(p.likes||[]).includes(S.me);p.likes=has?p.likes.filter(x=>x!==S.me):[...(p.likes||[]),S.me];drawFeed(v);
@@ -390,7 +391,7 @@ function drawFeed(v){
   const fi=$("fdFile");fi.onchange=()=>{const f=fi.files[0];fi.value="";if(!f)return;const prev=URL.createObjectURL(f);
     const bg=modal(L("Postingan baru","New post"),`<img alt="" style="width:100%;max-height:50vh;object-fit:contain;border-radius:12px;background:var(--th)"><div style="height:10px"></div><label>${L("Keterangan","Caption")}</label><textarea id="fdCap" rows="3" maxlength="500" placeholder="${L("Tulis sesuatu…","Write something…")}"></textarea>`,
       async g=>{const btn=g.querySelector(".ok");btn.disabled=true;btn.textContent=L("Mengunggah…","Uploading…");
-        try{const path=await upPhoto(f,1600);const capT=g.querySelector("#fdCap").value.trim();const {data,error}=await sb.from("couple_posts").insert({img:path,caption:capT?await seal(capT):null}).select().single();if(error)throw error;
+        try{const path=await upPhoto(f,1600);const capT=g.querySelector("#fdCap").value.trim();const capO={t:capT,ik:PK[path]};const {data,error}=await sb.from("couple_posts").insert({img:path,caption:(capT||capO.ik)?await seal(pack(capO)):null}).select().single();if(error)throw error;
           if(!S.posts.some(x=>x.id===data.id))S.posts.unshift(data);URL.revokeObjectURL(prev);if(window.RAVI_NOTIFY)window.RAVI_NOTIFY("post",{body:pushText("📷 "+(capT||L("Postingan baru","New post")),"📷 "+L("Postingan baru","New post"))});fdMode="list";drawFeed($("view"))}
         catch(e){btn.disabled=false;btn.textContent=L("Posting","Post");alert(L("Gagal posting: ","Couldn't post: ")+(e.message||e));return false}},L("Posting","Post"));
     bg.querySelector("img").src=prev}}
