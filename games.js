@@ -58,6 +58,12 @@ const css=document.createElement("style");css.textContent=`
 .gm-mc .b{transform:rotateY(180deg);background:var(--card)}.gm-mc .b .pipi{width:82%;height:82%;animation:none!important}
 .gm-mc.done .b{border-color:var(--grn);background:var(--grnS)}
 .gm-mc:focus-visible .f{outline:3px solid var(--acc);outline-offset:2px}
+.wd-board{display:flex;flex-direction:column;gap:5px;align-items:center;margin:6px 0 10px}.wd-row{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;width:min(300px,100%)}
+.wd-c{aspect-ratio:1;border:2px solid var(--line);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:clamp(18px,6vw,26px);font-weight:800;background:var(--card);text-transform:uppercase}
+.wd-c.f{border-color:var(--mute)}.wd-c.g{background:#2fa463;border-color:#2fa463;color:#fff}.wd-c.y{background:#e3a008;border-color:#e3a008;color:#fff}.wd-c.x{background:var(--mute);border-color:var(--mute);color:var(--card)}
+.wd-msg{text-align:center;min-height:22px;font-size:14px;margin-bottom:8px}.wd-kb{display:flex;flex-direction:column;gap:5px;max-width:480px;margin:0 auto}.wd-kr{display:flex;gap:4px;justify-content:center}
+.wd-k{all:unset;box-sizing:border-box;cursor:pointer;flex:1;max-width:42px;height:46px;border-radius:8px;background:var(--th);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;user-select:none}.wd-k.wide{max-width:64px;flex:1.5}
+.wd-k.g{background:#2fa463;color:#fff}.wd-k.y{background:#e3a008;color:#fff}.wd-k.x{background:var(--mute);color:var(--card)}.wd-k:focus-visible{outline:3px solid var(--acc)}
 .gm-res{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
 .gm-res .big{font-size:28px;font-weight:800;color:var(--acc);font-variant-numeric:tabular-nums}
 @media (prefers-reduced-motion:reduce){.gm-mc .in,.gm-card{transition:none}}`;
@@ -219,11 +225,53 @@ function gameMem(v){
         setTimeout(()=>{unlock();showResult(L("Semua pasangan ketemu!","All pairs found!"),moves+" "+L("langkah","moves"),[bestLine(r,x=>x+" "+L("langkah","moves")),L("Waktu: ","Time: ")+Math.floor(secs/60)+":"+String(secs%60).padStart(2,"0"),L("Paling sedikit bisa 8 langkah kalau hoki. 😄","The minimum is 8 moves if you're lucky. 😄")],()=>gameMem($("view")))},450)}}
     else{busy=true;setTimeout(()=>{a.classList.remove("open");c.classList.remove("open");a.setAttribute("aria-label",L("Kartu tertutup","Hidden card"));c.setAttribute("aria-label",L("Kartu tertutup","Hidden card"));busy=false},750)}})}
 
+
+/* =====================================================================
+   4) TEBAK KATA (5 huruf, 6 kesempatan). Kata harian sama untuk semua akun.
+   ===================================================================== */
+const KATA="RUMAH MAKAN MINUM TIDUR KERJA DUNIA CINTA RINDU SENJA MALAM SIANG HUJAN PANAS ANGIN BULAN BEBEK TELUR GARAM JERUK NANAS SALAK DUREN BAKSO GULAI BUBUR TEMPE SAYUR BAYAM BERAS MERAH PUTIH HITAM HIJAU PERAK HARGA MURAH MAHAL HEMAT UTANG BAYAR PASAR KASIR STRUK SALDO BUNGA MODAL PAJAK DEBIT RAPAT TUGAS KELAS DOSEN KURSI PINTU LAMPU KAMAR DAPUR TAMAN JALAN MOTOR MOBIL BECAK KAPAL TIKET LIBUR SEDIH MARAH TAKUT MANIS PAHIT GURIH SEHAT SAKIT BADAN MULUT JAKET SABUN KASUR KUNCI GAJAH SINGA SEMUT LEBAH POHON PASIR TANAH DANAU HUTAN SAWAH KEBUN PAKAN PANEN BENIH PUPUK SEGAR KOTOR CEPAT DEKAT BESAR KECIL TEMAN PACAR KASIH PELUK JANJI SETIA MIMPI HARAP SABAR JUJUR CERIA MUSIK PESTA ACARA SABTU JUMAT KAMIS SENIN TAHUN WAKTU DETIK MENIT".split(" ");
+const kataHari=()=>{const n=Math.floor(new Date(tday()+"T00:00:00Z").getTime()/864e5);return KATA[(n*37+11)%KATA.length]};
+let wd=null;
+function gameWord(v,mode){
+  const daily=mode!=="free",td=tday(),g=G();
+  if(!wd||wd.daily!==daily||(daily&&wd.day!==td)){const done=daily&&g.wordDay===td;wd={daily,day:td,ans:daily?kataHari():KATA[Math.floor(Math.random()*KATA.length)],rows:done?(g.wordRows||[]):[],cur:"",over:done,saved:done}}
+  const score=(guess,ans)=>{const r=Array(5).fill("x"),a=ans.split("");guess.split("").forEach((c,i)=>{if(c===a[i]){r[i]="g";a[i]=null}});
+    guess.split("").forEach((c,i)=>{if(r[i]==="g")return;const j=a.indexOf(c);if(j>=0){r[i]="y";a[j]=null}});return r};
+  const keyState={};wd.rows.forEach(w=>score(w,wd.ans).forEach((s,i)=>{const c=w[i],o=keyState[c];if(s==="g"||(s==="y"&&o!=="g")||(!o))keyState[c]=s}));
+  const won=wd.rows.includes(wd.ans),lost=!won&&wd.rows.length>=6;wd.over=won||lost;
+  v.innerHTML=page(L("Game","Games"),"🔤 "+L("Tebak Kata","Word Guess"),`<button class="sm" id="gmBack">← ${L("Semua game","All games")}</button>`)+
+   `<div class="gm-top"><button class="sm${daily?" pri":""}" id="wdDaily">📅 ${L("Kata hari ini","Today's word")}</button><button class="sm${daily?"":" pri"}" id="wdFree">🔁 ${L("Latihan","Practice")}</button><span class="sp"></span><span class="crumb">${L("Menang","Wins")}: ${g.best?.wordWins||0} · 🔥 ${g.best?.wordStreak||0}</span></div>
+   <div class="wd-board">${[...Array(6)].map((_,r)=>{const w=wd.rows[r]||(r===wd.rows.length&&!wd.over?wd.cur.padEnd(5," "):"     "),s=wd.rows[r]?score(wd.rows[r],wd.ans):null;
+     return `<div class="wd-row">${[...Array(5)].map((_,i)=>`<div class="wd-c ${s?s[i]:(w[i]&&w[i]!==" "?"f":"")}">${w[i]&&w[i]!==" "?w[i]:""}</div>`).join("")}</div>`}).join("")}</div>
+   <div class="wd-msg" aria-live="polite">${won?"🎉 "+L("Benar! ","Correct! ")+wd.rows.length+"/6":lost?L("Jawabannya: ","The answer: ")+"<b>"+wd.ans+"</b>":daily?L("Kata hari ini sama untuk kamu dan Vina. Bandingkan skornya!","Today's word is the same for you and Vina. Compare scores!"):L("Mode latihan: kata acak, tidak masuk rekor.","Practice: random word, not counted.")}</div>
+   <div class="wd-kb">${["QWERTYUIOP","ASDFGHJKL","⏎ZXCVBNM⌫"].map(r=>`<div class="wd-kr">${[...r].map(k=>`<button class="wd-k ${keyState[k]||""}${k==="⏎"||k==="⌫"?" wide":""}" data-k="${k}" aria-label="${k==="⏎"?"Enter":k==="⌫"?"Backspace":k}">${k}</button>`).join("")}</div>`).join("")}</div>
+   ${wd.over?`<div class="tl-row" style="justify-content:center;margin-top:10px">${daily?`<button class="sm pri" id="wdShare">📋 ${L("Salin hasil","Copy result")}</button>`:""}<button class="sm" id="wdAgain">🔁 ${L("Main latihan","Play practice")}</button></div>`:""}
+   <p class="crumb" style="text-align:center">🟩 ${L("huruf & posisi benar","right letter, right spot")} · 🟨 ${L("huruf ada, posisi salah","in the word, wrong spot")} · ⬜ ${L("tidak ada","not in the word")}</p>`;
+  $("gmBack").onclick=()=>{removeEventListener("keydown",kd);unlock();wd=null;cur=null;render()};
+  $("wdDaily").onclick=()=>{wd=null;gameWord(v,"daily")};$("wdFree").onclick=()=>{wd=null;gameWord(v,"free")};
+  const ag=$("wdAgain");if(ag)ag.onclick=()=>{wd=null;gameWord(v,"free")};
+  const sh=$("wdShare");if(sh)sh.onclick=async()=>{const txt="🔤 Tebak Kata "+td+" "+(won?wd.rows.length:"X")+"/6\n"+wd.rows.map(w=>score(w,wd.ans).map(s=>({g:"🟩",y:"🟨",x:"⬜"})[s]).join("")).join("\n");
+    try{await navigator.clipboard.writeText(txt);status(L("Hasil disalin, kirim ke Vina!","Result copied, send it to Vina!"),"ok")}catch(e){alert(txt)}};
+  const press=async k=>{if(wd.over)return;
+    if(k==="⌫"){wd.cur=wd.cur.slice(0,-1)}else if(k==="⏎"){if(wd.cur.length<5){status(L("Kurang huruf: harus 5.","Not enough letters: needs 5."),"warn");return}
+      wd.rows.push(wd.cur);wd.cur="";status("");const w2=wd.rows.includes(wd.ans),l2=!w2&&wd.rows.length>=6;
+      if((w2||l2)&&!wd.saved){wd.saved=true;lock();
+        if(daily){const q=JSON.parse(JSON.stringify(window.QUEST||{claimed:{},owned:{},log:[]})),gg=q.games||{best:{},days:{},plays:0};gg.best=gg.best||{};gg.days=gg.days||{};
+          gg.wordDay=td;gg.wordRows=wd.rows.slice();gg.best.wordWins=(gg.best.wordWins||0)+(w2?1:0);gg.best.wordStreak=w2?(gg.best.wordStreak||0)+1:0;
+          gg.days[td]=(gg.days[td]||0)+1;gg.plays=(gg.plays||0)+1;q.games=gg;try{await col.doc("quest").set(q);window.QUEST=q}catch(e){}}
+        else await saveResult("wordfree",wd.rows.length,(a,b)=>a<b);
+        unlock()}}
+    else if(/^[A-Z]$/.test(k)&&wd.cur.length<5)wd.cur+=k;
+    gameWord(v,daily?"daily":"free")};
+  v.querySelectorAll("[data-k]").forEach(b=>b.onclick=()=>press(b.dataset.k));
+  removeEventListener("keydown",kd);kd=e=>{if(route!=="games"||cur!=="word"){removeEventListener("keydown",kd);return}if(e.target.matches&&e.target.matches("input,textarea"))return;
+    const k=e.key==="Enter"?"⏎":e.key==="Backspace"?"⌫":e.key.length===1?e.key.toUpperCase():"";if(k){e.preventDefault();press(k)}};addEventListener("keydown",kd)}
+let kd=()=>{};
 /* =====================================================================
    HUB
    ===================================================================== */
 let cur=null;
-const GAMES={coin:gameCoin,quiz:gameQuiz,mem:gameMem};
+const GAMES={coin:gameCoin,quiz:gameQuiz,mem:gameMem,word:v=>gameWord(v,"daily")};
 function vGames(v){
   if(cur&&GAMES[cur]){GAMES[cur](v);return}
   unlock();
@@ -233,6 +281,7 @@ function vGames(v){
    <div class="gm-hub">
     <button class="gm-card" data-g="coin"><span class="ic">🪙</span><b>${L("Tangkap Koin","Coin Catch")}</b><span class="crumb">${L("Gerakkan temanmu untuk menangkap uang dan menghindari tagihan. Makin lama makin cepat.","Move your buddy to catch money and dodge bills. It speeds up over time.")}</span><span class="best">${L("Rekor","Record")}: ${g.best?.coin!=null?rpx(g.best.coin):"–"}</span></button>
     <button class="gm-card" data-g="quiz"><span class="ic">🧾</span><b>${L("Kuis Debit-Kredit","Debit-Credit Quiz")}</b><span class="crumb">${L("10 transaksi sehari-hari pakai rekening & akun di aplikasimu. Pilih jurnal yang benar.","10 everyday transactions using your own accounts. Pick the correct journal entry.")}</span><span class="best">${L("Rekor","Record")}: ${g.best?.quiz!=null?g.best.quiz+"/10":"–"}</span></button>
+    <button class="gm-card" data-g="word"><span class="ic">🔤</span><b>${L("Tebak Kata","Word Guess")}</b><span class="crumb">${L("Tebak kata 5 huruf dalam 6 kali. Kata harian sama untuk kamu dan Vina.","Guess the 5-letter word in 6 tries. The daily word is the same for you and Vina.")}</span><span class="best">${g.wordDay===tday()?L("Hari ini sudah ✓","Done today ✓"):L("Kata baru tersedia!","New word available!")}</span></button>
     <button class="gm-card" data-g="mem"><span class="ic">🧠</span><b>${L("Memori Stiker","Sticker Memory")}</b><span class="crumb">${L("Cari 8 pasang karakter, termasuk Vina dan El. Makin sedikit langkah makin bagus.","Find 8 pairs of characters, including Vina and El. Fewer moves wins.")}</span><span class="best">${L("Rekor","Record")}: ${g.best?.mem!=null?g.best.mem+" "+L("langkah","moves"):"–"}</span></button>
    </div>
    <div class="tiles" style="margin-top:12px"><div class="tile"><div class="k">${L("Total main","Total plays")}</div><div class="v">${g.plays||0}</div><div class="s">${L("30× = achievement Gamer rajin","30× = Dedicated gamer achievement")}</div></div></div>`;

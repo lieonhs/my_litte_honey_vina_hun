@@ -460,7 +460,7 @@ document.addEventListener("visibilitychange",()=>{if(!document.hidden)checkRemin
 /* ---------- dua aplikasi: Keuangan & Harian ---------- */
 const SCHED_ROUTES=new Set(["today","sched","diary","notes"]);
 let appMode=(()=>{try{return localStorage.getItem("bbp_app")||"fin"}catch(e){return "fin"}})();
-const SHARED=new Set(["guide","quest","album","look","games","tools","t_moment","t_split","t_wish","t_habit","t_wheel","t_calc","t_learn","t_quote","t_focus"]);
+const SHARED=new Set(["guide","quest","album","look","games","tools","t_moment","t_split","t_wish","t_habit","t_wheel","t_calc","t_learn","t_quote","t_focus","t_mood","t_capsule","t_bucket","t_cards","t_fx"]);
 const modeOf=r=>SCHED_ROUTES.has(r)?"sched":(SHARED.has(r)?appMode:"fin");
 function drawSwitch(){const hdr=document.querySelector("header");if(!hdr)return;let sw=hdr.querySelector(".appsw");
   if(!sw){sw=document.createElement("div");sw.className="appsw";sw.innerHTML='<button data-app="fin">💰 Jurnal Keuangan</button><button data-app="sched">📔 Jurnal Harian</button>';
