@@ -77,6 +77,7 @@ async function loadInbox(){const {data,error}=await sb.rpc("ravi_inbox");if(erro
       last:r.last_id?{id:r.last_id,sender:r.last_sender,body:r.last_body,img:r.last_img,created_at:r.last_at}:null,at:r.last_at});
     CH.convs.set(c.id,c);typingChan(c.id)}
   for(const k of [...CH.convs.keys()])if(!keep.has(k))CH.convs.delete(k);
+  if([...CH.convs.values()].some(c=>(c.members||[]).some(x=>!R.S.members[x.u])))await R.loadMembers().catch(()=>{});
   badge()}
 function scheduleInbox(){clearTimeout(CH.inboxT);CH.inboxT=setTimeout(()=>loadInbox().then(()=>{paintInbox();paintHead()}).catch(()=>{}),400)}
 async function loadMsgs(cid,before){const st=CH.msgs.get(cid)||{list:[],more:true,loading:false};CH.msgs.set(cid,st);if(st.loading)return st;st.loading=true;
@@ -88,7 +89,7 @@ async function loadMsgs(cid,before){const st=CH.msgs.get(cid)||{list:[],more:tru
     if(!before)st.loaded=true;return add}finally{st.loading=false}}
 function storeMsg(m){const st=CH.msgs.get(m.conv_id);if(!st||!st.loaded)return false;const i=st.list.findIndex(x=>x.id===m.id);if(i>=0){st.list[i]=m;return "upd"}st.list.push(m);return "add"}
 const unreadTotal=()=>[...CH.convs.values()].reduce((s,c)=>s+(c.unread||0),0);
-function badge(){const n=unreadTotal();const a=document.querySelector('aside a[data-r="chat"]');if(a){let b=a.querySelector(".qbadge");if(n&&!b){b=document.createElement("span");b.className="qbadge";a.appendChild(b)}if(b){if(n)b.textContent=n>99?"99+":n;else b.remove()}}
+function badge(){const n=unreadTotal();const rl=document.getElementById("rlUn");if(rl){rl.hidden=!n;rl.textContent=n>99?"99+":n}const a=document.querySelector('aside a[data-r="chat"]');if(a){let b=a.querySelector(".qbadge");if(n&&!b){b=document.createElement("span");b.className="qbadge";a.appendChild(b)}if(b){if(n)b.textContent=n>99?"99+":n;else b.remove()}}
   document.dispatchEvent(new CustomEvent("ravi-unread",{detail:n}))}
 
 /* ---------- realtime ---------- */
@@ -191,6 +192,23 @@ const css=document.createElement("style");css.textContent=`
 .cx-fab{position:fixed;right:max(18px,env(safe-area-inset-right,0px));bottom:calc(88px + env(safe-area-inset-bottom,0px));z-index:45;width:56px;height:56px;border-radius:18px;border:0;background:var(--acc);color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 18px color-mix(in srgb,var(--acc) 45%,transparent);cursor:pointer}
 @media (min-width:861px){.cx-fab{display:none}}
 .cx-blank{margin:auto;text-align:center;color:var(--mute);max-width:34ch;padding:20px;font-size:14px;line-height:1.5}
+/* ---- tampilan laptop ala WhatsApp Web: layar penuh + rel ikon ---- */
+.cx-rail{display:none}
+@media (min-width:861px){
+ html.cx-desk header,html.cx-desk aside#nav,html.cx-desk #tabbar,html.cx-desk .ms-hbtn{display:none!important}
+ html.cx-desk body{overflow:hidden}
+ html.cx-desk .cx{position:fixed;inset:0;z-index:40;height:auto;min-height:0;border:0;border-radius:0;grid-template-columns:64px minmax(320px,30%) 1fr}
+ .cx-rail{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 0;background:var(--th);border-right:1px solid var(--line)}
+ .rl{all:unset;cursor:pointer;width:44px;height:44px;border-radius:99px;display:flex;align-items:center;justify-content:center;color:var(--mute);position:relative;font-size:20px}
+ .rl:hover,.rl:focus-visible{background:color-mix(in srgb,var(--ink) 8%,transparent)}.rl.on{background:color-mix(in srgb,var(--ink) 12%,transparent);color:var(--ink)}
+ .rl .rb{position:absolute;top:2px;right:2px;min-width:16px;height:16px;border-radius:99px;background:#25d366;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 3px}.rl .rb[hidden]{display:none}
+ .rl.me .rv-av{width:34px;height:34px}
+ html.cx-desk .cx-top h1{font-size:21px}
+ html.cx-desk .cx-inbox{background:var(--card)}
+ html.cx-desk .rm-h{min-height:60px;padding-left:14px} html.cx-desk #rmBack{display:none}
+ html.cx-desk .rm-list{padding:8px 7% 10px}
+ html.cx-desk #status:not(:empty){position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:60;max-width:min(560px,90vw)}
+}
 /* ---- ruang chat ---- */
 .rm{display:flex;flex-direction:column;height:100%;min-height:0;position:relative;background:var(--bg);--bubMe:color-mix(in srgb,var(--acc) 26%,var(--card));--bubMeInk:var(--ink);--bubThem:var(--card)}
 .rm-h{display:flex;align-items:center;gap:6px;padding:8px 8px 8px 4px;background:var(--card);border-bottom:1px solid var(--line);min-height:58px;z-index:3}
@@ -360,7 +378,16 @@ let filt="all";
 function viewChat(v){
   R.withInit(v,"💬 Chat",()=>{init().then(()=>drawShell(v)).catch(()=>R.setupCard(v,"💬 Chat"))})}
 function drawShell(v){
-  v.innerHTML=`<div class="cx" id="cx"><section class="cx-inbox" aria-label="${L("Daftar chat","Chat list")}">
+  const unN=window.RAVI_NOTIF_COUNT?window.RAVI_NOTIF_COUNT():0;
+  v.innerHTML=`<div class="cx" id="cx"><nav class="cx-rail" aria-label="${L("Navigasi chat","Chat navigation")}">
+     <button class="rl on" data-rl="chat" title="Chat" aria-label="Chat"><svg class="ico" viewBox="0 0 24 24" width="24" height="24"><path d="M4 5h16v11H8l-4 4z"/></svg><span class="rb" id="rlUn" hidden></span></button>
+     <button class="rl" data-rl="calls" title="${L("Panggilan","Calls")}" aria-label="${L("Panggilan","Calls")}">${ic("phone",24)}</button>
+     <button class="rl" data-rl="notif" title="${L("Notifikasi","Notifications")}" aria-label="${L("Notifikasi","Notifications")}">${ic("bell",24)}<span class="rb" id="rlNf"${unN?"":" hidden"}>${unN||""}</span></button>
+     ${R.isPartner(CH.me)?`<button class="rl" data-rl="feed" title="Feed" aria-label="Feed">${ic("img",24)}</button>`:""}
+     <span style="flex:1"></span>
+     <button class="rl" data-rl="dash" title="${L("Kembali ke RaVi","Back to RaVi")}" aria-label="${L("Kembali ke RaVi","Back to RaVi")}">🏠</button>
+     <button class="rl me" data-rl="security" title="${L("Akun & keamanan","Account & security")}" aria-label="${L("Akun & keamanan","Account & security")}">${R.avatar(CH.me,34)}</button></nav>
+    <section class="cx-inbox" aria-label="${L("Daftar chat","Chat list")}">
      <div class="cx-top"><h1>💬 Chat</h1>
       <button class="cx-ib" id="cxCalls" aria-label="${L("Log panggilan","Call log")}" title="${L("Log panggilan","Call log")}">${ic("call")}</button>
       <button class="cx-ib" id="cxBell" aria-label="${L("Notifikasi","Notifications")}" title="${L("Notifikasi","Notifications")}">${ic("bell")}<span class="bdg" hidden></span></button>
@@ -375,11 +402,13 @@ function drawShell(v){
   const q=$$("#cxQ",v);q.value=CH.q;q.oninput=()=>{CH.q=q.value;paintInbox()};
   v.querySelectorAll("[data-f]").forEach(b=>b.onclick=()=>{filt=b.dataset.f;v.querySelectorAll("[data-f]").forEach(x=>x.classList.toggle("on",x===b));paintInbox()});
   $$("#cxNew",v).onclick=$$("#cxFab",v).onclick=newChatSheet;const ad=$$("#cxAdd",v);if(ad)ad.onclick=()=>window.RAVI_INVITE?window.RAVI_INVITE():addMemberSheet();
+  v.querySelectorAll("[data-rl]").forEach(b=>b.onclick=()=>{const r=b.dataset.rl;if(r==="chat")return;if(r==="calls"){window.RAVI_NOTIF_TAB="calls";go("notif");return}go(r)});
+  document.documentElement.classList.add("cx-desk");
   $$("#cxBell",v).onclick=()=>go("notif");$$("#cxCalls",v).onclick=()=>{window.RAVI_NOTIF_TAB="calls";go("notif")};
   paintInbox();paintNotes();paintBell();
   if(CH.open&&CH.convs.has(CH.open))drawRoom(CH.open,true);
   else if(!mobile()){const first=[...CH.convs.values()].sort((a,b)=>Date.parse(b.at||0)-Date.parse(a.at||0))[0];if(first)openRoom(first.id,{noHist:true})}}
-function paintBell(){const b=$$("#cxBell .bdg");if(!b)return;const n=window.RAVI_NOTIF_COUNT?window.RAVI_NOTIF_COUNT():0;b.hidden=!n;b.textContent=n>9?"9+":n}
+function paintBell(){const n=window.RAVI_NOTIF_COUNT?window.RAVI_NOTIF_COUNT():0;const r=document.getElementById("rlNf");if(r){r.hidden=!n;r.textContent=n>9?"9+":n}const b=$$("#cxBell .bdg");if(!b)return;b.hidden=!n;b.textContent=n>9?"9+":n}
 document.addEventListener("ravi-notif",paintBell);
 function paintNotes(){const box=$$("#cxNotes");if(!box)return;box.innerHTML="";
   const st=E2()?E2().state():"err";
@@ -764,8 +793,9 @@ function addMemberSheet(){
       btn.disabled=true;btn.textContent="…";try{await window.RAVI_FN({action:"add_member",name:n,email:e,password:p});await R.loadMembers();status(L("Anggota ditambahkan: ","Member added: ")+n,"ok")}catch(err){return fail(err.message||String(err))}},L("Tambah","Add"))}
 function contactInfo(u){if(!u)return;const mem=R.S.members[u]||{};
   const bg=modal(R.name(u),`<div style="display:flex;flex-direction:column;align-items:center;gap:6px;margin-bottom:10px">${R.avatar(u,96)}<div class="crumb">${PR()&&PR().online(u)?"🟢 online":esc(lastSeenTxt(mem.last_seen))}</div>${mem.partner&&R.S.members[CH.me]?.partner?`<div class="pill p-ok">💑 ${L("Pasangan","Partner")}</div>`:""}</div>
-    <div class="act-list" style="display:flex;flex-direction:column;gap:6px"><button class="sm" data-a="sc">🔐 ${L("Kode keamanan enkripsi","Encryption security code")}</button><button class="sm" data-a="star">⭐ ${L("Pesan berbintang","Starred messages")}</button><button class="sm" data-a="wp">🖼️ Wallpaper</button></div>`,()=>true,"OK");
+    <div class="act-list" style="display:flex;flex-direction:column;gap:6px"><button class="sm" data-a="sc">🔐 ${L("Kode keamanan enkripsi","Encryption security code")}</button><button class="sm" data-a="star">⭐ ${L("Pesan berbintang","Starred messages")}</button><button class="sm" data-a="wp">🖼️ Wallpaper</button>${R.S.members[CH.me]?.role==="admin"&&!mem.partner?`<button class="sm" data-a="kick" style="color:var(--red)">🚫 ${L("Keluarkan dari RaVi","Remove from RaVi")}</button>`:""}</div>`,()=>true,"OK");
   const cc=bg.querySelector(".c");if(cc)cc.style.display="none";
+  const kk=bg.querySelector('[data-a="kick"]');if(kk)kk.onclick=()=>{bg.remove();window.RAVI_REMOVE_MEMBER&&window.RAVI_REMOVE_MEMBER(u,()=>{scheduleInbox()})};
   bg.querySelector('[data-a="sc"]').onclick=()=>{bg.remove();E2()&&E2().safetyDialog(u,R.name(u))};
   bg.querySelector('[data-a="star"]').onclick=()=>{bg.remove();starredSheet()};bg.querySelector('[data-a="wp"]').onclick=()=>{bg.remove();wallSheet()}}
 function groupInfo(c){const ms=active(c),meAdmin=(ms.find(x=>x.u===CH.me)||{}).r==="admin";
@@ -818,7 +848,7 @@ window.EXTRA_VIEWS=Object.assign(window.EXTRA_VIEWS||{},{chat:v=>{try{viewChat(v
 if(window.TOOL_ROUTES)window.TOOL_ROUTES.add("chat");
 /* jangan render ulang halaman chat karena data keuangan berubah */
 if(typeof render==="function"){const _r=render;render=function(){if(route==="chat"&&CH.ready&&document.getElementById("cx")&&!render._cx){renderNav();badge();return}return _r.apply(this,arguments)}}
-const _go=go;go=function(r){if(r!=="chat"&&CH.open){closeRoom(true);if(history.state&&history.state.cx)history.replaceState(null,"")}
+const _go=go;go=function(r){if(r!=="chat")document.documentElement.classList.remove("cx-desk");if(r!=="chat"&&CH.open){closeRoom(true);if(history.state&&history.state.cx)history.replaceState(null,"")}
   if(r==="chat"&&route==="chat"&&document.getElementById("cx")){if(CH.open&&mobile())closeRoom();return}
   render._cx=true;try{return _go.apply(this,arguments)}finally{render._cx=false}};
 addEventListener("resize",()=>{if(!CH.open)document.documentElement.classList.remove("cx-full");else if(mobile())document.documentElement.classList.add("cx-full");else document.documentElement.classList.remove("cx-full")});

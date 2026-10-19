@@ -137,12 +137,34 @@ Deno.serve(async (req) => {
     if (cErr) {
       if (!/already|registered|exists/i.test(cErr.message)) return json({ error: cErr.message }, 400);
       const { data: list } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-      uid = list?.users?.find((u) => (u.email ?? "").toLowerCase() === email)?.id ?? null;
+      const found = list?.users?.find((u) => (u.email ?? "").toLowerCase() === email);
+      uid = found?.id ?? null;
       if (!uid) return json({ error: cErr.message }, 400);
+      if (members?.some((m) => m.user_id === uid)) return json({ error: "Email ini sudah jadi anggota RaVi." }, 400);
+      // hanya akun yang dulu DIKELUARKAN (diblokir) yang boleh dipulihkan dengan password baru
+      const banned = (found as { banned_until?: string | null }).banned_until;
+      if (!banned || new Date(banned) < new Date()) return json({ error: "Email ini sudah terdaftar. Minta orangnya login, atau pakai link undangan dengan email lain." }, 400);
+      await admin.auth.admin.updateUserById(uid, { ban_duration: "none", password });
     } else uid = cu.user?.id ?? null;
     const { error: iErr } = await admin.from("couple_members").upsert({ user_id: uid, name }, { onConflict: "user_id", ignoreDuplicates: true });
     if (iErr) return json({ error: iErr.message }, 500);
     return json({ ok: true, user_id: uid });
+  }
+
+  // 6) Admin mengeluarkan anggota: hapus keanggotaan, cabut akses chat, blokir login (sesi aktif ikut keluar).
+  if (body.action === "remove_member") {
+    if (me.role !== "admin") return json({ error: "Hanya admin RaVi yang bisa mengeluarkan anggota." }, 403);
+    const uid = String((body as { user_id?: string }).user_id ?? "");
+    const target = members?.find((m) => m.user_id === uid);
+    if (!target) return json({ error: "Anggota tidak ditemukan." }, 404);
+    if (uid === user.id) return json({ error: "Tidak bisa mengeluarkan diri sendiri." }, 400);
+    if (target.partner) return json({ error: "Akun pasangan tidak bisa dikeluarkan dari sini." }, 400);
+    const { error: bErr } = await admin.auth.admin.updateUserById(uid, { ban_duration: "876000h" });
+    if (bErr) return json({ error: bErr.message }, 500);
+    await admin.from("couple_conv_members").update({ role: "left" }).eq("user_id", uid);
+    await admin.from("push_subs").delete().eq("user_id", uid);
+    await admin.from("couple_members").delete().eq("user_id", uid);
+    return json({ ok: true });
   }
 
   return json({ error: "action tidak dikenal" }, 400);

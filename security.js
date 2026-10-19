@@ -119,10 +119,12 @@ async function vSecurity(v){
     box.innerHTML=`<div class="sec-row"><span class="ic">${ok?"🔐":"🔒"}</span><div class="tx"><b>${ok?L("Aktif di perangkat ini","Active on this device"):st==="nokey"?L("Belum dibuat","Not created yet"):st==="needpw"?L("Terkunci di perangkat ini","Locked on this device"):L("Tidak tersedia","Unavailable")}</b>
       <div class="crumb">${L("Kunci enkripsi milik akunmu, dikunci dengan password login. Login di HP/laptop mana pun → masukkan password sekali → semua chat terbaca. Server hanya menyimpan versi terkunci.","Your account's encryption key, locked with your sign-in password. Sign in on any phone/laptop → enter the password once → every chat opens. The server only stores the locked version.")}</div></div>
       ${ok?"":`<button class="sm pri" id="e3Open">${st==="nokey"?L("Aktifkan","Turn on"):L("Buka","Unlock")}</button>`}</div>
-     ${window.RS&&RS.S.members[RS.S.me]?.role==="admin"?`<div class="sec-row"><span class="ic">👥</span><div class="tx"><b>${L("Anggota RaVi","RaVi members")} (${Object.keys(RS.S.members).length})</b><div class="crumb">${Object.values(RS.S.members).map(m=>esc(m.name||"?")+(m.role==="admin"?" (admin)":"")).join(", ")}</div></div><button class="sm pri" id="addMem">✉️ ${L("Undang","Invite")}</button></div>`:""}
+     ${window.RS&&RS.S.members[RS.S.me]?.role==="admin"?`<div class="sec-row"><span class="ic">👥</span><div class="tx"><b>${L("Anggota RaVi","RaVi members")} (${Object.keys(RS.S.members).length})</b>
+        ${Object.values(RS.S.members).map(m=>`<div class="tl-row" style="justify-content:space-between;margin-top:6px;gap:6px"><span class="crumb" style="font-size:13.5px;color:var(--ink)">${esc(m.name||"?")}${m.role==="admin"?" · admin":""}${m.partner?" · 💑":""}</span>${!m.partner&&m.user_id!==RS.S.me?`<button class="sm" data-kick="${m.user_id}" style="color:var(--red)">${L("Keluarkan","Remove")}</button>`:""}</div>`).join("")}</div><button class="sm pri" id="addMem">✉️ ${L("Undang","Invite")}</button></div>`:""}
      <div class="sec-row"><span class="ic">🔑</span><div class="tx"><b>${L("Ganti password login","Change sign-in password")}</b><div class="crumb">${L("Kunci enkripsi ikut dikunci ulang dengan password baru, jadi pesan lama tetap terbaca. Jangan ganti lewat email reset kecuali lupa.","The encryption key is re-locked with the new password, so old messages stay readable. Don't use the email reset unless you forgot it.")}</div></div><button class="sm" id="pwChange">${L("Ganti","Change")}</button></div>
      <div class="sec-row"><span class="ic">♻️</span><div class="tx"><b>${L("Buat kunci baru (lupa password)","New key (forgot password)")}</b><div class="crumb">${L("Pakai hanya kalau password sudah direset lewat email. Pesan terenkripsi lama tidak bisa dibuka lagi; kontakmu akan melihat “kode keamanan berubah”.","Only if your password was reset by email. Old encrypted messages can't be opened anymore; your contacts will see “security code changed”.")}</div></div><button class="sm" id="keyReset">${L("Buat ulang","Reset")}</button></div>`;
     const am=document.getElementById("addMem");if(am)am.onclick=()=>window.RAVI_CHAT&&window.RAVI_CHAT.addMember();
+    box.querySelectorAll("[data-kick]").forEach(b=>b.onclick=()=>window.RAVI_REMOVE_MEMBER(b.dataset.kick,()=>vSecurity(v)));
     const o=document.getElementById("e3Open");if(o)o.onclick=async()=>{if(await E.unlockDialog())vSecurity(v)};
     document.getElementById("pwChange").onclick=()=>modal(L("Ganti password","Change password"),`<label>${L("Password sekarang","Current password")}</label><input type="password" id="pwO" autocomplete="current-password"><label style="margin-top:8px">${L("Password baru (min. 12)","New password (min. 12)")}</label><input type="password" id="pwN" autocomplete="new-password"><label style="margin-top:8px">${L("Ulangi password baru","Repeat new password")}</label><input type="password" id="pwN2" autocomplete="new-password"><div class="msg err hide" id="pwM" style="margin-top:8px"></div>`,
       async g=>{const O=g.querySelector("#pwO").value,N=g.querySelector("#pwN").value,m=g.querySelector("#pwM");const fail=t=>{m.textContent=t;m.classList.remove("hide");return false};
@@ -157,4 +159,31 @@ async function vSecurity(v){
 
 window.EXTRA_VIEWS=Object.assign(window.EXTRA_VIEWS||{},{security:v=>{vSecurity(v).catch(e=>{v.innerHTML='<div class="msg err">'+esc(e.message||String(e))+'</div>'})}});
 const bantu=NAV.find(([g])=>g==="Bantuan");if(bantu)bantu[1].push(["security","Keamanan"]);else NAV.push(["Bantuan",[["security","Keamanan"]]]);
+})();
+
+/* =====================================================================
+   KELUARKAN ANGGOTA + PENJAGA SESI
+   Admin mengeluarkan anggota → akunnya diblokir & keanggotaannya dihapus.
+   Di perangkat orang itu, aplikasi mengecek tiap 30 detik / saat dibuka lagi:
+   kalau sudah bukan anggota → otomatis keluar (seperti cek Session di server).
+   ===================================================================== */
+(function(){
+const EN=()=>{try{return localStorage.getItem("bbp_lang")==="en"}catch(e){return false}};
+const L=(id,en)=>EN()?en:id;
+window.RAVI_REMOVE_MEMBER=(uid,done)=>{const n=window.RS?RS.name(uid):"";
+  modal(L("Keluarkan ","Remove ")+n+"?",`<div class="crumb" style="line-height:1.5">${L("Dia langsung keluar dari RaVi di semua perangkatnya, tidak bisa login lagi, dan hilang dari semua chat & grup. Riwayat chat tetap tersimpan. Kalau mau memasukkan lagi, pakai Undang → manual dengan email yang sama.","They're signed out of RaVi on all devices right away, can't sign in again, and are removed from every chat and group. Chat history stays. To bring them back, use Invite → manual with the same email.")}</div>`,
+    async()=>{try{await window.RAVI_FN({action:"remove_member",user_id:uid});if(window.RS)await RS.loadMembers();status(n+L(" sudah dikeluarkan."," was removed."),"ok");done&&done()}catch(e){alert(e.message||String(e));return false}},L("Keluarkan","Remove"))};
+let busy=false,was=null;
+async function guard(){if(busy||typeof sb==="undefined"||!sb||typeof col==="undefined"||!col)return;busy=true;
+  try{const {data:s}=await sb.auth.getSession();if(!s||!s.session)return;
+    const {data,error}=await sb.rpc("is_couple");if(error)return;      /* jaringan putus ≠ dikeluarkan */
+    if(data===true){was=true;return}
+    if(data===false&&was!==false){was=false;try{localStorage.setItem("ravi_kicked","1")}catch(e){}await sb.auth.signOut();location.reload()}}
+  catch(e){}finally{busy=false}}
+setInterval(()=>{if(!document.hidden)guard()},30000);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)guard()});
+addEventListener("load",()=>setTimeout(guard,4000));
+/* pesan di layar login */
+if(typeof showLogin==="function"){const _sl=showLogin;showLogin=function(msg){let k=null;try{k=localStorage.getItem("ravi_kicked");localStorage.removeItem("ravi_kicked")}catch(e){}
+  return _sl.call(this,k?L("Akunmu sudah dikeluarkan dari RaVi oleh admin.","Your account was removed from RaVi by the admin."):msg)}}
 })();

@@ -518,7 +518,7 @@ function showLogin(msg){
    <button class="pri" id="lg_b" style="width:100%;margin-top:14px;min-height:42px">Masuk</button></div></div>`;
   const go2=async()=>{$("lg_b").disabled=true;window.__ravi_pw=$("lg_p").value; /* dipakai sekali oleh e2ee.js untuk membuka kunci enkripsi akun, lalu dihapus */
     const {error}=await sb.auth.signInWithPassword({email:$("lg_e").value.trim(),password:$("lg_p").value});
-    if(error){window.__ravi_pw=undefined;$("lg_m").textContent="Gagal masuk: "+error.message;$("lg_m").classList.remove("hide");$("lg_b").disabled=false}};
+    if(error){window.__ravi_pw=undefined;$("lg_m").textContent=/banned/i.test(error.message||"")?"Akun ini sudah dikeluarkan dari RaVi oleh admin.":"Gagal masuk: "+error.message;$("lg_m").classList.remove("hide");$("lg_b").disabled=false}};
   $("lg_b").onclick=go2;$("lg_p").onkeydown=e=>{if(e.key==="Enter")go2()}}
 
 /* ---------- 2FA (TOTP): kalau akun punya 2FA, minta kode sebelum data dimuat ---------- */
