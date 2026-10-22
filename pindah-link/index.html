@@ -3,8 +3,8 @@
 <title>Talk&amp;Talk pindah alamat</title>
 <style>body{font-family:system-ui,sans-serif;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0;background:#fff7fb;color:#2d2340;text-align:center}a{color:#ff6fa8;font-weight:700}</style>
 <script>
-/* Alamat lama → alamat baru. Ganti NAMA_REPO_BARU di bawah. Link undangan (?invite=...) ikut dibawa. */
-var BARU="https://lieonhs.github.io/NAMA_REPO_BARU/";
+/* Alamat lama → alamat baru. Link undangan (?invite=...) ikut dibawa. */
+var BARU="https://lieonhs.github.io/talkandtalk/";
 try{navigator.serviceWorker&&navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){if(r.scope.indexOf("/my_litte_honey_vina_hun/")>-1)r.unregister()})})}catch(e){}
 setTimeout(function(){location.replace(BARU+location.search+location.hash)},300);
 </script></head>
